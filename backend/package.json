@@ -1,0 +1,64 @@
+{
+  "name": "locker-management-backend",
+  "version": "1.0.0",
+  "description": "Production-ready Locker Management API",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "type-check": "tsc --noEmit",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "npm run build && node --test test/*.test.cjs",
+    "test:integration": "vitest run test/integration",
+    "seed": "tsx src/seed/seed.ts"
+  },
+  "keywords": [
+    "locker",
+    "vault",
+    "management",
+    "express",
+    "typescript",
+    "mongoose"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@img/sharp-wasm32": "^0.35.4",
+    "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.7.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "morgan": "^1.10.0",
+    "multer": "^2.2.0",
+    "pdfkit": "^0.17.2",
+    "sharp": "^0.35.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.8",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.10.7",
+    "@types/pdfkit": "^0.17.5",
+    "@types/supertest": "^6.0.3",
+    "mongodb-memory-server": "^10.2.0",
+    "supertest": "^7.1.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "uuid": "^11.1.0"
+  }
+}

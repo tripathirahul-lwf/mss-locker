@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { authenticate, requirePermission } from '../middlewares/auth';
+import { PERMISSIONS } from '../constants/permissions';
+import { getSettings, reviseTariff, tariffHistory, updateSettings } from '../controllers/setting.controller';
+const router = Router();
+router.use(authenticate);
+router.get('/', requirePermission(PERMISSIONS.SETTINGS_VIEW), getSettings);
+router.put('/', requirePermission(PERMISSIONS.SETTINGS_MANAGE), updateSettings);
+router.get('/tariffs/:size/history', requirePermission(PERMISSIONS.SETTINGS_VIEW), tariffHistory);
+router.post('/tariffs/revisions', requirePermission(PERMISSIONS.SETTINGS_MANAGE), reviseTariff);
+export default router;

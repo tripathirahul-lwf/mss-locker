@@ -1,0 +1,13 @@
+import { NextFunction, Request, Response } from 'express';
+import { z } from 'zod';
+import { settingService } from '../services/setting.service';
+import { successResponse } from '../utils/apiResponse';
+import { recordAuditLog } from '../utils/auditLogger';
+
+const settingsSchema = z.object({ businessName: z.string().trim().min(1).max(120), branchName: z.string().trim().max(120), address: z.string().trim().max(500), gstin: z.string().trim().toUpperCase().regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$|^$/, 'Invalid GSTIN'), invoicePrefix: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{2,12}$/), receiptPrefix: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{2,12}$/), renewalReminderDays: z.coerce.number().int().min(1).max(365), offlineCacheHours: z.coerce.number().int().min(1).max(168) }).strict();
+const tariffSchema = z.object({ size: z.enum(['A','B','B1','C','D','D1','E','F','F1','G','G1','G2']), annualRent: z.coerce.number().finite().min(0).max(10000000), securityDeposit: z.coerce.number().finite().min(0).max(10000000), effectiveFrom: z.coerce.date().refine((date) => date >= new Date(new Date().setHours(0, 0, 0, 0)), 'Effective date cannot be in the past'), notes: z.string().trim().max(500).optional() }).strict();
+
+export const getSettings = async (_req: Request, res: Response, next: NextFunction) => { try { res.json(successResponse('Settings retrieved', await settingService.get())); } catch (e) { next(e); } };
+export const updateSettings = async (req: Request, res: Response, next: NextFunction) => { try { const input = settingsSchema.parse(req.body); const data = await settingService.updateSettings(input, req.user!.userId); await recordAuditLog({ actorUserId: req.user!._id, actorUsername: req.user!.username, action: 'SETTINGS_UPDATED', entityType: 'SystemSetting', description: 'Business and system settings updated' }); res.json(successResponse('Settings updated', data)); } catch (e) { next(e); } };
+export const reviseTariff = async (req: Request, res: Response, next: NextFunction) => { try { const input = tariffSchema.parse(req.body); const data = await settingService.reviseTariff(input, req.user!.userId); await recordAuditLog({ actorUserId: req.user!._id, actorUsername: req.user!.username, action: 'TARIFF_REVISED', entityType: 'TariffPlan', entityId: data._id.toString(), description: `Tariff ${input.size} revised to version ${data.version}` }); res.status(201).json(successResponse('New tariff version activated', data)); } catch (e) { next(e); } };
+export const tariffHistory = async (req: Request, res: Response, next: NextFunction) => { try { res.json(successResponse('Tariff history retrieved', await settingService.history(String(req.params.size)))); } catch (e) { next(e); } };

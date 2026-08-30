@@ -1,0 +1,436 @@
+import React, { useState } from 'react';
+import {
+  FileText,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  Trash2,
+  Edit3,
+  ExternalLink,
+  ShieldCheck,
+  ShieldAlert,
+  Plus,
+  AlertOctagon,
+} from 'lucide-react';
+import {
+  CustomerKycDocument,
+  KycVerificationStatus,
+  VerifyKycDocumentInput,
+} from '../types';
+import { KYC_DOCUMENT_TYPES, KYC_VERIFICATION_CONFIG } from '../constants';
+import { Button } from '../../../components/ui/button';
+import { Badge } from '../../../components/ui/badge';
+import { usePermission } from '../../../hooks/usePermission';
+import { customerApi } from '../api/customerApi';
+
+interface KycDocumentListProps {
+  documents: CustomerKycDocument[];
+  isLoading: boolean;
+  onAddDocument: () => void;
+  onEditDocument: (doc: CustomerKycDocument) => void;
+  onVerifyDocument: (docId: string, input: VerifyKycDocumentInput) => Promise<void>;
+  onDeleteDocument: (docId: string) => Promise<void>;
+}
+
+export function KycDocumentList({
+  documents,
+  isLoading,
+  onAddDocument,
+  onEditDocument,
+  onVerifyDocument,
+  onDeleteDocument,
+}: KycDocumentListProps) {
+  const canManageKyc = usePermission('customers.kyc.manage');
+  const canVerifyKyc = usePermission('customers.kyc.verify');
+
+  const [selectedDocForVerify, setSelectedDocForVerify] =
+    useState<CustomerKycDocument | null>(null);
+  const [verifyStatus, setVerifyStatus] = useState<KycVerificationStatus>('VERIFIED');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [approvalConfirmed, setApprovalConfirmed] = useState(false);
+
+  const handleOpenVerifyModal = (
+    doc: CustomerKycDocument,
+    status: KycVerificationStatus
+  ) => {
+    setSelectedDocForVerify(doc);
+    setVerifyStatus(status);
+    setRejectionReason('');
+    setRemarks('');
+    setApprovalConfirmed(false);
+  };
+
+  const handleConfirmVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDocForVerify) return;
+
+    setIsProcessing(true);
+    try {
+      await onVerifyDocument(selectedDocForVerify._id, {
+        status: verifyStatus,
+        rejectionReason: verifyStatus === 'REJECTED' ? rejectionReason : undefined,
+        remarks: remarks.trim() || undefined,
+      });
+      setSelectedDocForVerify(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const getDocTypeLabel = (type: string) => {
+    const match = KYC_DOCUMENT_TYPES.find((d) => d.type === type);
+    return match ? match.label : type;
+  };
+
+  const getMaskedDocumentNumber = (doc: CustomerKycDocument) => {
+    if (doc.maskedDocumentNumber) return doc.maskedDocumentNumber;
+    const raw = doc.documentNumber || '';
+    if (!raw) return 'Not recorded';
+    const visible = raw.slice(-4);
+    return `${'X'.repeat(Math.max(4, raw.length - 4))}${visible}`;
+  };
+
+  const verifiedCount = documents.filter((doc) => doc.verificationStatus === 'VERIFIED').length;
+  const rejectedCount = documents.filter((doc) => doc.verificationStatus === 'REJECTED').length;
+  const pendingCount = documents.length - verifiedCount - rejectedCount;
+
+  return (
+    <div className="space-y-4">
+      {/* Action Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">
+            KYC Proof Documents
+          </h3>
+          <p className="text-xs text-slate-500">
+            Government proof of identity, address and photo documentation.
+          </p>
+        </div>
+
+        {canManageKyc && (
+          <Button
+            size="sm"
+            onClick={onAddDocument}
+            className="h-11 bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 text-xs font-semibold"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Upload Document</span>
+          </Button>
+        )}
+      </div>
+
+      {!isLoading && documents.length > 0 && (
+        <div className="grid grid-cols-3 gap-2" aria-label="KYC document summary">
+          <SummaryMetric label="Verified" value={verifiedCount} className="text-emerald-700 bg-emerald-50 border-emerald-200" />
+          <SummaryMetric label="Needs review" value={pendingCount} className="text-amber-700 bg-amber-50 border-amber-200" />
+          <SummaryMetric label="Rejected" value={rejectedCount} className="text-rose-700 bg-rose-50 border-rose-200" />
+        </div>
+      )}
+
+      {/* Documents Grid / List */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 2 }).map((_, idx) => (
+            <div
+              key={`kyc-skel-${idx}`}
+              className="h-32 bg-slate-100 rounded-xl animate-pulse border border-slate-200"
+            />
+          ))}
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="p-8 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-3">
+          <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center mx-auto text-slate-500">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-800">
+              No KYC Documents Uploaded
+            </p>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-0.5">
+              Upload customer's Aadhaar, PAN card, or Passport to initiate vault KYC compliance verification.
+            </p>
+          </div>
+          {canManageKyc && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAddDocument}
+              className="text-xs font-semibold"
+            >
+              Upload First Document
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {documents.map((doc) => {
+            const verConfig =
+              KYC_VERIFICATION_CONFIG[doc.verificationStatus] ||
+              KYC_VERIFICATION_CONFIG.PENDING;
+
+            return (
+              <div
+                key={doc._id}
+                className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-3 relative flex flex-col justify-between"
+              >
+                {/* Top Info */}
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-xs">
+                          {getDocTypeLabel(doc.documentType)}
+                        </h4>
+                        {doc.isPrimary && (
+                          <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">
+                            Primary Proof
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${verConfig.bg} ${verConfig.text} ${verConfig.border}`}
+                    >
+                      {verConfig.label}
+                    </span>
+                  </div>
+
+                  {/* Document Number Display */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                        Document ID
+                      </span>
+                      <span className="font-mono font-bold text-slate-800 text-xs tracking-wider">
+                        {getMaskedDocumentNumber(doc)}
+                      </span>
+                    </div>
+
+                    {doc.documentUrl && (
+                      <button
+                        type="button"
+                        onClick={() => customerApi.openProtectedFile(doc.documentUrl)}
+                        className="min-h-11 text-xs font-semibold text-sky-700 hover:text-sky-800 flex items-center gap-1 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-2xs hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        aria-label={`View ${getDocTypeLabel(doc.documentType)} file in a new tab`}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View File</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Verification Info / Rejection Details */}
+                  {doc.verificationStatus === 'VERIFIED' && (
+                    <div className="text-[11px] text-emerald-800 flex items-center gap-1.5 pt-0.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>
+                        Verified by <strong>{doc.verifiedBy?.name || 'Officer'}</strong>
+                        {doc.verifiedAt && (
+                          <> on {new Date(doc.verifiedAt).toLocaleDateString('en-IN')}</>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {doc.verificationStatus === 'REJECTED' && (
+                    <div className="text-[11px] text-rose-800 flex items-start gap-1.5 pt-0.5 bg-rose-50 p-2 rounded-lg border border-rose-200">
+                      <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong>Reason for Rejection:</strong>
+                        <p>{doc.rejectionReason || 'Document unreadable or invalid.'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {doc.remarks && (
+                    <p className="text-[11px] text-slate-500 italic">
+                      Remarks: {doc.remarks}
+                    </p>
+                  )}
+                </div>
+
+                {/* Card Actions */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    {canVerifyKyc && doc.verificationStatus !== 'VERIFIED' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenVerifyModal(doc, 'VERIFIED')}
+                        className="h-11 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 flex items-center gap-1"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Review & approve</span>
+                      </Button>
+                    )}
+
+                    {canVerifyKyc && doc.verificationStatus !== 'REJECTED' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenVerifyModal(doc, 'REJECTED')}
+                        className="h-11 text-xs text-rose-700 border-rose-300 hover:bg-rose-50 flex items-center gap-1"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Reject</span>
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {canManageKyc && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEditDocument(doc)}
+                        className="h-11 w-11 p-0 text-slate-500 hover:text-slate-900"
+                        title="Edit Details"
+                        aria-label={`Edit ${getDocTypeLabel(doc.documentType)}`}
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+
+                    {canManageKyc && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDeleteDocument(doc._id)}
+                        className="h-11 w-11 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                        title="Delete Document"
+                        aria-label={`Delete ${getDocTypeLabel(doc.documentType)}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Verification / Rejection Modal */}
+      {selectedDocForVerify && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm select-none">
+          <div role="dialog" aria-modal="true" aria-labelledby="kyc-verification-title" className="w-full max-w-md bg-white rounded-2xl p-5 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                {verifyStatus === 'VERIFIED' ? (
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                ) : (
+                  <ShieldAlert className="w-5 h-5 text-rose-600" />
+                )}
+                <h3 id="kyc-verification-title" className="text-sm font-bold text-slate-900">
+                  {verifyStatus === 'VERIFIED'
+                    ? 'Approve KYC Document'
+                    : 'Reject KYC Document'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDocForVerify(null)}
+                className="h-11 w-11 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Close verification dialog"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmVerification} className="space-y-3 text-xs">
+              <p className="text-slate-600">
+                You are performing counter verification for{' '}
+                <strong>
+                  {getDocTypeLabel(selectedDocForVerify.documentType)} (
+                  {getMaskedDocumentNumber(selectedDocForVerify)}
+                  )
+                </strong>
+                .
+              </p>
+
+              {verifyStatus === 'VERIFIED' && selectedDocForVerify.documentUrl && (
+                <button type="button" onClick={() => customerApi.openProtectedFile(selectedDocForVerify.documentUrl)} className="h-11 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white font-semibold text-sky-700 hover:bg-sky-50">
+                  <ExternalLink className="w-4 h-4" /> Open proof for review
+                </button>
+              )}
+
+              {verifyStatus === 'REJECTED' && (
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">
+                    Reason for Rejection <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="e.g. Scanned copy blurred, name mismatch with PAN database, or expired ID"
+                    required
+                    rows={3}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">Verification Notes</label>
+                <textarea
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  placeholder="Optional counter officer sign-off note"
+                  rows={2}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+
+              {verifyStatus === 'VERIFIED' && (
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-950 cursor-pointer">
+                  <input type="checkbox" checked={approvalConfirmed} onChange={(event) => setApprovalConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-emerald-600" />
+                  <span><strong className="block">I reviewed the original proof</strong><span className="text-[11px] text-emerald-800">The document is readable, valid and matches the customer record.</span></span>
+                </label>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedDocForVerify(null)}
+                  disabled={isProcessing}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isProcessing || (verifyStatus === 'VERIFIED' && !approvalConfirmed)}
+                  className={
+                    verifyStatus === 'VERIFIED'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  }
+                >
+                  {isProcessing
+                    ? 'Processing...'
+                    : verifyStatus === 'VERIFIED'
+                    ? 'Confirm & Approve'
+                    : 'Confirm Rejection'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value, className }: { label: string; value: number; className: string }) {
+  return <div className={`rounded-lg border px-3 py-2 ${className}`}><span className="text-lg font-extrabold block leading-none">{value}</span><span className="text-[10px] font-semibold">{label}</span></div>;
+}

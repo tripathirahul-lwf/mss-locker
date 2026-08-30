@@ -1,0 +1,66 @@
+# Dependencies
+**/node_modules/
+
+# Build output and tool caches
+**/dist/
+**/build/
+**/.cache/
+**/.vite/
+**/.turbo/
+**/.parcel-cache/
+**/*.tsbuildinfo
+**/.eslintcache
+
+# Environment files and local secrets
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+!**/.env.template
+
+# Runtime data and temporary uploads
+backend/uploads/
+**/tmp/
+**/temp/
+**/.tmp/
+*.pid
+*.pid.lock
+
+# Logs, reports, and test artifacts
+*.log
+logs/
+**/coverage/
+**/.nyc_output/
+**/test-results/
+**/playwright-report/
+
+# Package manager debug output
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local certificates and private keys
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local database and backup artifacts
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+*.dump

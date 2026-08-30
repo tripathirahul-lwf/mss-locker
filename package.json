@@ -1,0 +1,14 @@
+{
+  "name": "vault-ledger-monorepo",
+  "version": "1.0.0",
+  "description": "Enterprise Locker Management PWA Monorepo",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "type-check": "cd backend && npm run type-check && cd ../frontend && npm run type-check",
+    "test": "cd backend && npm test"
+  }
+}
