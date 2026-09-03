@@ -100,7 +100,14 @@ export const seedDatabase = async (): Promise<void> => {
 
       logger.info(`Initial Super Admin seeded successfully: username='${normalizedAdminUsername}', email='${normalizedAdminEmail}'`);
     } else {
-      logger.info(`Super Admin account already exists (username='${existingAdmin.username}').`);
+      existingAdmin.status = 'ACTIVE';
+      existingAdmin.failedLoginAttempts = 0;
+      existingAdmin.lockedUntil = undefined as any;
+      if (env.INITIAL_ADMIN_PASSWORD) {
+        existingAdmin.passwordHash = await hashPassword(env.INITIAL_ADMIN_PASSWORD);
+      }
+      await existingAdmin.save();
+      logger.info(`Super Admin account synchronized with env password (username='${existingAdmin.username}').`);
     }
 
     // 3. Seed Sample Development Lockers (if database has 0 lockers)
