@@ -6,19 +6,26 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const config = loadEnv(mode, process.cwd(), 'VITE_');
-  const backendProxyTarget = config.VITE_BACKEND_PROXY_TARGET || 'http://127.0.0.1:5000';
+  const backendProxyTarget = 'http://127.0.0.1:5000';
 
   return ({
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/*.png'],
+      includeAssets: [
+        'favicon.svg',
+        'favicon.ico',
+        'favicon-96x96.png',
+        'apple-touch-icon.png',
+        'logo.jpeg',
+        'site.webmanifest',
+      ],
       manifest: {
-        name: 'MSS Locker',
+        name: 'MSS Locker - Safe-Deposit Operations',
         short_name: 'MSS Locker',
         description: 'MSS Locker safe-deposit locker operations system',
-        theme_color: '#0f172a',
+        theme_color: '#064e3b',
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'any',
@@ -32,16 +39,28 @@ export default defineConfig(({ mode }) => {
             purpose: 'any',
           },
           {
-            src: '/icons/icon-192x192.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
+            src: '/favicon-96x96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'any',
           },
           {
-            src: '/icons/icon-512x512.svg',
+            src: '/web-app-manifest-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable any',
+          },
+          {
+            src: '/web-app-manifest-512x512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
+            type: 'image/png',
+            purpose: 'maskable any',
+          },
+          {
+            src: '/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'any',
           },
         ],
       },

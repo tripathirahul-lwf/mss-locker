@@ -172,14 +172,14 @@ export function RenewalsPage() {
       {notice && (
         <div
           role="status"
-          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-3 text-xs font-semibold text-emerald-800 shadow-xl"
+          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-3 text-xs font-semibold text-emerald-900 shadow-xl animate-in fade-in-0 duration-150"
         >
-          <CheckCircle2 className="h-5 w-5 shrink-0" />
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
           <span>{notice}</span>
           <button
             type="button"
             onClick={() => setNotice(null)}
-            className="grid h-9 w-9 place-items-center rounded-lg hover:bg-slate-100"
+            className="grid h-7 w-7 place-items-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
             aria-label="Dismiss notification"
           >
             <X className="h-4 w-4" />
@@ -190,15 +190,15 @@ export function RenewalsPage() {
       {/* Page Header */}
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 sm:flex">
-              <Calendar className="h-5 w-5" />
+          <div className="flex items-center gap-3">
+            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200/80 bg-emerald-50 text-emerald-800 shadow-2xs sm:flex">
+              <Calendar className="h-5 w-5 text-emerald-800" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 font-sans">
                 Locker Renewals & Billing
               </h1>
-              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm font-medium">
+              <p className="mt-0.5 text-xs text-slate-500 font-normal">
                 Track upcoming, due and overdue locker renewal statements.
               </p>
             </div>

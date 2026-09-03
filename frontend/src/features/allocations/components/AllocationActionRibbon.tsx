@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Clock, Download, RefreshCw, X, Filter } from 'lucide-react';
+import { Search, Plus, Clock, Download, RefreshCw, X, ChevronDown } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 
 interface AllocationActionRibbonProps {
@@ -49,7 +49,7 @@ export function AllocationActionRibbon({
   return (
     <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 select-none">
       {/* Search & Quick Filters */}
-      <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-3xl">
+      <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 max-w-3xl">
         {/* Search Input */}
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -58,7 +58,7 @@ export function AllocationActionRibbon({
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Search agreement code, customer, phone, or locker no..."
-            className="w-full h-11 pl-10 pr-10 text-xs sm:text-sm bg-white border border-slate-200 focus:border-blue-500 rounded-2xl placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium shadow-2xs transition-all"
+            className="w-full h-10 pl-9 pr-9 text-xs bg-white border border-slate-300 focus:border-emerald-700 rounded-xl placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700/20 font-medium shadow-2xs transition-all font-sans"
           />
           {localSearch && (
             <button
@@ -67,26 +67,29 @@ export function AllocationActionRibbon({
                 setLocalSearch('');
                 onSearchChange('');
               }}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
         {/* Size Filter Dropdown */}
-        <select
-          value={selectedSize}
-          onChange={(e) => onSizeChange?.(e.target.value)}
-          className="h-11 px-3 text-xs bg-white border border-slate-200 focus:border-blue-500 rounded-2xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-2xs cursor-pointer shrink-0"
-        >
-          <option value="">All Sizes (A to G2)</option>
-          {['A', 'B', 'B1', 'C', 'D', 'D1', 'E', 'F', 'F1', 'G', 'G1', 'G2'].map((s) => (
-            <option key={s} value={s}>
-              Size {s}
-            </option>
-          ))}
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={selectedSize}
+            onChange={(e) => onSizeChange?.(e.target.value)}
+            className="h-10 pl-3.5 pr-9 text-xs bg-white border border-slate-300 focus:border-emerald-700 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700/20 shadow-2xs cursor-pointer appearance-none shrink-0 font-sans"
+          >
+            <option value="">All Sizes (A to G2)</option>
+            {['A', 'B', 'B1', 'C', 'D', 'D1', 'E', 'F', 'F1', 'G', 'G1', 'G2'].map((s) => (
+              <option key={s} value={s}>
+                Size {s}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        </div>
       </div>
 
       {/* Action Buttons Toolbar */}
@@ -95,9 +98,9 @@ export function AllocationActionRibbon({
           <Button
             size="sm"
             onClick={onNewAllocation}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 h-11 px-4 rounded-2xl text-xs cursor-pointer"
+            className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-xs flex items-center gap-1.5 h-10 px-3.5 rounded-xl text-xs cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>New Allocation</span>
           </Button>
         )}
@@ -107,9 +110,9 @@ export function AllocationActionRibbon({
             variant="outline"
             size="sm"
             onClick={onReserveLocker}
-            className="h-11 px-3.5 rounded-2xl text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 border-slate-200 flex items-center gap-1.5 cursor-pointer"
+            className="h-10 px-3.5 rounded-xl text-xs font-medium text-amber-900 bg-white hover:bg-amber-50/60 border-slate-300 flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
-            <Clock className="w-4 h-4 text-amber-600" />
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
             <span>Reserve Locker</span>
           </Button>
         )}
@@ -118,9 +121,9 @@ export function AllocationActionRibbon({
           variant="outline"
           size="sm"
           onClick={onExportCSV}
-          className="h-11 px-3.5 rounded-2xl text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-200 flex items-center gap-1.5 cursor-pointer"
+          className="h-10 px-3.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 border-slate-300 flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
-          <Download className="w-4 h-4 text-blue-600" />
+          <Download className="w-3.5 h-3.5 text-slate-500" />
           <span>Export CSV</span>
         </Button>
 
@@ -129,10 +132,10 @@ export function AllocationActionRibbon({
           size="sm"
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="h-11 px-3 rounded-2xl border-slate-200 cursor-pointer"
+          className="h-10 w-10 p-0 rounded-xl border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer shadow-2xs flex items-center justify-center"
           title="Refresh Agreements"
         >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-800' : ''}`} />
         </Button>
       </div>
     </div>

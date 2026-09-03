@@ -41,6 +41,12 @@ router.get(
   billingController.downloadInvoicePdf
 );
 
+router.get(
+  '/:id/html',
+  requirePermission(PERMISSIONS.RENEWALS_VIEW),
+  billingController.getInvoiceHtml
+);
+
 /**
  * GET /api/renewals/:id
  */

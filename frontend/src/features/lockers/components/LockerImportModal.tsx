@@ -220,64 +220,65 @@ export function LockerImportModal({ onClose, onSuccess }: LockerImportModalProps
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-100 bg-slate-50/60 shrink-0">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
-              <FileSpreadsheet className="w-6 h-6 text-white" />
+        <div className="flex items-center justify-between p-4 sm:px-6 sm:py-4.5 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-800 flex items-center justify-center shadow-2xs">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-800" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              <h2 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight">
                 Bulk Import Master Lockers
               </h2>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Import physical lockers across racks (A to G2) via formatted CSV
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
+                Import physical lockers across racks via formatted CSV spreadsheet
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Close bulk import"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
           {/* Step 1: Download Template */}
-          <div className="p-4 bg-blue-50/60 border border-blue-200/80 rounded-2xl flex items-center justify-between gap-4">
+          <div className="p-3.5 sm:p-4 bg-emerald-50/40 border border-emerald-200/80 rounded-xl flex items-center justify-between gap-4">
             <div>
-              <h4 className="font-bold text-blue-950 text-xs">
-                Need the official CSV format template?
+              <h4 className="font-semibold text-emerald-950 text-xs">
+                Need the official CSV template?
               </h4>
-              <p className="text-[11px] text-blue-800 mt-0.5 font-medium">
-                Download pre-configured column headers mapped for 1,484 safe-deposit lockers.
+              <p className="text-[11px] text-emerald-800 mt-0.5 font-normal">
+                Download pre-configured column headers mapped for safe-deposit vault registry.
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={handleDownloadTemplate}
-              className="bg-white border-blue-300 text-blue-900 hover:bg-blue-100 flex items-center gap-1.5 shrink-0 text-xs font-bold rounded-xl"
+              className="bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-50 flex items-center gap-1.5 shrink-0 text-xs font-medium rounded-xl h-9 px-3 cursor-pointer shadow-2xs"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 text-emerald-800" />
               <span>Download Template</span>
             </Button>
           </div>
 
           {/* Step 2: Upload CSV File */}
-          <div className="space-y-2">
-            <label className="font-bold text-slate-700 block">
+          <div className="space-y-1.5">
+            <label className="font-medium text-slate-700 text-xs block">
               Upload Filled CSV File
             </label>
-            <div className="p-6 border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-2xl bg-slate-50 hover:bg-blue-50/20 text-center flex flex-col items-center justify-center cursor-pointer transition-all">
-              <Upload className="w-8 h-8 text-blue-500 mb-2" />
+            <div className="p-6 border-2 border-dashed border-slate-300 hover:border-emerald-700/60 rounded-xl bg-slate-50/70 hover:bg-emerald-50/20 text-center flex flex-col items-center justify-center cursor-pointer transition-all">
+              <Upload className="w-7 h-7 text-emerald-800 mb-2" />
               <label className="cursor-pointer">
-                <span className="font-bold text-blue-700 hover:underline">
+                <span className="font-semibold text-emerald-800 hover:underline">
                   Click to choose file
                 </span>
-                <span className="text-slate-500 font-medium"> or drag and drop</span>
+                <span className="text-slate-500 font-normal"> or drag and drop</span>
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -285,29 +286,29 @@ export function LockerImportModal({ onClose, onSuccess }: LockerImportModalProps
                   className="hidden"
                 />
               </label>
-              <p className="text-[10px] text-slate-400 mt-1">
-                CSV files only. UTF-8 encoded.
+              <p className="text-[10.5px] text-slate-400 mt-1 font-normal">
+                CSV files only (UTF-8 encoded)
               </p>
             </div>
           </div>
 
           {parseError && (
-            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="font-semibold leading-relaxed">{parseError}</span>
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 text-xs font-normal">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+              <span className="leading-relaxed">{parseError}</span>
             </div>
           )}
 
           {resultSummary && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
-              <div className="flex items-center gap-2 font-bold text-xs">
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
+              <div className="flex items-center gap-2 font-semibold text-xs">
+                <CheckCircle className="w-4 h-4 text-emerald-700" />
                 <span>
                   Successfully imported {resultSummary.insertedCount} physical lockers!
                 </span>
               </div>
               {resultSummary.skippedCount > 0 && (
-                <p className="text-[11px] text-amber-800 font-medium">
+                <p className="text-[11px] text-amber-800 font-normal">
                   {resultSummary.skippedCount} duplicate locker numbers were skipped.
                 </p>
               )}
@@ -318,15 +319,15 @@ export function LockerImportModal({ onClose, onSuccess }: LockerImportModalProps
           {parsedLockers.length > 0 && !resultSummary && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-800">
+                <span className="font-semibold text-slate-800 text-xs">
                   File Preview ({parsedLockers.length} Lockers Detected)
                 </span>
                 <span className="text-[11px] text-slate-500 font-mono">{fileName}</span>
               </div>
 
-              <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-2xl overflow-x-auto">
+              <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl overflow-x-auto">
                 <table className="w-full text-left text-[11px] border-collapse">
-                  <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
+                  <thead className="bg-slate-50 text-slate-500 font-medium uppercase tracking-wider text-[10px] sticky top-0 border-b border-slate-200">
                     <tr>
                       <th className="p-2.5">#</th>
                       <th className="p-2.5">Locker</th>
@@ -336,22 +337,22 @@ export function LockerImportModal({ onClose, onSuccess }: LockerImportModalProps
                       <th className="p-2.5 text-right">Deposit</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
+                  <tbody className="divide-y divide-slate-100 font-sans">
                     {parsedLockers.slice(0, 8).map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-2 text-slate-400">{idx + 1}</td>
-                        <td className="p-2 font-bold text-slate-900">{row.lockerNumber}</td>
-                        <td className="p-2 text-blue-700 font-bold">{row.size}</td>
+                      <tr key={idx} className="hover:bg-slate-50/80 text-slate-700">
+                        <td className="p-2 text-slate-400 font-mono">{idx + 1}</td>
+                        <td className="p-2 font-semibold text-slate-900 font-mono">{row.lockerNumber}</td>
+                        <td className="p-2 text-emerald-800 font-medium">Size {row.size}</td>
                         <td className="p-2 text-slate-700">{row.rackNumber}</td>
-                        <td className="p-2 text-right">₹{row.annualRent}</td>
-                        <td className="p-2 text-right">₹{row.securityDeposit}</td>
+                        <td className="p-2 text-right font-semibold tabular-nums text-slate-900">₹{row.annualRent}</td>
+                        <td className="p-2 text-right font-normal tabular-nums text-slate-600">₹{row.securityDeposit}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               {parsedLockers.length > 8 && (
-                <p className="text-[10px] text-slate-400 text-right font-medium">
+                <p className="text-[10px] text-slate-400 text-right font-normal">
                   + {parsedLockers.length - 8} more rows ready for batch insertion
                 </p>
               )}
@@ -360,14 +361,14 @@ export function LockerImportModal({ onClose, onSuccess }: LockerImportModalProps
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
+        <div className="p-3.5 sm:px-6 sm:py-3.5 bg-white border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onClose}
             disabled={isSubmitting}
-            className="rounded-xl"
+            className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 cursor-pointer hover:bg-slate-50"
           >
             Cancel
           </Button>
@@ -376,7 +377,7 @@ export function LockerImportModal({ onClose, onSuccess }: LockerImportModalProps
             size="sm"
             onClick={handleImportSubmit}
             disabled={parsedLockers.length === 0 || isSubmitting || Boolean(resultSummary)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 min-w-[140px] rounded-xl"
+            className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-xs min-w-[140px] rounded-xl text-xs h-9.5 px-4 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:border disabled:border-slate-200 disabled:shadow-none disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <span className="flex items-center gap-1.5">

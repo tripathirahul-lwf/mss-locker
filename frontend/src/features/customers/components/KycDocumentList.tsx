@@ -102,10 +102,10 @@ export function KycDocumentList({
       {/* Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-slate-900">
+          <h3 className="text-sm font-semibold text-slate-900">
             KYC Proof Documents
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 font-normal mt-0.5">
             Government proof of identity, address and photo documentation.
           </p>
         </div>
@@ -114,7 +114,7 @@ export function KycDocumentList({
           <Button
             size="sm"
             onClick={onAddDocument}
-            className="h-11 bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 text-xs font-semibold"
+            className="h-9 bg-emerald-800 hover:bg-emerald-900 text-white flex items-center gap-1.5 text-xs font-medium rounded-xl px-3.5 shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Upload Document</span>
@@ -124,9 +124,9 @@ export function KycDocumentList({
 
       {!isLoading && documents.length > 0 && (
         <div className="grid grid-cols-3 gap-2" aria-label="KYC document summary">
-          <SummaryMetric label="Verified" value={verifiedCount} className="text-emerald-700 bg-emerald-50 border-emerald-200" />
-          <SummaryMetric label="Needs review" value={pendingCount} className="text-amber-700 bg-amber-50 border-amber-200" />
-          <SummaryMetric label="Rejected" value={rejectedCount} className="text-rose-700 bg-rose-50 border-rose-200" />
+          <SummaryMetric label="Verified" value={verifiedCount} className="text-emerald-800 bg-emerald-50/80 border-emerald-200/80" />
+          <SummaryMetric label="Needs review" value={pendingCount} className="text-amber-800 bg-amber-50/80 border-amber-200/80" />
+          <SummaryMetric label="Rejected" value={rejectedCount} className="text-rose-800 bg-rose-50/80 border-rose-200/80" />
         </div>
       )}
 
@@ -136,29 +136,28 @@ export function KycDocumentList({
           {Array.from({ length: 2 }).map((_, idx) => (
             <div
               key={`kyc-skel-${idx}`}
-              className="h-32 bg-slate-100 rounded-xl animate-pulse border border-slate-200"
+              className="h-32 bg-slate-100 rounded-2xl animate-pulse border border-slate-200"
             />
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="p-8 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-3">
-          <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center mx-auto text-slate-500">
+        <div className="p-8 bg-slate-50/70 border border-slate-200/90 rounded-2xl text-center space-y-3">
+          <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
             <FileText className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-800">
+            <p className="text-sm font-semibold text-slate-800">
               No KYC Documents Uploaded
             </p>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-0.5">
+            <p className="text-xs text-slate-500 font-normal max-w-sm mx-auto mt-0.5">
               Upload customer's Aadhaar, PAN card, or Passport to initiate vault KYC compliance verification.
             </p>
           </div>
           {canManageKyc && (
             <Button
-              variant="outline"
               size="sm"
               onClick={onAddDocument}
-              className="text-xs font-semibold"
+              className="bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-medium rounded-xl shadow-xs px-3.5 h-9 cursor-pointer"
             >
               Upload First Document
             </Button>
@@ -174,21 +173,21 @@ export function KycDocumentList({
             return (
               <div
                 key={doc._id}
-                className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-3 relative flex flex-col justify-between"
+                className="p-4 bg-white border border-slate-200/90 rounded-2xl shadow-2xs space-y-3 relative flex flex-col justify-between"
               >
                 {/* Top Info */}
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
                         <FileText className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-900 text-xs">
+                        <h4 className="font-semibold text-slate-900 text-xs">
                           {getDocTypeLabel(doc.documentType)}
                         </h4>
                         {doc.isPrimary && (
-                          <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                             Primary Proof
                           </span>
                         )}
@@ -196,19 +195,19 @@ export function KycDocumentList({
                     </div>
 
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${verConfig.bg} ${verConfig.text} ${verConfig.border}`}
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-medium border ${verConfig.bg} ${verConfig.text} ${verConfig.border}`}
                     >
                       {verConfig.label}
                     </span>
                   </div>
 
                   {/* Document Number Display */}
-                  <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg flex items-center justify-between">
+                  <div className="p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-xl flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                      <span className="text-[10px] uppercase font-medium text-slate-400 block">
                         Document ID
                       </span>
-                      <span className="font-mono font-bold text-slate-800 text-xs tracking-wider">
+                      <span className="font-sans font-semibold text-slate-800 text-xs tracking-wider tabular-nums">
                         {getMaskedDocumentNumber(doc)}
                       </span>
                     </div>
@@ -217,10 +216,10 @@ export function KycDocumentList({
                       <button
                         type="button"
                         onClick={() => customerApi.openProtectedFile(doc.documentUrl)}
-                        className="min-h-11 text-xs font-semibold text-sky-700 hover:text-sky-800 flex items-center gap-1 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-2xs hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        className="h-8 text-xs font-medium text-emerald-800 hover:text-emerald-900 flex items-center gap-1.5 bg-white px-2.5 rounded-lg border border-slate-200 shadow-2xs hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 cursor-pointer"
                         aria-label={`View ${getDocTypeLabel(doc.documentType)} file in a new tab`}
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5 text-slate-500" />
                         <span>View File</span>
                       </button>
                     )}
@@ -228,10 +227,10 @@ export function KycDocumentList({
 
                   {/* Verification Info / Rejection Details */}
                   {doc.verificationStatus === 'VERIFIED' && (
-                    <div className="text-[11px] text-emerald-800 flex items-center gap-1.5 pt-0.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <div className="text-[11px] text-emerald-800 flex items-center gap-1.5 pt-0.5 font-normal">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                       <span>
-                        Verified by <strong>{doc.verifiedBy?.name || 'Officer'}</strong>
+                        Verified by <strong className="font-semibold">{doc.verifiedBy?.name || 'Officer'}</strong>
                         {doc.verifiedAt && (
                           <> on {new Date(doc.verifiedAt).toLocaleDateString('en-IN')}</>
                         )}
@@ -240,17 +239,17 @@ export function KycDocumentList({
                   )}
 
                   {doc.verificationStatus === 'REJECTED' && (
-                    <div className="text-[11px] text-rose-800 flex items-start gap-1.5 pt-0.5 bg-rose-50 p-2 rounded-lg border border-rose-200">
+                    <div className="text-[11px] text-rose-800 flex items-start gap-1.5 pt-0.5 bg-rose-50 p-2.5 rounded-xl border border-rose-200 font-normal">
                       <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                       <div>
-                        <strong>Reason for Rejection:</strong>
+                        <strong className="font-semibold">Reason for Rejection:</strong>
                         <p>{doc.rejectionReason || 'Document unreadable or invalid.'}</p>
                       </div>
                     </div>
                   )}
 
                   {doc.remarks && (
-                    <p className="text-[11px] text-slate-500 italic">
+                    <p className="text-[11px] text-slate-500 italic font-normal">
                       Remarks: {doc.remarks}
                     </p>
                   )}
@@ -264,7 +263,7 @@ export function KycDocumentList({
                         variant="outline"
                         size="sm"
                         onClick={() => handleOpenVerifyModal(doc, 'VERIFIED')}
-                        className="h-11 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 flex items-center gap-1"
+                        className="h-8 text-xs text-emerald-800 border-emerald-300 hover:bg-emerald-50 rounded-lg flex items-center gap-1 font-medium cursor-pointer"
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
                         <span>Review & approve</span>
@@ -276,7 +275,7 @@ export function KycDocumentList({
                         variant="outline"
                         size="sm"
                         onClick={() => handleOpenVerifyModal(doc, 'REJECTED')}
-                        className="h-11 text-xs text-rose-700 border-rose-300 hover:bg-rose-50 flex items-center gap-1"
+                        className="h-8 text-xs text-rose-700 border-rose-300 hover:bg-rose-50 rounded-lg flex items-center gap-1 font-medium cursor-pointer"
                       >
                         <XCircle className="w-3.5 h-3.5" />
                         <span>Reject</span>
@@ -290,7 +289,7 @@ export function KycDocumentList({
                         variant="ghost"
                         size="sm"
                         onClick={() => onEditDocument(doc)}
-                        className="h-11 w-11 p-0 text-slate-500 hover:text-slate-900"
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer"
                         title="Edit Details"
                         aria-label={`Edit ${getDocTypeLabel(doc.documentType)}`}
                       >
@@ -303,7 +302,7 @@ export function KycDocumentList({
                         variant="ghost"
                         size="sm"
                         onClick={() => onDeleteDocument(doc._id)}
-                        className="h-11 w-11 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                         title="Delete Document"
                         aria-label={`Delete ${getDocTypeLabel(doc.documentType)}`}
                       >
@@ -320,16 +319,16 @@ export function KycDocumentList({
 
       {/* Verification / Rejection Modal */}
       {selectedDocForVerify && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm select-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-[2px] select-none">
           <div role="dialog" aria-modal="true" aria-labelledby="kyc-verification-title" className="w-full max-w-md bg-white rounded-2xl p-5 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 {verifyStatus === 'VERIFIED' ? (
-                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  <ShieldCheck className="w-5 h-5 text-emerald-700" />
                 ) : (
                   <ShieldAlert className="w-5 h-5 text-rose-600" />
                 )}
-                <h3 id="kyc-verification-title" className="text-sm font-bold text-slate-900">
+                <h3 id="kyc-verification-title" className="text-sm font-semibold text-slate-900">
                   {verifyStatus === 'VERIFIED'
                     ? 'Approve KYC Document'
                     : 'Reject KYC Document'}
@@ -338,7 +337,7 @@ export function KycDocumentList({
               <button
                 type="button"
                 onClick={() => setSelectedDocForVerify(null)}
-                className="h-11 w-11 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="h-9 w-9 inline-flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 cursor-pointer"
                 aria-label="Close verification dialog"
               >
                 <XCircle className="w-5 h-5" />
@@ -346,9 +345,9 @@ export function KycDocumentList({
             </div>
 
             <form onSubmit={handleConfirmVerification} className="space-y-3 text-xs">
-              <p className="text-slate-600">
+              <p className="text-slate-600 font-normal">
                 You are performing counter verification for{' '}
-                <strong>
+                <strong className="font-semibold text-slate-800">
                   {getDocTypeLabel(selectedDocForVerify.documentType)} (
                   {getMaskedDocumentNumber(selectedDocForVerify)}
                   )
@@ -357,15 +356,15 @@ export function KycDocumentList({
               </p>
 
               {verifyStatus === 'VERIFIED' && selectedDocForVerify.documentUrl && (
-                <button type="button" onClick={() => customerApi.openProtectedFile(selectedDocForVerify.documentUrl)} className="h-11 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white font-semibold text-sky-700 hover:bg-sky-50">
+                <button type="button" onClick={() => customerApi.openProtectedFile(selectedDocForVerify.documentUrl)} className="h-10 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white font-medium text-emerald-800 hover:bg-emerald-50 cursor-pointer shadow-2xs">
                   <ExternalLink className="w-4 h-4" /> Open proof for review
                 </button>
               )}
 
               {verifyStatus === 'REJECTED' && (
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">
-                    Reason for Rejection <span className="text-red-500">*</span>
+                  <label className="font-medium text-slate-700 text-xs block">
+                    Reason for Rejection <span className="text-rose-500">*</span>
                   </label>
                   <textarea
                     value={rejectionReason}
@@ -373,26 +372,26 @@ export function KycDocumentList({
                     placeholder="e.g. Scanned copy blurred, name mismatch with PAN database, or expired ID"
                     required
                     rows={3}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 shadow-2xs"
                   />
                 </div>
               )}
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Verification Notes</label>
+                <label className="font-medium text-slate-700 text-xs block">Verification Notes</label>
                 <textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   placeholder="Optional counter officer sign-off note"
                   rows={2}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
                 />
               </div>
 
               {verifyStatus === 'VERIFIED' && (
-                <label className="flex items-start gap-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-950 cursor-pointer">
-                  <input type="checkbox" checked={approvalConfirmed} onChange={(event) => setApprovalConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-emerald-600" />
-                  <span><strong className="block">I reviewed the original proof</strong><span className="text-[11px] text-emerald-800">The document is readable, valid and matches the customer record.</span></span>
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-950 cursor-pointer">
+                  <input type="checkbox" checked={approvalConfirmed} onChange={(event) => setApprovalConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-emerald-700 cursor-pointer" />
+                  <span><strong className="block font-semibold">I reviewed the original proof</strong><span className="text-[11px] text-emerald-800 font-normal">The document is readable, valid and matches the customer record.</span></span>
                 </label>
               )}
 
@@ -403,6 +402,7 @@ export function KycDocumentList({
                   size="sm"
                   onClick={() => setSelectedDocForVerify(null)}
                   disabled={isProcessing}
+                  className="rounded-xl border-slate-300 font-medium text-xs h-9 px-3.5 cursor-pointer hover:bg-slate-50"
                 >
                   Cancel
                 </Button>
@@ -412,8 +412,8 @@ export function KycDocumentList({
                   disabled={isProcessing || (verifyStatus === 'VERIFIED' && !approvalConfirmed)}
                   className={
                     verifyStatus === 'VERIFIED'
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                      ? 'bg-emerald-800 hover:bg-emerald-900 text-white font-medium text-xs rounded-xl h-9 px-3.5 cursor-pointer shadow-xs'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs rounded-xl h-9 px-3.5 cursor-pointer shadow-xs'
                   }
                 >
                   {isProcessing
@@ -432,5 +432,10 @@ export function KycDocumentList({
 }
 
 function SummaryMetric({ label, value, className }: { label: string; value: number; className: string }) {
-  return <div className={`rounded-lg border px-3 py-2 ${className}`}><span className="text-lg font-extrabold block leading-none">{value}</span><span className="text-[10px] font-semibold">{label}</span></div>;
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${className}`}>
+      <span className="text-lg font-semibold block leading-none tabular-nums font-sans">{value}</span>
+      <span className="text-[10px] font-medium tracking-wide uppercase">{label}</span>
+    </div>
+  );
 }

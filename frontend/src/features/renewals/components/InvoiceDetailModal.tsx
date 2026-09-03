@@ -14,16 +14,36 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  Phone,
+  ExternalLink,
 } from 'lucide-react';
 import { LockerInvoice } from '../types';
 import { PaymentStatusBadge, DueStatusBadge } from './RenewalStatusBadge';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
+import { Link } from 'react-router-dom';
 
 import { useQuery } from '@tanstack/react-query';
 import { paymentApi } from '../../payments/api/paymentApi';
 import { PaymentMethodBadge, PaymentStatusBadge as TransactionStatusBadge } from '../../payments/components/PaymentMethodBadge';
 import { renewalApi } from '../api/renewalApi';
+import { formatPhone } from '../../customers/utils/phoneFormatter';
+
+function formatInvoiceDate(dateInput?: string | Date): string {
+  if (!dateInput) return 'N/A';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+
+  const year = d.getFullYear();
+  if (year > 100 && year < 1000) {
+    d.setFullYear(2000 + (year % 100));
+  }
+  return d.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
 
 interface InvoiceDetailModalProps {
   invoice: LockerInvoice;
@@ -78,38 +98,43 @@ export function InvoiceDetailModal({
 
   const handlePrintInvoice = async () => {
     setIsPrinting(true);
-    try { await renewalApi.printInvoicePdf(invoice._id, invoice.invoiceNumber); }
-    catch { window.alert('Print dialog could not be opened. Please allow printing and try again.'); }
-    finally { setIsPrinting(false); }
+    try {
+      await renewalApi.printInvoicePdf(invoice._id, invoice.invoiceNumber);
+    } catch (err: any) {
+      console.error('Print invoice error:', err);
+      window.alert('Failed to open invoice PDF. Please ensure server is running.');
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/60 backdrop-blur-sm select-none animate-in fade-in-0 duration-150">
+    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150">
       <div
-        className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200"
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200/90 font-sans"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
-              <FileText className="w-6 h-6" />
+        <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-100 bg-slate-50/60 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs">
+              <FileText className="w-5 h-5 text-emerald-800" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                <h2 className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight font-sans">
                   {invoice.invoiceNumber}
                 </h2>
                 <button
                   type="button"
                   onClick={handleCopyInvoiceNumber}
-                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-md transition-colors"
+                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-md transition-colors cursor-pointer"
                   title="Copy Invoice Number"
                 >
                   {copiedNumber ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
                 {invoice.invoiceType === 'LEGACY_IMPORT'
                   ? 'Historical Ledger Renewal Bill'
                   : 'Locker Tenancy Periodic Billing Statement'}
@@ -120,7 +145,7 @@ export function InvoiceDetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Close dialog"
           >
             <X className="w-5 h-5" />
@@ -128,18 +153,18 @@ export function InvoiceDetailModal({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs font-normal">
           {/* Status Bar */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
                 Payment State:
               </span>
               <PaymentStatusBadge status={invoice.paymentStatus} />
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
                 Due Status:
               </span>
               <DueStatusBadge status={invoice.dueStatus} dueDate={invoice.dueDate} />
@@ -147,42 +172,66 @@ export function InvoiceDetailModal({
           </div>
 
           {/* Customer & Locker Coordinates */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Customer Box */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Billed Tenant Customer
-              </span>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center shrink-0">
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 space-y-2 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
+                  Billed Tenant Customer
+                </span>
+                {customer?._id && (
+                  <Link
+                    to={`/customers/${customer._id}`}
+                    onClick={onClose}
+                    className="text-emerald-800 hover:text-emerald-900 font-medium text-[11px] flex items-center gap-0.5"
+                  >
+                    <span>Profile</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </Link>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-semibold font-sans text-xs flex items-center justify-center shrink-0 shadow-2xs">
                   {(customer?.fullName || 'CU').slice(0, 2).toUpperCase()}
                 </div>
-                <div>
-                  <p className="font-black text-slate-900 text-sm">
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-900 text-xs truncate font-sans">
                     {customer?.fullName || 'Customer Not Populated'}
                   </p>
-                  <p className="text-[11px] text-slate-500 font-mono">
-                    {customer?.customerCode} &bull; {customer?.phone}
+                  <p className="text-[11px] text-slate-500 font-sans tabular-nums truncate">
+                    {customer?.customerCode} &bull; {formatPhone(customer?.phone || '')}
                   </p>
                 </div>
               </div>
             </div>
 
             {/* Locker Box */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Physical Locker Unit
-              </span>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
-                  <KeyRound className="w-5 h-5" />
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 space-y-2 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
+                  Physical Locker Unit
+                </span>
+                {locker?._id && (
+                  <Link
+                    to={`/lockers?search=${locker.lockerNumber}`}
+                    onClick={onClose}
+                    className="text-emerald-800 hover:text-emerald-900 font-medium text-[11px] flex items-center gap-0.5"
+                  >
+                    <span>Matrix</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </Link>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 shrink-0 shadow-2xs">
+                  <KeyRound className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="font-black text-slate-900 text-sm">
+                  <p className="font-semibold text-slate-900 text-xs font-sans">
                     Locker #{locker?.lockerNumber} (Size {locker?.size})
                   </p>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    {locker?.rackNumber} &bull; {locker?.section || 'Main Vault'}
+                  <p className="text-[11px] text-slate-500 font-normal font-sans">
+                    {locker?.rackNumber || 'Standard Rack'} &bull; {locker?.section || 'Main Vault'}
                   </p>
                 </div>
               </div>
@@ -190,62 +239,72 @@ export function InvoiceDetailModal({
           </div>
 
           {/* Billing Dates & Cycle */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono">
-            <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-              <span className="text-[9px] font-sans text-slate-500 block font-bold">ISSUE DATE</span>
-              <strong className="text-slate-900 text-xs">
-                {new Date(invoice.issueDate).toLocaleDateString('en-IN')}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center font-sans">
+            <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+              <span className="text-[9.5px] text-slate-500 block uppercase font-medium">ISSUE DATE</span>
+              <strong className="text-slate-900 text-xs font-medium tabular-nums">
+                {formatInvoiceDate(invoice.issueDate)}
               </strong>
             </div>
 
-            <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-              <span className="text-[9px] font-sans text-slate-500 block font-bold">DUE DATE</span>
-              <strong className="text-rose-600 text-xs">
-                {new Date(invoice.dueDate).toLocaleDateString('en-IN')}
+            <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+              <span className="text-[9.5px] text-slate-500 block uppercase font-medium">DUE DATE</span>
+              <strong className="text-rose-700 text-xs font-medium tabular-nums">
+                {formatInvoiceDate(invoice.dueDate)}
               </strong>
             </div>
 
-            <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-              <span className="text-[9px] font-sans text-slate-500 block font-bold">BILLING CYCLE</span>
-              <strong className="text-slate-900 text-xs">{invoice.billingCycle}</strong>
+            <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+              <span className="text-[9.5px] text-slate-500 block uppercase font-medium">BILLING CYCLE</span>
+              <strong className="text-slate-900 text-xs font-medium uppercase">{invoice.billingCycle}</strong>
             </div>
 
-            <div className="p-2.5 bg-white rounded-xl border border-slate-200">
-              <span className="text-[9px] font-sans text-slate-500 block font-bold">AGREEMENT</span>
-              <strong className="text-blue-700 text-xs">
-                {allocation?.allocationCode || 'ALC-DIRECT'}
-              </strong>
+            <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+              <span className="text-[9.5px] text-slate-500 block uppercase font-medium">AGREEMENT</span>
+              {allocation?.allocationCode ? (
+                <Link
+                  to={`/allocations?search=${allocation.allocationCode}`}
+                  onClick={onClose}
+                  className="text-emerald-800 hover:text-emerald-950 text-xs font-medium tabular-nums block truncate"
+                >
+                  {allocation.allocationCode}
+                </Link>
+              ) : (
+                <strong className="text-emerald-800 text-xs font-medium tabular-nums">
+                  ALC-DIRECT
+                </strong>
+              )}
             </div>
           </div>
 
           {/* Financial Breakdown Table */}
-          <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-2xs">
-            <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-2 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-4 rounded-xl border border-slate-200/90 bg-white space-y-2.5 shadow-2xs font-sans">
+            <h3 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] pb-2 border-b border-slate-100 flex items-center justify-between">
               <span>Financial Tariff Breakdown</span>
-              <span className="text-slate-400 font-normal lowercase">Frozen Tariff Snapshot</span>
+              <span className="text-slate-400 font-normal normal-case text-[10.5px]">Frozen Tariff Snapshot</span>
             </h3>
 
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between text-slate-600">
                 <span>Base Locker Rent (Annual)</span>
-                <span className="font-mono font-bold text-slate-900">
+                <span className="font-semibold text-slate-900 tabular-nums">
                   ₹{invoice.baseRent.toLocaleString('en-IN')}
                 </span>
               </div>
 
               {invoice.lateFee > 0 && (
-                <div className="flex items-center justify-between text-rose-600">
+                <div className="flex items-center justify-between text-rose-700">
                   <span>Late Penalty Fee</span>
-                  <span className="font-mono font-bold">
+                  <span className="font-semibold tabular-nums">
                     +₹{invoice.lateFee.toLocaleString('en-IN')}
                   </span>
                 </div>
               )}
 
               {invoice.discount > 0 && (
-                <div className="flex items-center justify-between text-emerald-600">
+                <div className="flex items-center justify-between text-emerald-700">
                   <span>Tariff Discount</span>
-                  <span className="font-mono font-bold">
+                  <span className="font-semibold tabular-nums">
                     -₹{invoice.discount.toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -254,7 +313,7 @@ export function InvoiceDetailModal({
               {invoice.otherCharges > 0 && (
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Miscellaneous Charges</span>
-                  <span className="font-mono font-bold">
+                  <span className="font-semibold tabular-nums">
                     +₹{invoice.otherCharges.toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -263,29 +322,29 @@ export function InvoiceDetailModal({
               {invoice.taxAmount > 0 && (
                 <div className="flex items-center justify-between text-slate-600">
                   <span>GST / Tax Amount</span>
-                  <span className="font-mono font-bold">
+                  <span className="font-semibold tabular-nums">
                     +₹{invoice.taxAmount.toLocaleString('en-IN')}
                   </span>
                 </div>
               )}
 
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-sm font-black text-slate-900">
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-sm font-semibold text-slate-900">
                 <span>Total Invoiced Amount</span>
-                <span className="font-mono text-base text-blue-700">
+                <span className="text-base text-slate-900 tabular-nums">
                   ₹{invoice.totalAmount.toLocaleString('en-IN')}
                 </span>
               </div>
 
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-emerald-700 font-bold">Paid to Date:</span>
-                <span className="font-mono font-bold text-emerald-700">
+                <span className="text-emerald-800 font-medium">Paid to Date:</span>
+                <span className="font-semibold text-emerald-800 tabular-nums">
                   ₹{invoice.paidAmount.toLocaleString('en-IN')}
                 </span>
               </div>
 
               <div className="flex items-center justify-between text-xs">
-                <span className="text-rose-600 font-bold">Balance Outstanding:</span>
-                <span className="font-mono font-black text-rose-600 text-sm">
+                <span className="text-rose-700 font-medium">Balance Outstanding:</span>
+                <span className="font-semibold text-rose-700 text-sm tabular-nums">
                   ₹{invoice.balanceAmount.toLocaleString('en-IN')}
                 </span>
               </div>
@@ -294,10 +353,10 @@ export function InvoiceDetailModal({
 
           {/* Recorded Payment Settlements */}
           {invoicePayments && invoicePayments.length > 0 && (
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2.5 shadow-2xs">
-              <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1.5 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-white border border-slate-200/90 space-y-2.5 shadow-2xs font-sans">
+              <h3 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] pb-1.5 border-b border-slate-100 flex items-center justify-between">
                 <span>Recorded Payment Receipts ({invoicePayments.length})</span>
-                <span className="text-emerald-700 font-mono font-bold">
+                <span className="text-emerald-800 font-semibold tabular-nums">
                   Total Paid: ₹{invoice.paidAmount.toLocaleString('en-IN')}
                 </span>
               </h3>
@@ -307,16 +366,16 @@ export function InvoiceDetailModal({
                   <div key={p._id} className="py-2 flex items-center justify-between gap-2 text-xs">
                     <div>
                       <div className="flex items-center gap-2">
-                        <strong className="font-mono text-slate-900">{p.receiptNumber}</strong>
+                        <strong className="font-medium text-slate-900 tabular-nums">{p.receiptNumber}</strong>
                         <PaymentMethodBadge method={p.paymentMethod} />
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono block">
-                        {new Date(p.paymentDate).toLocaleDateString('en-IN')} &bull; Pay #{p.paymentNumber} &bull; By {p.recordedBy?.name || 'Staff'}
+                      <span className="text-[10.5px] text-slate-400 tabular-nums block font-normal">
+                        {formatInvoiceDate(p.paymentDate)} &bull; Pay #{p.paymentNumber} &bull; By {p.recordedBy?.name || 'Staff'}
                       </span>
                     </div>
 
                     <div className="text-right">
-                      <strong className="font-mono text-emerald-700 text-sm block">
+                      <strong className="text-emerald-800 text-xs font-semibold tabular-nums block">
                         ₹{p.amount.toLocaleString('en-IN')}
                       </strong>
                       <TransactionStatusBadge status={p.paymentStatus} />
@@ -329,16 +388,21 @@ export function InvoiceDetailModal({
 
           {/* Notes / Remarks */}
           {invoice.notes && (
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 leading-relaxed text-xs">
-              <strong className="text-slate-800 block mb-0.5">Notes & Legacy Ledger Reference:</strong>
-              <span>{invoice.notes}</span>
+            <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 text-slate-600 leading-relaxed text-xs">
+              <strong className="text-slate-800 block mb-0.5 font-medium">Notes & Legacy Ledger Reference:</strong>
+              <span className="font-normal">{invoice.notes}</span>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
-          <Button variant="outline" size="sm" onClick={onClose} className="rounded-xl cursor-pointer">
+        <div className="p-4 sm:p-4.5 bg-slate-50/80 border-t border-slate-200/90 flex items-center justify-between gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="rounded-xl border-slate-300 font-medium text-xs h-9 px-3.5 hover:bg-slate-50 cursor-pointer"
+          >
             Close
           </Button>
 
@@ -351,7 +415,7 @@ export function InvoiceDetailModal({
                   onClose();
                   onRecordPayment(invoice);
                 }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
+                className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium rounded-xl text-xs h-9 px-3.5 flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <IndianRupee className="w-3.5 h-3.5" />
                 <span>Record Payment</span>
@@ -364,7 +428,7 @@ export function InvoiceDetailModal({
                 variant="outline"
                 size="sm"
                 onClick={() => setCancelModalOpen(true)}
-                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 border-rose-200 rounded-xl text-xs flex items-center gap-1 cursor-pointer"
+                className="text-rose-700 hover:bg-rose-50 border-rose-200 rounded-xl text-xs h-9 px-3.5 font-medium flex items-center gap-1 cursor-pointer"
               >
                 <Ban className="w-3.5 h-3.5" />
                 <span>Cancel Invoice</span>
@@ -376,7 +440,7 @@ export function InvoiceDetailModal({
               size="sm"
               onClick={handlePrintInvoice}
               disabled={isPrinting}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 text-xs cursor-pointer"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl flex items-center gap-1.5 text-xs h-9 px-3.5 cursor-pointer shadow-xs"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>{isPrinting ? 'Opening Print...' : 'Print Invoice'}</span>
@@ -388,39 +452,39 @@ export function InvoiceDetailModal({
       {/* Cancel Confirmation Sub-Modal */}
       {cancelModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-200">
+          <div className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl space-y-4 border border-slate-200 font-sans">
             <div className="flex items-start gap-3.5">
-              <div className="p-3 rounded-2xl bg-rose-50 text-rose-600 shrink-0 border border-rose-100">
-                <AlertTriangle className="w-6 h-6" />
+              <div className="p-2.5 rounded-xl bg-rose-50 text-rose-700 shrink-0 border border-rose-200">
+                <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-slate-900">
+                <h3 className="text-sm font-semibold text-slate-900">
                   Cancel Invoice {invoice.invoiceNumber}?
                 </h3>
-                <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                <p className="text-xs text-slate-500 leading-relaxed font-normal">
                   This will cancel the unpaid statement. It cannot be reversed without issuing a new renewal cycle.
                 </p>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Cancellation Reason</label>
+              <label className="text-xs font-medium text-slate-700">Cancellation Reason</label>
               <input
                 type="text"
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="e.g. Agreement restructured / Duplicate entry"
-                className="w-full h-10 px-3 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                className="w-full h-10 px-3 text-xs bg-slate-50/80 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-700 font-normal"
               />
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
+            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCancelModalOpen(false)}
                 disabled={isCancelling}
-                className="rounded-xl"
+                className="rounded-xl border-slate-300 font-medium text-xs h-9 px-3.5"
               >
                 Go Back
               </Button>
@@ -429,7 +493,7 @@ export function InvoiceDetailModal({
                 variant="destructive"
                 onClick={handleConfirmCancel}
                 disabled={isCancelling}
-                className="rounded-xl font-bold"
+                className="rounded-xl font-medium text-xs h-9 px-3.5"
               >
                 {isCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
               </Button>

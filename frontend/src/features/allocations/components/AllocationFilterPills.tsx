@@ -19,7 +19,7 @@ export function AllocationFilterPills({
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-2 select-none overflow-x-auto pb-1">
+    <div className="flex flex-wrap items-center gap-1.5 select-none overflow-x-auto pb-1">
       {pills.map((pill) => {
         const isActive = selectedStatus === pill.id;
         return (
@@ -27,10 +27,10 @@ export function AllocationFilterPills({
             key={pill.id}
             type="button"
             onClick={() => onSelectStatus(pill.id)}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all min-h-[38px] cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs transition-all h-8 cursor-pointer ${
               isActive
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40'
+                ? 'bg-emerald-800 text-white font-medium shadow-xs'
+                : 'bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50 hover:text-slate-900 font-normal'
             }`}
           >
             {pill.label}

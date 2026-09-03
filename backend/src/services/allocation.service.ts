@@ -410,6 +410,10 @@ export class LockerAllocationService {
       .populate('lockerId', 'lockerNumber lockerCode size rackNumber section floor status operationalStatus')) as ILockerAllocation;
   }
 
+  private static escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   /**
    * Query & Filter Allocations with Server Pagination
    */
@@ -438,36 +442,70 @@ export class LockerAllocationService {
       }
     }
 
+    // Size filter support
+    let sizeLockerIds: Types.ObjectId[] | null = null;
+    if (params.size && params.size.trim()) {
+      const lockersWithSize = await Locker.find({ size: params.size.trim() }).select('_id');
+      sizeLockerIds = lockersWithSize.map((l) => l._id);
+      if (!params.lockerId) {
+        query.lockerId = { $in: sizeLockerIds };
+      }
+    }
+
     // Text search matching customer, locker, or allocation code
     if (params.search && params.search.trim()) {
-      const searchRegex = new RegExp(params.search.trim(), 'i');
+      const cleanSearch = params.search.trim();
+      const escaped = this.escapeRegex(cleanSearch);
+      const searchRegex = new RegExp(escaped, 'i');
+
+      const cleanDigits = cleanSearch.replace(/\D/g, '');
+      const numberWithoutHash = cleanSearch.replace(/^#+/, '').trim();
+      const numberRegex = new RegExp(`^${this.escapeRegex(numberWithoutHash)}$`, 'i');
+
+      const customerConditions: any[] = [
+        { fullName: searchRegex },
+        { customerCode: searchRegex },
+        { phone: searchRegex },
+        { alternatePhone: searchRegex },
+        { email: searchRegex },
+      ];
+      if (cleanDigits.length >= 3) {
+        customerConditions.push({ phone: { $regex: cleanDigits, $options: 'i' } });
+        customerConditions.push({ alternatePhone: { $regex: cleanDigits, $options: 'i' } });
+      }
+
+      const lockerConditions: any[] = [
+        { lockerNumber: searchRegex },
+        { lockerCode: searchRegex },
+        { rackNumber: searchRegex },
+        { section: searchRegex },
+      ];
+      if (numberWithoutHash) {
+        lockerConditions.push({ lockerNumber: numberRegex });
+      }
 
       const [matchingCustomers, matchingLockers] = await Promise.all([
-        Customer.find({
-          $or: [
-            { fullName: searchRegex },
-            { customerCode: searchRegex },
-            { phone: searchRegex },
-          ],
-        }).select('_id'),
+        Customer.find({ $or: customerConditions }).select('_id'),
         Locker.find({
-          $or: [
-            { lockerNumber: searchRegex },
-            { lockerCode: searchRegex },
-            { rackNumber: searchRegex },
-          ],
+          $or: lockerConditions,
+          ...(sizeLockerIds ? { _id: { $in: sizeLockerIds } } : {}),
         }).select('_id'),
       ]);
 
       const customerIds = matchingCustomers.map((c) => c._id);
       const lockerIds = matchingLockers.map((l) => l._id);
 
-      query.$or = [
+      const searchOrConditions: any[] = [
         { allocationCode: searchRegex },
-        { remarks: searchRegex },
         { customerId: { $in: customerIds } },
         { lockerId: { $in: lockerIds } },
       ];
+
+      if (cleanDigits) {
+        searchOrConditions.push({ allocationCode: new RegExp(cleanDigits, 'i') });
+      }
+
+      query.$or = searchOrConditions;
     }
 
     const sortOption: any = {};

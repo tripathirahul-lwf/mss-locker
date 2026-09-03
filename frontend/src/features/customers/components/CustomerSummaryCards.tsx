@@ -33,9 +33,9 @@ export function CustomerSummaryCards({
       subtext: `${kycComplianceRate}% Verified Compliance`,
       icon: Users,
       active: !selectedStatus && !selectedKycStatus,
-      iconBg: 'bg-blue-50 text-blue-700',
-      activeBorder: 'border-blue-600 ring-2 ring-blue-600/20 bg-blue-50/40',
-      inactiveBorder: 'bg-white border-slate-200 hover:border-blue-300',
+      iconBg: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
+      activeBorder: 'border-emerald-700 ring-2 ring-emerald-700/20 shadow-xs',
+      inactiveBorder: 'border-slate-200/90 hover:border-slate-300',
       onClick: () => onSelectFilter('status', 'ALL'),
     },
     {
@@ -45,9 +45,9 @@ export function CustomerSummaryCards({
       subtext: 'Operational Customer Records',
       icon: UserCheck,
       active: selectedStatus === 'ACTIVE',
-      iconBg: 'bg-emerald-50 text-emerald-700',
-      activeBorder: 'border-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/40',
-      inactiveBorder: 'bg-white border-slate-200 hover:border-emerald-300',
+      iconBg: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
+      activeBorder: 'border-emerald-700 ring-2 ring-emerald-700/20 shadow-xs',
+      inactiveBorder: 'border-slate-200/90 hover:border-slate-300',
       onClick: () => onSelectFilter('status', 'ACTIVE'),
     },
     {
@@ -57,9 +57,9 @@ export function CustomerSummaryCards({
       subtext: 'ID & Photo Proof Approved',
       icon: ShieldCheck,
       active: selectedKycStatus === 'VERIFIED',
-      iconBg: 'bg-sky-50 text-sky-700',
-      activeBorder: 'border-sky-600 ring-2 ring-sky-600/20 bg-sky-50/40',
-      inactiveBorder: 'bg-white border-slate-200 hover:border-sky-300',
+      iconBg: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
+      activeBorder: 'border-emerald-700 ring-2 ring-emerald-700/20 shadow-xs',
+      inactiveBorder: 'border-slate-200/90 hover:border-slate-300',
       onClick: () => onSelectFilter('kycStatus', 'VERIFIED'),
     },
     {
@@ -69,9 +69,9 @@ export function CustomerSummaryCards({
       subtext: 'Pending Verification',
       icon: Clock,
       active: selectedKycStatus === 'PENDING,PARTIAL',
-      iconBg: 'bg-amber-50 text-amber-700',
-      activeBorder: 'border-amber-600 ring-2 ring-amber-600/20 bg-amber-50/40',
-      inactiveBorder: 'bg-white border-slate-200 hover:border-amber-300',
+      iconBg: 'bg-amber-50 text-amber-800 border-amber-200/80',
+      activeBorder: 'border-amber-600 ring-2 ring-amber-600/20 shadow-xs',
+      inactiveBorder: 'border-slate-200/90 hover:border-slate-300',
       onClick: () => onSelectFilter('kycStatus', 'PENDING,PARTIAL'),
     },
     {
@@ -81,9 +81,9 @@ export function CustomerSummaryCards({
       subtext: 'Renewal Required',
       icon: CalendarX2,
       active: selectedKycStatus === 'EXPIRED',
-      iconBg: 'bg-orange-50 text-orange-700',
-      activeBorder: 'border-orange-600 ring-2 ring-orange-600/20 bg-orange-50/40',
-      inactiveBorder: 'bg-white border-slate-200 hover:border-orange-300',
+      iconBg: 'bg-orange-50 text-orange-800 border-orange-200/80',
+      activeBorder: 'border-orange-600 ring-2 ring-orange-600/20 shadow-xs',
+      inactiveBorder: 'border-slate-200/90 hover:border-slate-300',
       onClick: () => onSelectFilter('kycStatus', 'EXPIRED'),
     },
     {
@@ -93,9 +93,9 @@ export function CustomerSummaryCards({
       subtext: 'Action / Re-upload Needed',
       icon: ShieldAlert,
       active: selectedKycStatus === 'REJECTED',
-      iconBg: 'bg-rose-50 text-rose-700',
-      activeBorder: 'border-rose-600 ring-2 ring-rose-600/20 bg-rose-50/40',
-      inactiveBorder: 'bg-white border-slate-200 hover:border-rose-300',
+      iconBg: 'bg-rose-50 text-rose-800 border-rose-200/80',
+      activeBorder: 'border-rose-600 ring-2 ring-rose-600/20 shadow-xs',
+      inactiveBorder: 'border-slate-200/90 hover:border-slate-300',
       onClick: () => onSelectFilter('kycStatus', 'REJECTED'),
     },
     {
@@ -105,15 +105,15 @@ export function CustomerSummaryCards({
       subtext: 'Restricted Customer Access',
       icon: Ban,
       active: selectedStatus === 'BLOCKED',
-      iconBg: 'bg-purple-50 text-purple-700',
-      activeBorder: 'border-purple-600 ring-2 ring-purple-600/20 bg-purple-50/40',
-      inactiveBorder: 'bg-white border-slate-200 hover:border-purple-300',
+      iconBg: 'bg-purple-50 text-purple-800 border-purple-200/80',
+      activeBorder: 'border-purple-600 ring-2 ring-purple-600/20 shadow-xs',
+      inactiveBorder: 'border-slate-200/90 hover:border-slate-300',
       onClick: () => onSelectFilter('status', 'BLOCKED'),
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2.5 sm:gap-3">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
@@ -123,24 +123,30 @@ export function CustomerSummaryCards({
             onClick={card.onClick}
             aria-pressed={card.active}
             aria-label={`${card.title}: ${card.value}. ${card.subtext}`}
-            className={`min-h-28 p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
+            className={`p-3.5 rounded-2xl bg-white border text-left transition-all relative overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ${
               card.active ? card.activeBorder : card.inactiveBorder
             }`}
           >
-            <div className="flex items-center justify-between w-full mb-2.5">
-              <span className="text-xs font-semibold text-slate-700 leading-tight">
-                {card.title}
+            {card.active && (
+              <span className="absolute top-2.5 right-2.5 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
               </span>
-              <div className={`p-1.5 rounded-lg ${card.iconBg}`}>
+            )}
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className={`p-1.5 rounded-xl border ${card.iconBg} shadow-2xs`}>
                 <Icon className="w-3.5 h-3.5" />
               </div>
             </div>
 
             <div>
-              <div className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">
+              <div className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight leading-none tabular-nums font-sans">
                 {card.value.toLocaleString()}
               </div>
-              <div className="text-[11px] font-medium text-slate-500 mt-1.5 leading-snug">
+              <div className="text-[10.5px] uppercase tracking-wider font-medium text-slate-500 mt-1.5 leading-snug">
+                {card.title}
+              </div>
+              <div className="text-[10px] font-normal text-slate-400 mt-0.5 leading-tight truncate">
                 {card.subtext}
               </div>
             </div>

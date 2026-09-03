@@ -87,31 +87,33 @@ export function LockerActionRibbon({
           <Button
             size="sm"
             onClick={onAddLocker}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 h-11 px-4 rounded-2xl text-xs"
+            className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-sm flex items-center gap-1.5 h-10 px-4 rounded-xl text-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Locker</span>
           </Button>
         )}
 
-        {canImport && <Button
-          variant="outline"
-          size="sm"
-          onClick={onImportCSV}
-          className="h-11 px-3.5 rounded-2xl text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-200 flex items-center gap-1.5"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-          <span>Import CSV/Excel</span>
-        </Button>}
+        {canImport && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onImportCSV}
+            className="h-10 px-3.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-300 flex items-center gap-1.5 cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <span>Import CSV/Excel</span>
+          </Button>
+        )}
 
         <Button
           variant="outline"
           size="sm"
           onClick={onExportCSV}
           disabled={isExporting}
-          className="h-11 px-3.5 rounded-2xl text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-200 flex items-center gap-1.5"
+          className="h-10 px-3.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-300 flex items-center gap-1.5 cursor-pointer"
         >
-          <Download className="w-4 h-4 text-blue-600" />
+          <Download className="w-4 h-4 text-emerald-800" />
           <span>{isExporting ? 'Exporting…' : 'Export All'}</span>
         </Button>
 
@@ -120,18 +122,28 @@ export function LockerActionRibbon({
           size="sm"
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="h-11 px-3 rounded-2xl border-slate-200"
+          className="h-10 px-3 rounded-xl border-slate-300 cursor-pointer"
           title="Refresh Registry"
         >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-700' : 'text-slate-600'}`} />
         </Button>
       </div>
       <details className="relative sm:hidden">
-        <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700"><MoreHorizontal className="h-4 w-4" /> More actions</summary>
+        <summary className="flex min-h-[42px] cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-xs font-medium text-slate-700">
+          <MoreHorizontal className="h-4 w-4" /> More actions
+        </summary>
         <div className="absolute right-0 top-full z-20 mt-2 grid min-w-[210px] gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-          {canImport && <button type="button" onClick={onImportCSV} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-left text-xs font-bold text-slate-700 hover:bg-slate-50"><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Import CSV/Excel</button>}
-          <button type="button" onClick={onExportCSV} disabled={isExporting} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Download className="h-4 w-4 text-blue-600" /> {isExporting ? 'Preparing export…' : 'Export all matches'}</button>
-          <button type="button" onClick={onRefresh} disabled={isRefreshing} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-left text-xs font-bold text-slate-700 hover:bg-slate-50"><RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh registry</button>
+          {canImport && (
+            <button type="button" onClick={onImportCSV} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-700" /> Import CSV/Excel
+            </button>
+          )}
+          <button type="button" onClick={onExportCSV} disabled={isExporting} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <Download className="h-4 w-4 text-emerald-800" /> {isExporting ? 'Preparing export…' : 'Export all matches'}
+          </button>
+          <button type="button" onClick={onRefresh} disabled={isRefreshing} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-emerald-700' : ''}`} /> Refresh registry
+          </button>
         </div>
       </details>
     </div>

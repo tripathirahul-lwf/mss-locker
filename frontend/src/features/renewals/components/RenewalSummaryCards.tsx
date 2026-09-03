@@ -1,6 +1,6 @@
 import React from 'react';
 import { RenewalStats, DueStatus, PaymentStatus } from '../types';
-import { Clock, AlertTriangle, CheckCircle2, Calendar, IndianRupee, Layers } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle2, Calendar, IndianRupee } from 'lucide-react';
 
 interface RenewalSummaryCardsProps {
   stats?: RenewalStats;
@@ -22,8 +22,8 @@ export function RenewalSummaryCards({
       count: stats?.dueToday.count ?? 0,
       amount: stats?.dueToday.amount ?? 0,
       icon: Clock,
-      activeRing: 'ring-2 ring-amber-500 bg-amber-50/80 border-amber-300',
-      badgeBg: 'bg-amber-100 text-amber-800',
+      activeRing: 'ring-2 ring-amber-600/30 border-amber-600 bg-amber-50/50 shadow-xs',
+      badgeBg: 'bg-amber-50 text-amber-800 border border-amber-200/80',
       filter: { dueStatus: 'DUE_TODAY' as const, paymentStatus: 'ALL' as const },
     },
     {
@@ -32,8 +32,8 @@ export function RenewalSummaryCards({
       count: stats?.dueThisWeek.count ?? 0,
       amount: stats?.dueThisWeek.amount ?? 0,
       icon: Calendar,
-      activeRing: 'ring-2 ring-blue-600 bg-blue-50/80 border-blue-300',
-      badgeBg: 'bg-blue-100 text-blue-800',
+      activeRing: 'ring-2 ring-emerald-800/30 border-emerald-800 bg-emerald-50/50 shadow-xs',
+      badgeBg: 'bg-emerald-50 text-emerald-800 border border-emerald-200/80',
       filter: { dueStatus: 'ALL' as const, paymentStatus: 'UNPAID' as const },
     },
     {
@@ -42,8 +42,8 @@ export function RenewalSummaryCards({
       count: stats?.dueThisMonth.count ?? 0,
       amount: stats?.dueThisMonth.amount ?? 0,
       icon: Calendar,
-      activeRing: 'ring-2 ring-indigo-500 bg-indigo-50/80 border-indigo-300',
-      badgeBg: 'bg-indigo-100 text-indigo-800',
+      activeRing: 'ring-2 ring-emerald-800/30 border-emerald-800 bg-emerald-50/50 shadow-xs',
+      badgeBg: 'bg-emerald-50 text-emerald-800 border border-emerald-200/80',
       filter: { dueStatus: 'ALL' as const, paymentStatus: 'ALL' as const },
     },
     {
@@ -52,8 +52,8 @@ export function RenewalSummaryCards({
       count: stats?.overdue.count ?? 0,
       amount: stats?.overdue.amount ?? 0,
       icon: AlertTriangle,
-      activeRing: 'ring-2 ring-rose-500 bg-rose-50/80 border-rose-300',
-      badgeBg: 'bg-rose-100 text-rose-800',
+      activeRing: 'ring-2 ring-rose-600/30 border-rose-600 bg-rose-50/50 shadow-xs',
+      badgeBg: 'bg-rose-50 text-rose-800 border border-rose-200/80',
       filter: { dueStatus: 'OVERDUE' as const, paymentStatus: 'ALL' as const },
     },
     {
@@ -62,8 +62,8 @@ export function RenewalSummaryCards({
       count: stats?.paidThisMonth.count ?? 0,
       amount: stats?.paidThisMonth.amount ?? 0,
       icon: CheckCircle2,
-      activeRing: 'ring-2 ring-emerald-600 bg-emerald-50/80 border-emerald-300',
-      badgeBg: 'bg-emerald-100 text-emerald-800',
+      activeRing: 'ring-2 ring-emerald-800/30 border-emerald-800 bg-emerald-50/50 shadow-xs',
+      badgeBg: 'bg-emerald-50 text-emerald-800 border border-emerald-200/80',
       filter: { dueStatus: 'ALL' as const, paymentStatus: 'PAID' as const },
     },
   ];
@@ -82,24 +82,26 @@ export function RenewalSummaryCards({
             key={card.id}
             type="button"
             onClick={() => onSelectFilter(card.filter)}
-            className={`p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs text-left transition-all hover:border-blue-400 hover:shadow-sm flex flex-col justify-between cursor-pointer min-h-[106px] ${
-              isSelected ? card.activeRing : 'hover:bg-slate-50/60'
+            className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer min-h-[96px] ${
+              isSelected
+                ? card.activeRing
+                : 'bg-white border-slate-200/90 hover:border-emerald-400 hover:bg-slate-50/60 shadow-2xs'
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider font-sans">
                 {card.label}
               </span>
-              <div className={`p-2 rounded-xl ${card.badgeBg} shrink-0`}>
-                <Icon className="w-4 h-4" />
+              <div className={`p-1.5 rounded-xl ${card.badgeBg} shrink-0 shadow-2xs`}>
+                <Icon className="w-3.5 h-3.5" />
               </div>
             </div>
 
             <div className="mt-2 flex items-baseline justify-between gap-1">
-              <span className="text-2xl sm:text-3xl font-black font-sans text-slate-900 tracking-tight">
+              <span className="text-2xl sm:text-3xl font-bold font-sans text-slate-900 tracking-tight tabular-nums">
                 {card.count.toLocaleString()}
               </span>
-              <span className="text-xs font-mono font-bold text-slate-600">
+              <span className="text-xs font-semibold font-sans text-slate-600 tabular-nums">
                 ₹{card.amount.toLocaleString('en-IN')}
               </span>
             </div>

@@ -195,28 +195,28 @@ export function AllocationWizardModal({
     .slice(0, 10);
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/60 backdrop-blur-sm select-none animate-in fade-in-0 duration-150">
+    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150">
       <div
-        className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200"
+        className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200/90"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-3">
             <div
-              className={`p-3 rounded-2xl text-white shadow-md ${
+              className={`p-2.5 rounded-xl border shadow-2xs ${
                 isReserve
-                  ? 'bg-gradient-to-tr from-amber-500 to-orange-600 shadow-amber-500/20'
-                  : 'bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20'
+                  ? 'bg-amber-50 border-amber-200/80 text-amber-800'
+                  : 'bg-emerald-50 border-emerald-200/80 text-emerald-800'
               }`}
             >
-              {isReserve ? <Clock className="w-6 h-6" /> : <KeyRound className="w-6 h-6" />}
+              {isReserve ? <Clock className="w-5 h-5" /> : <KeyRound className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              <h2 className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight font-sans">
                 {isReserve ? 'Reserve Locker (Place On Hold)' : 'New Locker Tenancy Allocation'}
               </h2>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
                 Step {currentStep} of 4 &bull;{' '}
                 {currentStep === 1
                   ? 'Identify and select verified customer'
@@ -231,7 +231,7 @@ export function AllocationWizardModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Close dialog"
           >
             <X className="w-5 h-5" />
@@ -239,34 +239,45 @@ export function AllocationWizardModal({
         </div>
 
         {/* Step Indicator Tabs */}
-        <div className="grid grid-cols-4 border-b border-slate-200/80 text-center text-xs font-bold bg-slate-50/50">
+        <div className="grid grid-cols-4 border-b border-slate-200/90 text-center text-xs bg-slate-50/60 font-sans">
           {[
-            { step: 1, label: '1. Customer Profile' },
-            { step: 2, label: '2. Physical Unit' },
-            { step: 3, label: '3. Pricing & Terms' },
-            { step: 4, label: '4. Final Confirmation' },
+            { step: 1, num: '1', label: 'Customer' },
+            { step: 2, num: '2', label: 'Locker Unit' },
+            { step: 3, num: '3', label: 'Terms & Tariffs' },
+            { step: 4, num: '4', label: 'Confirmation' },
           ].map((tab) => (
             <div
               key={tab.step}
-              className={`py-3.5 transition-colors ${
+              className={`py-3 px-2 flex items-center justify-center gap-1.5 transition-all ${
                 currentStep === tab.step
-                  ? 'border-b-2 border-blue-600 text-blue-700 bg-blue-50/60 font-black'
+                  ? 'border-b-2 border-emerald-800 text-emerald-950 bg-emerald-50/80 font-semibold'
                   : currentStep > tab.step
-                  ? 'text-slate-800 bg-slate-50/30'
-                  : 'text-slate-400'
+                  ? 'text-emerald-700 font-medium bg-slate-50/30'
+                  : 'text-slate-400 font-normal'
               }`}
             >
-              {tab.label}
+              <span
+                className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center shrink-0 tabular-nums ${
+                  currentStep === tab.step
+                    ? 'bg-emerald-800 text-white font-semibold'
+                    : currentStep > tab.step
+                    ? 'bg-emerald-100 text-emerald-800 font-semibold'
+                    : 'bg-slate-200 text-slate-500'
+                }`}
+              >
+                {currentStep > tab.step ? '✓' : tab.num}
+              </span>
+              <span className="truncate">{tab.label}</span>
             </div>
           ))}
         </div>
 
         {/* Step Body */}
-        <div className="p-5 sm:p-7 space-y-4 overflow-y-auto flex-1 text-xs">
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs font-normal">
           {error && (
-            <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <span className="font-bold leading-relaxed">{error}</span>
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+              <span className="font-medium text-xs leading-relaxed">{error}</span>
             </div>
           )}
 
@@ -275,87 +286,97 @@ export function AllocationWizardModal({
             <div className="space-y-4">
               {/* Search Bar */}
               <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={customerQuery}
                   onChange={(e) => setCustomerQuery(e.target.value)}
                   placeholder="Search verified customer by name, mobile phone number, or code (e.g. CUS-000001)..."
-                  className="w-full h-12 pl-10 pr-4 bg-slate-50/80 border border-slate-300 rounded-2xl font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 text-xs sm:text-sm"
+                  className="w-full h-10 pl-10 pr-9 bg-slate-50/80 border border-slate-300 rounded-xl font-normal text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 text-xs shadow-2xs font-sans"
                 />
+                {customerQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomerQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {isSearchingCustomer && (
-                <div className="p-8 text-center text-slate-400 font-semibold animate-pulse">
+                <div className="p-8 text-center text-slate-400 font-normal animate-pulse">
                   Searching registered customers...
                 </div>
               )}
 
               {!isSearchingCustomer && customerList.length === 0 && (
                 <div className="p-10 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-200">
-                  <User className="w-10 h-10 mx-auto text-slate-300" />
-                  <p className="font-bold text-slate-700 text-sm">No active customer found</p>
-                  <p className="text-xs max-w-sm mx-auto">
+                  <User className="w-9 h-9 mx-auto text-slate-300" />
+                  <p className="font-semibold text-slate-700 text-xs">No active customer found</p>
+                  <p className="text-xs max-w-sm mx-auto font-normal">
                     Please create and verify the customer record first in the Customer Management module.
                   </p>
                 </div>
               )}
 
               {/* Customer Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-80 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
                 {customerList.map((cust) => {
                   const isSelected = selectedCustomer?._id === cust._id;
-                  const isKycOk = cust.kycStatus === 'VERIFIED';
 
                   return (
                     <div
                       key={cust._id}
                       onClick={() => setSelectedCustomer(cust)}
-                      className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
                         isSelected
-                          ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20'
-                          : 'border-slate-200 hover:border-blue-300 bg-white hover:bg-slate-50/60'
+                          ? 'border-emerald-700 bg-emerald-50/60 shadow-xs ring-2 ring-emerald-700/30'
+                          : 'border-slate-200/90 hover:border-emerald-400 bg-white hover:bg-emerald-50/20'
                       }`}
                     >
                       {/* Top Row: Avatar, Name & KYC Badge */}
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           {cust.photoUrl ? (
                             <img
                               src={cust.photoUrl}
                               alt={cust.fullName}
-                              className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                              className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0"
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-semibold font-sans text-xs flex items-center justify-center shrink-0 shadow-2xs">
                               {cust.fullName.slice(0, 2).toUpperCase()}
                             </div>
                           )}
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-slate-900 text-sm truncate">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-semibold text-slate-900 text-xs truncate font-sans">
                               {cust.fullName}
                             </h4>
-                            <span className="font-mono text-[11px] text-slate-500 block font-semibold">
+                            <span className="text-[11px] text-slate-500 block font-normal font-sans tabular-nums truncate">
                               {cust.customerCode}
                             </span>
                           </div>
                         </div>
 
-                        <div className="shrink-0">
+                        <div className="shrink-0 ml-1">
                           <KycStatusBadge status={cust.kycStatus} />
                         </div>
                       </div>
 
-                      {/* Bottom Row: Phone & Address */}
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-mono font-bold">
-                          <Phone className="w-3 h-3 text-slate-400" />
-                          <span>{formatPhone(cust.phone)}</span>
+                      {/* Bottom Row: Phone & Selection State */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-normal">
+                        <div className="flex items-center gap-1.5 text-slate-900 min-w-0">
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="font-sans font-medium text-slate-900 text-[13px] tabular-nums tracking-tight truncate">
+                            {formatPhone(cust.phone)}
+                          </span>
                         </div>
 
                         {isSelected && (
-                          <span className="inline-flex items-center gap-1 text-blue-700 font-bold text-[10px]">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span className="inline-flex items-center gap-1 text-emerald-800 font-semibold text-[11px] shrink-0 ml-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
                             <span>Selected</span>
                           </span>
                         )}
@@ -368,30 +389,30 @@ export function AllocationWizardModal({
               {/* Selected Customer Highlight Banner */}
               {selectedCustomer && (
                 <div
-                  className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${
+                  className={`p-3 sm:p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 overflow-hidden ${
                     selectedCustomer.kycStatus === 'VERIFIED'
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                      ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+                      : 'bg-amber-50/90 border-amber-200 text-amber-950'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     {selectedCustomer.kycStatus === 'VERIFIED' ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <CheckCircle2 className="w-4.5 h-4.5 text-emerald-700 shrink-0" />
                     ) : (
-                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                      <AlertTriangle className="w-4.5 h-4.5 text-amber-700 shrink-0" />
                     )}
-                    <div>
-                      <p className="font-bold text-xs">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-xs font-sans truncate">
                         Selected: {selectedCustomer.fullName} ({selectedCustomer.customerCode})
                       </p>
                       {selectedCustomer.kycStatus !== 'VERIFIED' && (
-                        <p className="text-[11px] opacity-90 font-medium">
+                        <p className="text-[11px] opacity-90 font-normal">
                           Note: KYC is {selectedCustomer.kycStatus}. Ensure KYC verification documents are completed.
                         </p>
                       )}
                     </div>
                   </div>
-                  <span className="font-mono text-xs font-bold shrink-0">
+                  <span className="font-sans font-medium text-xs tabular-nums text-slate-900 shrink-0 pl-7 sm:pl-0">
                     {formatPhone(selectedCustomer.phone)}
                   </span>
                 </div>
@@ -405,11 +426,11 @@ export function AllocationWizardModal({
               {/* Filter Toolbar */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Filter by Locker Size</label>
+                  <label className="font-medium text-xs text-slate-700">Filter by Locker Size</label>
                   <select
                     value={sizeFilter}
                     onChange={(e) => setSizeFilter(e.target.value)}
-                    className="w-full h-11 px-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 cursor-pointer"
+                    className="w-full h-10 px-3 bg-slate-50/80 border border-slate-300 rounded-xl font-medium text-xs text-slate-900 cursor-pointer focus:border-emerald-700 focus:bg-white"
                   >
                     <option value="">All Sizes (A to G2)</option>
                     {['A', 'B', 'B1', 'C', 'D', 'D1', 'E', 'F', 'F1', 'G', 'G1', 'G2'].map((s) => (
@@ -421,35 +442,35 @@ export function AllocationWizardModal({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Filter by Physical Rack</label>
+                  <label className="font-medium text-xs text-slate-700">Filter by Physical Rack</label>
                   <Input
                     type="text"
                     value={rackFilter}
                     onChange={(e) => setRackFilter(e.target.value)}
                     placeholder="e.g. Rack-01 or R12"
-                    className="h-11 text-xs bg-slate-50 border-slate-300 rounded-xl font-bold"
+                    className="h-10 text-xs bg-slate-50/80 border-slate-300 rounded-xl font-normal focus:border-emerald-700 focus:bg-white"
                   />
                 </div>
               </div>
 
               {isLoadingLockers && (
-                <div className="p-8 text-center text-slate-400 font-semibold animate-pulse">
+                <div className="p-8 text-center text-slate-400 font-normal animate-pulse">
                   Querying vacant safe-deposit lockers...
                 </div>
               )}
 
               {!isLoadingLockers && availableLockers.length === 0 && (
                 <div className="p-10 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-200">
-                  <KeyRound className="w-10 h-10 mx-auto text-slate-300" />
-                  <p className="font-bold text-slate-700 text-sm">No vacant lockers found</p>
-                  <p className="text-xs max-w-sm mx-auto">
+                  <KeyRound className="w-9 h-9 mx-auto text-slate-300" />
+                  <p className="font-semibold text-slate-700 text-xs">No vacant lockers found</p>
+                  <p className="text-xs max-w-sm mx-auto font-normal">
                     All units matching your criteria are currently occupied or reserved.
                   </p>
                 </div>
               )}
 
               {/* Available Lockers Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 max-h-80 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-h-80 overflow-y-auto pr-1">
                 {availableLockers.map((locker) => {
                   const isSelected = selectedLocker?._id === locker._id;
 
@@ -457,41 +478,41 @@ export function AllocationWizardModal({
                     <div
                       key={locker._id}
                       onClick={() => handleSelectLocker(locker)}
-                      className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
                         isSelected
-                          ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20'
-                          : 'border-slate-200 hover:border-blue-300 bg-white hover:bg-slate-50/60'
+                          ? 'border-emerald-800 bg-emerald-50/50 shadow-xs ring-2 ring-emerald-800/30'
+                          : 'border-slate-200/90 hover:border-emerald-400 bg-white hover:bg-emerald-50/20'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="flex items-center gap-1.5 font-black text-slate-900 text-sm">
-                            <KeyRound className="w-4 h-4 text-blue-600 shrink-0" />
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-900 text-xs font-sans">
+                            <KeyRound className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
                             <span>Locker #{locker.lockerNumber}</span>
                           </div>
-                          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                          <p className="text-[11px] text-slate-500 font-normal mt-0.5">
                             {locker.rackNumber} &bull; {locker.section || 'Main Vault'}
                           </p>
                         </div>
-                        <span className="px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-900 font-black font-mono text-[11px] shrink-0">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium font-sans text-[10.5px] shrink-0">
                           {locker.size}
                         </span>
                       </div>
 
-                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-normal">
                         <div>
-                          <span className="text-slate-400 block text-[9px] font-sans font-bold uppercase">
+                          <span className="text-slate-400 block text-[9.5px] font-sans uppercase">
                             Annual Rent
                           </span>
-                          <strong className="text-emerald-700 text-xs font-mono font-bold">
+                          <strong className="text-slate-900 text-xs font-sans font-semibold tabular-nums">
                             ₹{locker.annualRent.toLocaleString('en-IN')}
                           </strong>
                         </div>
                         <div className="text-right">
-                          <span className="text-slate-400 block text-[9px] font-sans font-bold uppercase">
+                          <span className="text-slate-400 block text-[9.5px] font-sans uppercase">
                             Deposit
                           </span>
-                          <strong className="text-slate-800 text-xs font-mono font-bold">
+                          <strong className="text-slate-700 text-xs font-sans font-semibold tabular-nums">
                             ₹{locker.securityDeposit.toLocaleString('en-IN')}
                           </strong>
                         </div>
@@ -503,19 +524,19 @@ export function AllocationWizardModal({
 
               {/* Selected Locker Banner */}
               {selectedLocker && (
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center justify-between gap-3">
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-700 shrink-0" />
                     <div>
-                      <p className="font-bold text-xs">
+                      <p className="font-semibold text-xs font-sans">
                         Selected Unit: Locker #{selectedLocker.lockerNumber} (Size {selectedLocker.size})
                       </p>
-                      <p className="text-[11px] text-emerald-700">
+                      <p className="text-[11px] text-emerald-800 font-normal">
                         {selectedLocker.rackNumber} &bull; {selectedLocker.section || 'Main Vault'}
                       </p>
                     </div>
                   </div>
-                  <span className="font-mono text-xs font-bold text-emerald-950 shrink-0">
+                  <span className="font-sans text-xs font-semibold text-emerald-950 shrink-0 tabular-nums">
                     ₹{selectedLocker.annualRent.toLocaleString('en-IN')}/yr
                   </span>
                 </div>
@@ -527,26 +548,26 @@ export function AllocationWizardModal({
           {currentStep === 3 && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">Tenancy Start Date *</label>
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-slate-700">Tenancy Start Date *</label>
                   <Input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
                     required
-                    className="h-11 text-xs bg-slate-50 border-slate-300 font-bold rounded-xl"
+                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-normal rounded-xl focus:border-emerald-700 focus:bg-white"
                   />
-                  <span className="text-[10px] text-slate-500 block">
-                    Calculated 1-Year End Date: <strong>{previewEndDate}</strong>
+                  <span className="text-[10px] text-slate-500 block font-normal">
+                    Calculated 1-Year End Date: <strong className="font-medium text-slate-700 tabular-nums">{previewEndDate}</strong>
                   </span>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">Billing Cycle *</label>
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-slate-700">Billing Cycle *</label>
                   <select
                     value={billingCycle}
                     onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}
-                    className="w-full h-11 px-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 cursor-pointer"
+                    className="w-full h-10 px-3 bg-slate-50/80 border border-slate-300 rounded-xl font-medium text-xs text-slate-900 cursor-pointer focus:border-emerald-700 focus:bg-white"
                   >
                     {BILLING_CYCLES.map((bc) => (
                       <option key={bc.value} value={bc.value}>
@@ -558,8 +579,8 @@ export function AllocationWizardModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-slate-700">
                     Annual Rent Tariff Snapshot (₹) *
                   </label>
                   <Input
@@ -569,15 +590,15 @@ export function AllocationWizardModal({
                     value={annualRent}
                     onChange={(e) => setAnnualRent(Number(e.target.value))}
                     required
-                    className="h-11 text-sm bg-slate-50 border-slate-300 font-black text-slate-900 rounded-xl"
+                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-semibold text-slate-900 rounded-xl tabular-nums focus:border-emerald-700 focus:bg-white"
                   />
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-slate-500 font-normal">
                     Locked into tenancy snapshot. Future tariff revisions won't alter this agreement.
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-slate-700">
                     Security Caution Deposit Snapshot (₹) *
                   </label>
                   <Input
@@ -587,33 +608,33 @@ export function AllocationWizardModal({
                     value={securityDeposit}
                     onChange={(e) => setSecurityDeposit(Number(e.target.value))}
                     required
-                    className="h-11 text-sm bg-slate-50 border-slate-300 font-black text-slate-900 rounded-xl"
+                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-semibold text-slate-900 rounded-xl tabular-nums focus:border-emerald-700 focus:bg-white"
                   />
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-slate-500 font-normal">
                     Refundable caution money upon physical key return.
                   </p>
                 </div>
               </div>
 
               {isReserve ? (
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">Hold / Reservation Duration (Days)</label>
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-slate-700">Hold / Reservation Duration (Days)</label>
                   <Input
                     type="number"
                     min="1"
                     max="30"
                     value={reservationDays}
                     onChange={(e) => setReservationDays(Number(e.target.value))}
-                    className="h-11 text-xs bg-slate-50 border-slate-300 font-bold rounded-xl"
+                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-normal rounded-xl tabular-nums focus:border-emerald-700 focus:bg-white"
                   />
                 </div>
               ) : (
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">Agreement Classification</label>
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-slate-700">Agreement Classification</label>
                   <select
                     value={allocationType}
                     onChange={(e) => setAllocationType(e.target.value as AllocationType)}
-                    className="w-full h-11 px-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 cursor-pointer"
+                    className="w-full h-10 px-3 bg-slate-50/80 border border-slate-300 rounded-xl font-medium text-xs text-slate-900 cursor-pointer focus:border-emerald-700 focus:bg-white"
                   >
                     {ALLOCATION_TYPES.map((at) => (
                       <option key={at.value} value={at.value}>
@@ -624,14 +645,14 @@ export function AllocationWizardModal({
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700">Operational Remarks / Key Handover Notes</label>
+              <div className="space-y-1">
+                <label className="font-medium text-xs text-slate-700">Operational Remarks / Key Handover Notes</label>
                 <textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   placeholder="Optional notes regarding key handover, authorized joint operator, or special instructions"
                   rows={2}
-                  className="w-full p-3 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium"
+                  className="w-full p-2.5 text-xs bg-slate-50/80 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 font-normal"
                 />
               </div>
             </div>
@@ -639,34 +660,34 @@ export function AllocationWizardModal({
 
           {/* STEP 4: Review & Final Confirmation */}
           {currentStep === 4 && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/90 flex items-center gap-3">
-                <FileCheck className="w-6 h-6 text-blue-600 shrink-0" />
+            <div className="space-y-4 font-normal">
+              <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 flex items-center gap-2.5">
+                <FileCheck className="w-5 h-5 text-emerald-800 shrink-0" />
                 <div>
-                  <h4 className="font-black text-blue-950 text-xs">
+                  <h4 className="font-semibold text-emerald-950 text-xs">
                     Please Review Tenancy Agreement Details
                   </h4>
-                  <p className="text-[11px] text-blue-800 font-medium">
+                  <p className="text-[11px] text-emerald-800 font-normal mt-0.5">
                     Confirming will assign <strong>Locker #{selectedLocker?.lockerNumber}</strong> to <strong>{selectedCustomer?.fullName}</strong> and transition unit status to {isReserve ? 'RESERVED' : 'OCCUPIED'}.
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {/* Customer Card */}
-                <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2.5 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 space-y-2 shadow-2xs">
+                  <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
                     Verified Tenant Customer
                   </span>
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-semibold flex items-center justify-center shrink-0 shadow-2xs text-xs">
                       {selectedCustomer?.fullName.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-black text-slate-900 text-sm truncate">
+                      <p className="font-semibold text-slate-900 text-xs truncate font-sans">
                         {selectedCustomer?.fullName}
                       </p>
-                      <p className="text-[11px] text-slate-500 font-mono">
+                      <p className="text-[11px] text-slate-500 font-sans tabular-nums">
                         {selectedCustomer?.customerCode} &bull; {selectedCustomer?.phone}
                       </p>
                     </div>
@@ -674,19 +695,19 @@ export function AllocationWizardModal({
                 </div>
 
                 {/* Locker Card */}
-                <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2.5 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 space-y-2 shadow-2xs">
+                  <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
                     Physical Safe-Deposit Compartment
                   </span>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
-                      <KeyRound className="w-6 h-6" />
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                      <KeyRound className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-black text-slate-900 text-sm truncate">
+                      <p className="font-semibold text-slate-900 text-xs truncate font-sans">
                         Locker #{selectedLocker?.lockerNumber} (Size {selectedLocker?.size})
                       </p>
-                      <p className="text-[11px] text-slate-500 font-medium">
+                      <p className="text-[11px] text-slate-500 font-normal">
                         {selectedLocker?.rackNumber} &bull; {selectedLocker?.section || 'Main Vault'}
                       </p>
                     </div>
@@ -695,22 +716,22 @@ export function AllocationWizardModal({
               </div>
 
               {/* Financial Snapshot Card */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
                   Agreed Financial Pricing (Immutable Snapshot)
                 </span>
-                <div className="grid grid-cols-3 gap-3 text-center font-mono">
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                    <span className="text-[9px] font-sans text-slate-500 block font-bold">START DATE</span>
-                    <strong className="text-slate-900 text-xs">{startDate}</strong>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-[9.5px] font-sans text-slate-500 block uppercase">START DATE</span>
+                    <strong className="text-slate-900 text-xs font-sans font-medium tabular-nums">{startDate}</strong>
                   </div>
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                    <span className="text-[9px] font-sans text-slate-500 block font-bold">ANNUAL RENT</span>
-                    <strong className="text-emerald-700 text-xs">₹{annualRent.toLocaleString('en-IN')}</strong>
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-[9.5px] font-sans text-slate-500 block uppercase">ANNUAL RENT</span>
+                    <strong className="text-emerald-800 text-xs font-sans font-semibold tabular-nums">₹{annualRent.toLocaleString('en-IN')}</strong>
                   </div>
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                    <span className="text-[9px] font-sans text-slate-500 block font-bold">CAUTION DEPOSIT</span>
-                    <strong className="text-blue-700 text-xs">₹{securityDeposit.toLocaleString('en-IN')}</strong>
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-[9.5px] font-sans text-slate-500 block uppercase">CAUTION DEPOSIT</span>
+                    <strong className="text-slate-800 text-xs font-sans font-semibold tabular-nums">₹{securityDeposit.toLocaleString('en-IN')}</strong>
                   </div>
                 </div>
               </div>
@@ -719,7 +740,7 @@ export function AllocationWizardModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 sm:p-4.5 bg-slate-50/80 border-t border-slate-200/90 flex items-center justify-between gap-3 shrink-0">
           <div>
             {currentStep > 1 && (
               <Button
@@ -728,7 +749,7 @@ export function AllocationWizardModal({
                 size="sm"
                 onClick={() => setCurrentStep((prev) => (prev - 1) as any)}
                 disabled={isSubmitting}
-                className="rounded-xl flex items-center gap-1 text-xs cursor-pointer"
+                className="rounded-xl border-slate-300 font-medium text-xs h-9 px-3.5 flex items-center gap-1 cursor-pointer hover:bg-slate-50"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>Previous</span>
@@ -743,7 +764,7 @@ export function AllocationWizardModal({
               size="sm"
               onClick={onClose}
               disabled={isSubmitting}
-              className="rounded-xl text-xs cursor-pointer"
+              className="rounded-xl border-slate-300 font-medium text-xs h-9 px-3.5 hover:bg-slate-50 cursor-pointer"
             >
               Cancel
             </Button>
@@ -753,7 +774,7 @@ export function AllocationWizardModal({
                 type="button"
                 size="sm"
                 onClick={handleNextStep}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 rounded-xl flex items-center gap-1 text-xs cursor-pointer"
+                className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-xs rounded-xl h-9 px-4 flex items-center gap-1 text-xs cursor-pointer"
               >
                 <span>Continue</span>
                 <ChevronRight className="w-4 h-4" />
@@ -764,7 +785,7 @@ export function AllocationWizardModal({
                 size="sm"
                 onClick={handleFinalSubmit}
                 disabled={isSubmitting}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 min-w-[170px] rounded-xl text-xs cursor-pointer"
+                className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-xs min-w-[170px] rounded-xl h-9 px-4 text-xs cursor-pointer"
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-1.5">

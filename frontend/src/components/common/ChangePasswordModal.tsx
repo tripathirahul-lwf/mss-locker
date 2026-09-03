@@ -67,7 +67,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
       >
         <CardHeader className="flex flex-row items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-100 bg-slate-50/60">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
+            <div className="p-2.5 rounded-2xl bg-emerald-700 text-white shadow-md shadow-emerald-800/20">
               <KeyRound className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -174,7 +174,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
               type="submit"
               size="sm"
               disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 min-w-[130px] rounded-xl"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-md shadow-emerald-800/20 min-w-[130px] rounded-xl cursor-pointer"
             >
               {isSubmitting ? 'Updating...' : 'Update Password'}
             </Button>

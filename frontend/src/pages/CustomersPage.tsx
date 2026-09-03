@@ -148,21 +148,21 @@ export function CustomersPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-xs">
         <div className="flex items-center gap-3.5">
-          <div className="p-3 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
-            <Users className="w-5 h-5 text-white" />
+          <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-800 flex items-center justify-center shadow-2xs">
+            <Users className="w-5 h-5 text-emerald-800" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
                 Customer Management & KYC
               </h1>
               {isFetching && (
-                <RefreshCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-800 animate-spin" />
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5 font-medium">
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 font-normal">
               Manage customer profiles, contact details, identification records, and KYC compliance
             </p>
           </div>
@@ -173,9 +173,9 @@ export function CustomersPage() {
             variant="outline"
             size="sm"
             onClick={() => Promise.all([refetch(), queryClient.refetchQueries({ queryKey: ['customer-stats'] })])}
-            className="flex items-center gap-1.5 text-xs font-semibold h-9 rounded-xl"
+            className="flex items-center gap-1.5 text-xs font-medium h-10 px-3.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-blue-600' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isFetching ? 'animate-spin text-emerald-800' : ''}`} />
             <span>Refresh</span>
           </Button>
 
@@ -186,7 +186,7 @@ export function CustomersPage() {
                 setEditingCustomer(null);
                 setIsFormModalOpen(true);
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 text-xs font-bold shadow-md shadow-blue-500/20 h-9 px-3.5 rounded-xl"
+              className="bg-emerald-800 hover:bg-emerald-900 text-white flex items-center gap-1.5 text-xs font-medium shadow-xs h-10 px-4 rounded-xl cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               <span>Add Customer</span>
@@ -218,9 +218,9 @@ export function CustomersPage() {
       />
 
       {(isError || isStatsError) && (
-        <div role="alert" className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div><strong>Customer data could not be refreshed.</strong><div className="text-xs mt-0.5">{error instanceof Error ? error.message : 'Check the server connection and try again.'}</div></div>
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800 font-normal">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+          <div><strong className="font-semibold">Customer data could not be refreshed.</strong><div className="text-xs mt-0.5 text-rose-700">{error instanceof Error ? error.message : 'Check the server connection and try again.'}</div></div>
         </div>
       )}
 
@@ -281,13 +281,22 @@ export function CustomersPage() {
       )}</Suspense>
 
       {archiveCustomer && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setArchiveCustomer(null)}>
-          <div role="alertdialog" aria-modal="true" aria-labelledby="archive-customer-title" className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
-            <h2 id="archive-customer-title" className="text-base font-bold text-slate-900">Archive customer?</h2>
-            <p className="mt-2 text-sm text-slate-600"><strong>{archiveCustomer.fullName}</strong> ({archiveCustomer.customerCode}) will be removed from active workflows. Historical records will remain available.</p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setArchiveCustomer(null)}>Cancel</Button>
-              <Button className="bg-rose-600 hover:bg-rose-700" disabled={deactivateMutation.isPending} onClick={() => deactivateMutation.mutate(archiveCustomer._id, { onSuccess: () => setArchiveCustomer(null) })}>{deactivateMutation.isPending ? 'Archiving…' : 'Archive customer'}</Button>
+        <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setArchiveCustomer(null)}>
+          <div role="alertdialog" aria-modal="true" aria-labelledby="archive-customer-title" className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start gap-3.5">
+              <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-700 shrink-0 border border-rose-200/80 flex items-center justify-center shadow-2xs">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h2 id="archive-customer-title" className="text-base font-semibold text-slate-900 tracking-tight">Archive Customer?</h2>
+                <p className="text-xs text-slate-500 leading-relaxed font-normal">
+                  <strong className="font-semibold text-slate-700">{archiveCustomer.fullName}</strong> ({archiveCustomer.customerCode}) will be removed from active safe-deposit workflows. Historical records will remain preserved.
+                </p>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
+              <Button variant="outline" size="sm" onClick={() => setArchiveCustomer(null)} className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 hover:bg-slate-50 cursor-pointer">Cancel</Button>
+              <Button size="sm" variant="destructive" disabled={deactivateMutation.isPending} onClick={() => deactivateMutation.mutate(archiveCustomer._id, { onSuccess: () => setArchiveCustomer(null) })} className="rounded-xl font-medium text-xs h-9.5 px-4 cursor-pointer">{deactivateMutation.isPending ? 'Archiving…' : 'Archive Customer'}</Button>
             </div>
           </div>
         </div>

@@ -49,15 +49,22 @@ export function Sidebar({
         {/* Brand Header */}
         <div className="flex h-16 items-center justify-between px-4 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold shadow-md shadow-blue-500/20">
-              <Shield className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-white p-0.5 border border-emerald-100 shadow-xs flex items-center justify-center">
+              <img
+                src="/logo.jpeg"
+                alt="MSS Locker"
+                className="h-full w-full object-contain rounded-lg"
+                onError={(e) => {
+                  e.currentTarget.src = '/favicon.svg';
+                }}
+              />
             </div>
             {(!collapsed || mobileOpen) && (
               <div className="flex flex-col truncate">
                 <span className="font-extrabold text-sm text-slate-900 tracking-tight">
                   MSS LOCKER
                 </span>
-                <span className="text-[10px] text-blue-700 font-semibold tracking-wider uppercase truncate">
+                <span className="text-[10px] text-emerald-800 font-semibold tracking-wider uppercase truncate">
                   Safe-Deposit Vault v1.0
                 </span>
               </div>
@@ -99,7 +106,7 @@ export function Sidebar({
                           'group flex items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-all select-none',
                           'min-h-[42px] touch-manipulation',
                           isActive
-                            ? 'bg-blue-50/80 text-blue-700 font-bold border border-blue-200/80 shadow-2xs'
+                            ? 'bg-emerald-50/90 text-emerald-800 font-bold border border-emerald-200/80 shadow-2xs'
                             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
                           collapsed && !mobileOpen ? 'justify-center px-2' : ''
                         )
@@ -111,7 +118,7 @@ export function Sidebar({
                             className={cn(
                               'h-5 w-5 shrink-0 transition-colors',
                               isActive
-                                ? 'text-blue-600'
+                                ? 'text-emerald-700'
                                 : 'text-slate-400 group-hover:text-slate-700'
                             )}
                           />
@@ -123,7 +130,7 @@ export function Sidebar({
                                   className={cn(
                                     'ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold tracking-tight',
                                     isActive
-                                      ? 'bg-blue-200/60 text-blue-800'
+                                      ? 'bg-emerald-200/60 text-emerald-900'
                                       : 'bg-slate-100 text-slate-600 border border-slate-200'
                                   )}
                                 >

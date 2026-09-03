@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Edit3, Trash2, KeyRound, ArrowUpDown, ChevronLeft, ChevronRight, Ban } from 'lucide-react';
+import { Eye, Edit3, Trash2, KeyRound, ArrowUpDown, ChevronLeft, ChevronRight, ChevronDown, Ban } from 'lucide-react';
 import { Locker, LockerQueryParams } from '../types';
 import { LockerStatusBadge, OperationalStatusBadge } from './LockerStatusBadge';
 import { formatINR } from '../utils/formatters';
@@ -46,22 +46,28 @@ export function LockerTable({
   const limit = pagination?.limit || 25;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden flex flex-col">
+    <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col">
       <div className="divide-y divide-slate-100 md:hidden">
         {isLoading ? (
           Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-[92px] animate-pulse bg-gradient-to-r from-white via-slate-50 to-white p-4"><div className="h-4 w-28 rounded bg-slate-200" /><div className="mt-3 h-3 w-44 rounded bg-slate-100" /></div>)
         ) : lockers.length === 0 ? (
-          <div className="px-5 py-12 text-center"><KeyRound className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-3 text-sm font-bold text-slate-800">No lockers found</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Try clearing the current search or filters.</p></div>
+          <div className="px-5 py-12 text-center"><KeyRound className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-3 text-sm font-semibold text-slate-800">No lockers found</p><p className="mt-1 text-xs leading-relaxed text-slate-500 font-normal">Try clearing the current search or filters.</p></div>
         ) : lockers.map((locker) => (
           <article key={locker._id} className="relative p-4 active:bg-slate-50">
             <button type="button" onClick={() => onView(locker)} className="block w-full pr-12 text-left" aria-label={`View locker ${locker.lockerNumber}`}>
-              <div className="flex flex-wrap items-center gap-2"><strong className="text-base text-slate-950">Locker {locker.lockerNumber}</strong><LockerStatusBadge status={locker.status} /></div>
-              <p className="mt-1.5 text-xs font-medium text-slate-600">Size {locker.size} · {locker.rackNumber} · {locker.section || 'Main Vault'}</p>
-              <div className="mt-2 flex items-center gap-3 text-[11px]"><OperationalStatusBadge status={locker.operationalStatus} /><span className="font-mono font-bold text-slate-800">{formatINR(locker.annualRent)}/yr</span></div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-base font-semibold text-slate-900">Locker {locker.lockerNumber}</span>
+                <LockerStatusBadge status={locker.status} />
+              </div>
+              <p className="mt-1.5 text-xs font-normal text-slate-600">Size {locker.size} &bull; {locker.rackNumber} &bull; {locker.section || 'Main Vault'}</p>
+              <div className="mt-2 flex items-center gap-3 text-[11px]">
+                <OperationalStatusBadge status={locker.operationalStatus} />
+                <span className="font-sans font-medium tabular-nums text-slate-800">{formatINR(locker.annualRent)}/yr</span>
+              </div>
             </button>
             <div className="absolute right-2 top-2 flex flex-col gap-1">
-              {canUpdate && <button type="button" onClick={() => onEdit(locker)} className="grid h-11 w-11 place-items-center rounded-xl text-slate-500 hover:bg-slate-100" aria-label={`Edit locker ${locker.lockerNumber}`}><Edit3 className="h-4 w-4" /></button>}
-              {canDelete && locker.isActive && <button type="button" onClick={() => onDeactivate(locker)} className="grid h-11 w-11 place-items-center rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label={`Deactivate locker ${locker.lockerNumber}`}><Trash2 className="h-4 w-4" /></button>}
+              {canUpdate && <button type="button" onClick={() => onEdit(locker)} className="grid h-10 w-10 place-items-center rounded-xl text-slate-500 hover:bg-slate-100" aria-label={`Edit locker ${locker.lockerNumber}`}><Edit3 className="h-4 w-4" /></button>}
+              {canDelete && locker.isActive && <button type="button" onClick={() => onDeactivate(locker)} className="grid h-10 w-10 place-items-center rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label={`Deactivate locker ${locker.lockerNumber}`}><Trash2 className="h-4 w-4" /></button>}
             </div>
           </article>
         ))}
@@ -71,14 +77,14 @@ export function LockerTable({
         <table className="w-full text-left text-xs border-collapse">
           <caption className="sr-only">Locker register. Activate a sortable column heading to change its sort order.</caption>
           {/* Table Header */}
-          <thead className="bg-slate-50/95 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px] sticky top-0 z-10 backdrop-blur-sm">
+          <thead className="bg-slate-50/95 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-[11px] sticky top-0 z-10 backdrop-blur-sm">
             <tr>
               <th
                 scope="col"
                 aria-sort={filters.sortBy === 'lockerNumber' ? (filters.sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                 className="p-0"
               >
-                <button type="button" onClick={() => onSortChange('lockerNumber')} className="flex min-h-11 w-full items-center gap-1.5 px-4 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600" aria-label="Sort by locker identifier">
+                <button type="button" onClick={() => onSortChange('lockerNumber')} className="flex min-h-11 w-full items-center gap-1.5 px-4 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700 cursor-pointer" aria-label="Sort by locker identifier">
                   <span>Locker Identifier</span>
                   <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-slate-400" />
                 </button>
@@ -88,7 +94,7 @@ export function LockerTable({
                 aria-sort={filters.sortBy === 'size' ? (filters.sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                 className="p-0"
               >
-                <button type="button" onClick={() => onSortChange('size')} className="flex min-h-11 w-full items-center gap-1.5 px-3 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600" aria-label="Sort by locker size">
+                <button type="button" onClick={() => onSortChange('size')} className="flex min-h-11 w-full items-center gap-1.5 px-3 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700 cursor-pointer" aria-label="Sort by locker size">
                   <span>Size</span>
                   <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-slate-400" />
                 </button>
@@ -98,7 +104,7 @@ export function LockerTable({
                 aria-sort={filters.sortBy === 'rackNumber' ? (filters.sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                 className="p-0"
               >
-                <button type="button" onClick={() => onSortChange('rackNumber')} className="flex min-h-11 w-full items-center gap-1.5 px-3 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600" aria-label="Sort by rack and section">
+                <button type="button" onClick={() => onSortChange('rackNumber')} className="flex min-h-11 w-full items-center gap-1.5 px-3 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700 cursor-pointer" aria-label="Sort by rack and section">
                   <span>Rack & Section</span>
                   <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-slate-400" />
                 </button>
@@ -108,7 +114,7 @@ export function LockerTable({
                 aria-sort={filters.sortBy === 'status' ? (filters.sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                 className="p-0"
               >
-                <button type="button" onClick={() => onSortChange('status')} className="flex min-h-11 w-full items-center gap-1.5 px-3 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600" aria-label="Sort by occupancy status">
+                <button type="button" onClick={() => onSortChange('status')} className="flex min-h-11 w-full items-center gap-1.5 px-3 py-3 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700 cursor-pointer" aria-label="Sort by occupancy status">
                   <span>Occupancy</span>
                   <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-slate-400" />
                 </button>
@@ -119,7 +125,7 @@ export function LockerTable({
                 aria-sort={filters.sortBy === 'annualRent' ? (filters.sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                 className="p-0 text-right"
               >
-                <button type="button" onClick={() => onSortChange('annualRent')} className="flex min-h-11 w-full items-center justify-end gap-1.5 px-3 py-3 text-right hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600" aria-label="Sort by annual rent">
+                <button type="button" onClick={() => onSortChange('annualRent')} className="flex min-h-11 w-full items-center justify-end gap-1.5 px-3 py-3 text-right hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700 cursor-pointer" aria-label="Sort by annual rent">
                   <span>Annual Rent</span>
                   <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-slate-400" />
                 </button>
@@ -130,7 +136,7 @@ export function LockerTable({
           </thead>
 
           {/* Table Body */}
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 font-normal text-slate-700">
             {isLoading ? (
               Array.from({ length: 8 }).map((_, idx) => (
                 <tr key={`skel-${idx}`} className="animate-pulse">
@@ -169,8 +175,8 @@ export function LockerTable({
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
                       <KeyRound className="w-5 h-5" />
                     </div>
-                    <p className="text-sm font-bold text-slate-800">No lockers found</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-slate-800">No lockers found</p>
+                    <p className="text-xs text-slate-500 font-normal">
                       Try clearing filters or search criteria, or add a new physical locker to the master directory.
                     </p>
                   </div>
@@ -180,23 +186,23 @@ export function LockerTable({
               lockers.map((locker) => (
                 <tr
                   key={locker._id}
-                  className="hover:bg-slate-50/80 transition-colors group"
+                  className="hover:bg-emerald-50/30 transition-colors group"
                 >
                   {/* Locker Number & Code */}
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
-                      <div className="font-bold text-slate-900 text-sm">
+                      <div className="font-semibold text-slate-900 text-sm">
                         {locker.lockerNumber}
                       </div>
                       <Badge
                         variant="outline"
-                        className="text-[10px] font-mono bg-slate-50 border-slate-200 text-slate-600 font-semibold"
+                        className="text-[10px] font-mono bg-slate-100/80 border-slate-200 text-slate-600 font-medium px-1.5 py-0.5 rounded-md"
                       >
                         {locker.lockerCode}
                       </Badge>
                     </div>
                     {locker.position && (
-                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                      <span className="text-[11px] text-slate-400 block mt-0.5 font-normal">
                         {locker.position}
                       </span>
                     )}
@@ -204,20 +210,20 @@ export function LockerTable({
 
                   {/* Size */}
                   <td className="py-3 px-3">
-                    <div className="font-semibold text-slate-800">
+                    <div className="font-medium text-slate-800">
                       Size {locker.size}
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {locker.floor || 'Ground'}
+                    <span className="text-[10.5px] text-slate-400 font-mono">
+                      {locker.floor || 'Ground Floor'}
                     </span>
                   </td>
 
                   {/* Rack & Section */}
                   <td className="py-3 px-3">
-                    <div className="font-semibold text-slate-800 font-mono">
+                    <div className="font-medium text-slate-800 font-mono">
                       {locker.rackNumber}
                     </div>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-500 font-normal">
                       {locker.section || 'Main Vault'}
                     </span>
                   </td>
@@ -233,12 +239,12 @@ export function LockerTable({
                   </td>
 
                   {/* Annual Rent */}
-                  <td className="py-3 px-3 text-right font-mono font-semibold text-slate-900">
+                  <td className="py-3 px-3 text-right font-sans font-semibold tabular-nums text-slate-900">
                     {formatINR(locker.annualRent)}
                   </td>
 
                   {/* Security Deposit */}
-                  <td className="py-3 px-3 text-right font-mono text-slate-600">
+                  <td className="py-3 px-3 text-right font-sans font-normal tabular-nums text-slate-600">
                     {formatINR(locker.securityDeposit)}
                   </td>
 
@@ -249,7 +255,7 @@ export function LockerTable({
                         variant="ghost"
                         size="sm"
                         onClick={() => onView(locker)}
-                        className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900"
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer"
                         title="View Locker Details"
                         aria-label={`View locker ${locker.lockerNumber}`}
                       >
@@ -261,7 +267,7 @@ export function LockerTable({
                           variant="ghost"
                           size="sm"
                           onClick={() => onEdit(locker)}
-                          className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900"
+                          className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer"
                           title="Edit Locker"
                           aria-label={`Edit locker ${locker.lockerNumber}`}
                         >
@@ -274,7 +280,7 @@ export function LockerTable({
                           variant="ghost"
                           size="sm"
                           onClick={() => onDeactivate(locker)}
-                          className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                           title="Deactivate Locker"
                           aria-label={`Deactivate locker ${locker.lockerNumber}`}
                         >
@@ -291,26 +297,29 @@ export function LockerTable({
       </div>
 
       {/* Pagination & Summary Bar */}
-      <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+      <div className="p-3.5 bg-slate-50/80 border-t border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-normal">
         <div className="flex items-center gap-2">
           <span>
-            Showing <strong>{lockers.length}</strong> of{' '}
-            <strong>{totalRecords.toLocaleString()}</strong> physical lockers
+            Showing <span className="font-semibold text-slate-800">{lockers.length}</span> of{' '}
+            <span className="font-semibold text-slate-800">{totalRecords.toLocaleString()}</span> physical lockers
           </span>
           <span className="text-slate-300">|</span>
           <div className="flex items-center gap-1.5">
             <span>Per page:</span>
-            <select
-              aria-label="Rows per page"
-              value={limit}
-              onChange={(e) => onLimitChange(Number(e.target.value))}
-              className="h-7 px-2 bg-white border border-slate-300 rounded text-xs font-semibold focus:outline-none"
-            >
-              <option value="15">15</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+            <div className="relative">
+              <select
+                aria-label="Rows per page"
+                value={limit}
+                onChange={(e) => onLimitChange(Number(e.target.value))}
+                className="h-8 pl-2.5 pr-6 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs"
+              >
+                <option value="15">15</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            </div>
           </div>
         </div>
 
@@ -325,9 +334,9 @@ export function LockerTable({
               size="sm"
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage <= 1 || isLoading}
-              className="h-8 px-2 text-xs"
+              className="h-8 px-2.5 text-xs rounded-lg border-slate-300 text-slate-700 font-medium hover:bg-slate-50 cursor-pointer disabled:opacity-40"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline ml-1">Prev</span>
             </Button>
 
@@ -336,10 +345,10 @@ export function LockerTable({
               size="sm"
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage >= totalPages || isLoading}
-              className="h-8 px-2 text-xs"
+              className="h-8 px-2.5 text-xs rounded-lg border-slate-300 text-slate-700 font-medium hover:bg-slate-50 cursor-pointer disabled:opacity-40"
             >
               <span className="hidden sm:inline mr-1">Next</span>
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>

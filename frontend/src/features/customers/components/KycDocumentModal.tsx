@@ -8,6 +8,7 @@ import {
   CheckCircle,
   FileUp,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 import {
   CustomerKycDocument,
@@ -118,22 +119,22 @@ export function KycDocumentModal({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm select-none animate-in fade-in-0 duration-150">
+    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150">
       <div
-        className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200"
+        className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-100 bg-slate-50/60 shrink-0">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
-              <FileText className="w-6 h-6 text-white" />
+        <div className="flex items-center justify-between p-4 sm:px-6 sm:py-4.5 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-800 flex items-center justify-center shadow-2xs">
+              <FileText className="w-5 h-5 text-emerald-800" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              <h2 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight">
                 {isEdit ? 'Update KYC Document' : 'Upload KYC Document'}
               </h2>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
                 Official government identification document proof
               </p>
             </div>
@@ -141,44 +142,48 @@ export function KycDocumentModal({
           <button
             type="button"
             onClick={() => { temporaryUploads.forEach((url) => void customerApi.deleteUploadedFile(url)); onClose(); }}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Close KYC modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
 
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
             {error && (
-              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span className="font-semibold">{error}</span>
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 font-normal">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                <span className="leading-relaxed">{error}</span>
               </div>
             )}
 
             {/* Document Type */}
             <div className="space-y-1">
-              <label className="font-bold text-slate-700">
-                Document Classification <span className="text-red-500">*</span>
+              <label className="font-medium text-slate-700 text-xs block">
+                Document Classification <span className="text-rose-500">*</span>
               </label>
-              <select
-                value={documentType}
-                onChange={(e) => setDocumentType(e.target.value as KycDocumentType)}
-                className="w-full h-10 px-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                {KYC_DOCUMENT_TYPES.map((dt) => (
-                  <option key={dt.type} value={dt.type}>
-                    {dt.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={documentType}
+                  onChange={(e) => setDocumentType(e.target.value as KycDocumentType)}
+                  className="w-full h-10 pl-3.5 pr-9 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 text-xs focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs"
+                >
+                  {KYC_DOCUMENT_TYPES.map((dt) => (
+                    <option key={dt.type} value={dt.type}>
+                      {dt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              </div>
             </div>
 
             {/* Document Number */}
             <div className="space-y-1">
-              <label className="font-bold text-slate-700">
-                Official Document / ID Number <span className="text-red-500">*</span>
+              <label className="font-medium text-slate-700 text-xs block">
+                Official Document / ID Number <span className="text-rose-500">*</span>
               </label>
               <Input
                 type="text"
@@ -186,32 +191,32 @@ export function KycDocumentModal({
                 onChange={(e) => setDocumentNumber(e.target.value)}
                 placeholder="e.g. 1234 5678 9012 or ABCDE1234F"
                 required
-                className="h-10 text-xs bg-slate-50 border-slate-300 font-mono font-bold rounded-xl"
+                className="h-10 text-xs bg-white border-slate-300 font-mono font-medium rounded-xl text-slate-900 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
               />
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[10.5px] text-slate-400 font-normal">
                 Numbers are securely masked for unprivileged staff members.
               </p>
             </div>
 
             {/* File Upload Box */}
             <div className="space-y-1">
-              <label className="font-bold text-slate-700">
-                Scanned Copy / Photo Proof <span className="text-red-500">*</span>
+              <label className="font-medium text-slate-700 text-xs block">
+                Scanned Copy / Photo Proof <span className="text-rose-500">*</span>
               </label>
 
-              <div className="p-5 border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center text-center transition-colors">
+              <div className="p-5 border-2 border-dashed border-slate-300 hover:border-emerald-700/60 rounded-xl bg-slate-50/70 hover:bg-emerald-50/20 flex flex-col items-center justify-center text-center transition-all cursor-pointer">
                 {documentUrl ? (
                   <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl w-full">
-                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-emerald-700 shrink-0" />
                     <div className="text-left flex-1 truncate">
-                      <p className="font-bold text-slate-900 truncate">
+                      <p className="font-medium text-slate-900 truncate">
                         {documentName || 'Document file attached'}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-mono font-semibold">
+                      <p className="text-[10.5px] text-slate-400 font-mono font-normal">
                         {(fileSize / 1024).toFixed(0)} KB • Ready for verification
                       </p>
                     </div>
-                    <label className="cursor-pointer text-xs font-bold text-blue-700 hover:underline">
+                    <label className="cursor-pointer text-xs font-semibold text-emerald-800 hover:underline">
                       Replace
                       <input
                         type="file"
@@ -223,19 +228,19 @@ export function KycDocumentModal({
                   </div>
                 ) : (
                   <label className="cursor-pointer flex flex-col items-center gap-2">
-                    <div className="p-3 bg-white border border-slate-200 rounded-full shadow-2xs">
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
                       {isUploading ? (
-                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        <Loader2 className="w-5 h-5 text-emerald-800 animate-spin" />
                       ) : (
-                        <FileUp className="w-5 h-5 text-blue-600" />
+                        <FileUp className="w-5 h-5 text-emerald-800" />
                       )}
                     </div>
                     <div>
-                      <span className="font-bold text-blue-700 hover:underline">
+                      <span className="font-semibold text-emerald-800 hover:underline">
                         Click to select document file
                       </span>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                        JPG, PNG, WebP or PDF. Up to 5MB.
+                      <p className="text-[10.5px] text-slate-400 mt-0.5 font-normal">
+                        JPG, PNG, WebP or PDF (Up to 5MB)
                       </p>
                     </div>
                     <input
@@ -253,12 +258,12 @@ export function KycDocumentModal({
             {/* Expiry Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="font-bold text-slate-700">Document Expiry Date</label>
+                <label className="font-medium text-slate-700 text-xs block">Document Expiry Date</label>
                 <Input
                   type="date"
                   value={expiryDate}
                   onChange={(e) => setExpiryDate(e.target.value)}
-                  className="h-10 text-xs bg-slate-50 border-slate-300 font-semibold rounded-xl"
+                  className="h-10 text-xs bg-white border-slate-300 font-medium rounded-xl text-slate-900 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
                 />
               </div>
 
@@ -268,9 +273,9 @@ export function KycDocumentModal({
                   id="isPrimaryCheck"
                   checked={isPrimary}
                   onChange={(e) => setIsPrimary(e.target.checked)}
-                  className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-600"
+                  className="w-4 h-4 rounded text-emerald-800 border-slate-300 focus:ring-emerald-700 cursor-pointer"
                 />
-                <label htmlFor="isPrimaryCheck" className="font-bold text-slate-700 cursor-pointer">
+                <label htmlFor="isPrimaryCheck" className="font-medium text-slate-700 text-xs cursor-pointer">
                   Mark as Primary Identity Proof
                 </label>
               </div>
@@ -278,26 +283,26 @@ export function KycDocumentModal({
 
             {/* Remarks */}
             <div className="space-y-1">
-              <label className="font-bold text-slate-700">Remarks / Attestation Notes</label>
+              <label className="font-medium text-slate-700 text-xs block">Remarks / Attestation Notes</label>
               <textarea
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 placeholder="Optional notes e.g. Original physical card sighted at counter"
                 rows={2}
-                className="w-full p-3 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full p-3 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
               />
             </div>
           </div>
 
           {/* Footer */}
-          <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
+          <div className="p-3.5 sm:px-6 sm:py-3.5 bg-white border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => { temporaryUploads.forEach((url) => void customerApi.deleteUploadedFile(url)); onClose(); }}
               disabled={isSubmitting || isUploading}
-              className="rounded-xl"
+              className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 cursor-pointer hover:bg-slate-50"
             >
               Cancel
             </Button>
@@ -305,7 +310,7 @@ export function KycDocumentModal({
               type="submit"
               size="sm"
               disabled={isSubmitting || isUploading}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 min-w-[130px] rounded-xl"
+              className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-xs min-w-[130px] rounded-xl text-xs h-9.5 px-4 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:border disabled:border-slate-200 disabled:shadow-none disabled:cursor-not-allowed"
             >
               {isSubmitting
                 ? 'Uploading...'

@@ -22,6 +22,20 @@ export class BillingController {
       res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Failed to generate invoice PDF' });
     }
   }
+
+  async getInvoiceHtml(req: Request, res: Response): Promise<void> {
+    try {
+      const id = String(req.params.id);
+      const autoPrint = req.query.autoprint === 'true' || req.query.autoprint === '1';
+      const html = await billingService.generateInvoiceHtml(id, autoPrint);
+      res.setHeader('Content-Type', 'text/html');
+      res.status(200).send(html);
+    } catch (error: any) {
+      logger.error('Error generating invoice HTML:', error);
+      const statusCode = error.statusCode || 500;
+      res.status(statusCode).send(`<h2>Error generating invoice: ${error.message || 'Server Error'}</h2>`);
+    }
+  }
   async getInvoices(req: Request, res: Response): Promise<void> {
     try {
       const result = await billingService.getInvoices(req.query as any);

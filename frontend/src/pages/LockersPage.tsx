@@ -288,22 +288,31 @@ export function LockersPage() {
       )}
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-700 sm:flex">
+          <div className="flex items-center gap-2.5">
+            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 sm:flex shadow-2xs">
               <KeyRound className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">Locker Register</h1>
-              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">Search, inspect and manage the physical vault inventory.</p>
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
+                Locker Register
+              </h1>
+              <p className="mt-0.5 text-xs sm:text-sm text-slate-500 font-normal">
+                Search, inspect and manage the physical safe-deposit vault inventory.
+              </p>
             </div>
           </div>
         </div>
         {canCreate && (
-          <Button onClick={() => { setEditingLocker(null); setFormModalOpen(true); }} className="hidden shrink-0 gap-2 rounded-xl bg-blue-700 font-bold hover:bg-blue-800 sm:inline-flex">
-            <Plus className="h-4 w-4" /> Add Locker
+          <Button
+            onClick={() => { setEditingLocker(null); setFormModalOpen(true); }}
+            className="hidden shrink-0 gap-2 rounded-xl bg-emerald-800 font-medium text-xs hover:bg-emerald-900 text-white shadow-sm sm:inline-flex h-10 px-4 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Locker</span>
           </Button>
         )}
       </header>
+
       {/* 1. Circular Occupancy Donut Meter & Top Summary Widgets */}
       <LockerOccupancyRing
         stats={stats}
@@ -321,14 +330,17 @@ export function LockersPage() {
         </div>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4" aria-label="Find and manage lockers">
+      {/* 2. Filters & Actions Ribbon */}
+      <section className="rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4.5 shadow-xs" aria-label="Find and manage lockers">
         <LockerFilters
           filters={queryFilters}
           onFilterChange={updateFilters}
           onClearFilters={() => updateFilters({ search: undefined, size: undefined, status: undefined, operationalStatus: undefined, rackNumber: undefined, section: undefined, page: 1 })}
         />
         <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-slate-500" role="status" aria-live="polite" aria-atomic="true"><strong className="text-slate-800">{pagination?.total ?? 0}</strong> lockers match the current view</p>
+          <p className="text-xs text-slate-500 font-normal" role="status" aria-live="polite" aria-atomic="true">
+            <span className="font-semibold text-slate-900">{pagination?.total ?? 0}</span> lockers match the current view
+          </p>
           <LockerActionRibbon
             searchQuery={search}
             onSearchChange={(q) => updateFilters({ search: q, page: 1 })}
@@ -345,22 +357,27 @@ export function LockersPage() {
           />
         </div>
       </section>
-      {isFetching && !isListLoading && <div role="status" aria-live="polite" className="-mt-2 flex items-center gap-2 px-1 text-[11px] font-semibold text-blue-700"><span className="h-2 w-2 animate-pulse rounded-full bg-blue-600" />Updating locker results…</div>}
+      {isFetching && !isListLoading && (
+        <div role="status" aria-live="polite" className="-mt-2 flex items-center gap-2 px-1 text-[11px] font-medium text-emerald-800">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />
+          Updating locker results…
+        </div>
+      )}
 
-      {/* 4. Segmented Navigation Tabs (Matching Reference Design) */}
-      <div className="grid grid-cols-3 items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-2xs" role="tablist" aria-label="Locker register views">
+      {/* 3. Segmented Navigation Tabs */}
+      <div className="grid grid-cols-3 items-center gap-1 rounded-xl border border-slate-200 bg-slate-100/90 p-1 shadow-2xs" role="tablist" aria-label="Locker register views">
         <button
           type="button"
           onClick={() => setSegmentedTab('directory')}
           role="tab"
           aria-selected={segmentedTab === 'directory'}
-          className={`min-h-[44px] rounded-lg px-2 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`min-h-[42px] rounded-lg px-2 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
             segmentedTab === 'directory'
-              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/90 font-semibold'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <List className="w-4 h-4" />
+          <List className="w-4 h-4 text-emerald-800" />
           <span>Lockers <span className="hidden sm:inline">({stats?.total ?? 0})</span></span>
         </button>
 
@@ -369,13 +386,13 @@ export function LockersPage() {
           onClick={() => setSegmentedTab('by_rack')}
           role="tab"
           aria-selected={segmentedTab === 'by_rack'}
-          className={`min-h-[44px] rounded-lg px-2 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`min-h-[42px] rounded-lg px-2 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
             segmentedTab === 'by_rack'
-              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/90 font-semibold'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <LayoutGrid className="w-4 h-4" />
+          <LayoutGrid className="w-4 h-4 text-emerald-800" />
           <span><span className="sm:hidden">Racks</span><span className="hidden sm:inline">By Rack</span></span>
         </button>
 
@@ -384,13 +401,13 @@ export function LockersPage() {
           onClick={() => setSegmentedTab('closed')}
           role="tab"
           aria-selected={segmentedTab === 'closed'}
-          className={`min-h-[44px] rounded-lg px-2 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`min-h-[42px] rounded-lg px-2 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
             segmentedTab === 'closed'
-              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/90 font-semibold'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <Archive className="w-4 h-4" />
+          <Archive className="w-4 h-4 text-slate-600" />
           <span><span className="sm:hidden">Closed</span><span className="hidden sm:inline">Closed / Surrendered</span></span>
         </button>
       </div>
@@ -466,31 +483,31 @@ export function LockersPage() {
       {/* Deactivate Confirmation Modal */}
       {deactivatingLocker &&
         createPortal(
-          <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm select-none animate-in fade-in-0 duration-150">
+          <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150">
             <div
               role="dialog"
               aria-modal="true"
               aria-labelledby="deactivate-locker-title"
-              className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-200"
+              className="w-full max-w-md bg-white rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-200"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start gap-3.5">
-                <div className="p-3 rounded-2xl bg-rose-50 text-rose-600 shrink-0 border border-rose-100">
-                  <AlertTriangle className="w-6 h-6" />
+                <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-700 shrink-0 border border-rose-200/80 flex items-center justify-center shadow-2xs">
+                  <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
-                  <h3 id="deactivate-locker-title" className="text-base font-bold text-slate-900">
-                    Deactivate Locker {deactivatingLocker.lockerNumber}?
+                  <h3 id="deactivate-locker-title" className="text-base font-semibold text-slate-900 tracking-tight">
+                    Deactivate Locker #{deactivatingLocker.lockerNumber}?
                   </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                  <p className="text-xs text-slate-500 leading-relaxed font-normal">
                     This will soft-deactivate physical locker{' '}
-                    <strong>{deactivatingLocker.lockerNumber}</strong> ({deactivatingLocker.size}, {deactivatingLocker.rackNumber}). It will no longer be available for customer allocations while historical records are preserved.
+                    <strong className="font-semibold text-slate-700">#{deactivatingLocker.lockerNumber}</strong> (Size {deactivatingLocker.size}, {deactivatingLocker.rackNumber}). It will no longer be available for customer allocations while historical records are preserved.
                   </p>
                 </div>
               </div>
 
               {deactivateError && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-semibold">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-normal">
                   {deactivateError}
                 </div>
               )}
@@ -504,7 +521,7 @@ export function LockersPage() {
                     setDeactivateError(null);
                   }}
                   disabled={deactivateMutation.isPending}
-                  className="rounded-xl"
+                  className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 cursor-pointer hover:bg-slate-50"
                 >
                   Cancel
                 </Button>
@@ -513,7 +530,7 @@ export function LockersPage() {
                   variant="destructive"
                   onClick={() => deactivateMutation.mutate(deactivatingLocker._id)}
                   disabled={deactivateMutation.isPending}
-                  className="rounded-xl font-bold"
+                  className="rounded-xl font-medium text-xs h-9.5 px-4 cursor-pointer"
                 >
                   {deactivateMutation.isPending ? 'Deactivating...' : 'Confirm Deactivate'}
                 </Button>
@@ -524,7 +541,7 @@ export function LockersPage() {
         )}
 
       {canCreate && (
-        <button type="button" onClick={() => { setEditingLocker(null); setFormModalOpen(true); }} className="fixed bottom-[4.6rem] right-4 z-30 flex min-h-[48px] items-center gap-2 rounded-full bg-blue-700 px-5 text-sm font-bold text-white shadow-xl shadow-blue-950/25 active:bg-blue-800 sm:hidden">
+        <button type="button" onClick={() => { setEditingLocker(null); setFormModalOpen(true); }} className="fixed bottom-[4.6rem] right-4 z-30 flex min-h-[48px] items-center gap-2 rounded-full bg-emerald-800 hover:bg-emerald-900 px-5 text-sm font-medium text-white shadow-xl shadow-emerald-950/25 active:bg-emerald-950 sm:hidden cursor-pointer">
           <Plus className="h-5 w-5" /> Add Locker
         </button>
       )}
@@ -534,7 +551,7 @@ export function LockersPage() {
           type="button"
           onClick={scrollToTop}
           aria-label="Go to the top of the locker register"
-          className={`fixed right-4 z-30 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-950 px-4 text-xs font-bold text-white shadow-xl shadow-slate-950/25 transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${canCreate ? 'bottom-[8.5rem] sm:bottom-6 sm:right-6' : 'bottom-6 sm:right-6'}`}
+          className={`fixed right-4 z-30 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 text-xs font-medium text-white shadow-xl shadow-slate-950/25 transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 cursor-pointer ${canCreate ? 'bottom-[8.5rem] sm:bottom-6 sm:right-6' : 'bottom-6 sm:right-6'}`}
         >
           <ArrowUp className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">Go to top</span>

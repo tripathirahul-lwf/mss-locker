@@ -11,11 +11,17 @@ export function formatPhone(phone: string | undefined | null): string {
     if (digits.length === 10) {
       return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
     }
+    if (digits.length > 10) {
+      return `+91 ${digits.slice(0, 5)} ${digits.slice(5, 10)}`;
+    }
   }
 
   const digits = trimmed.replace(/\D/g, '');
   if (digits.length === 10) {
     return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  if (digits.length > 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5, 10)}`;
   }
 
   return trimmed;

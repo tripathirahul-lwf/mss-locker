@@ -189,20 +189,32 @@ export function PaymentReceiptModal({
 
           {/* Business Header with Trust Badges */}
           <div className="flex items-start justify-between border-b-2 border-slate-950 pb-4">
-            <div className="space-y-1">
-              <div>
-                <h1 className="text-xl font-black tracking-tight text-slate-950">
-                  MSS LOCKER
-                </h1>
-                <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Safe-Deposit Locker Vault & Custody Services
-                </p>
+            <div className="flex items-start gap-3">
+              <div className="h-12 w-12 rounded-xl bg-white p-0.5 border border-slate-300 shrink-0 flex items-center justify-center">
+                <img
+                  src="/logo.jpeg"
+                  alt="MSS Locker"
+                  className="h-full w-full object-contain rounded-lg"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
               </div>
-              <div className="text-[10px] text-slate-600 pt-0.5 space-y-0.5">
-                <p>Main Branch Vault &bull; 24x7 Armed Security Custody</p>
-                <p className="font-mono text-[9.5px] text-slate-500">
-                  Branch Code: VL-MUM-01 &bull; GSTIN: 27AAAAA0000A1Z5
-                </p>
+              <div className="space-y-1">
+                <div>
+                  <h1 className="text-xl font-black tracking-tight text-slate-950">
+                    MSS LOCKER
+                  </h1>
+                  <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                    Safe-Deposit Locker Vault & Custody Services
+                  </p>
+                </div>
+                <div className="text-[10px] text-slate-600 pt-0.5 space-y-0.5">
+                  <p>Main Branch Vault &bull; 24x7 Armed Security Custody</p>
+                  <p className="font-mono text-[9.5px] text-slate-500">
+                    Branch Code: VL-MUM-01 &bull; GSTIN: 27AAAAA0000A1Z5
+                  </p>
+                </div>
               </div>
             </div>
 

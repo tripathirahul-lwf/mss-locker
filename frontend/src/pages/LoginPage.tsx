@@ -86,140 +86,142 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10 font-sans selection:bg-blue-600 selection:text-white">
-      {/* Background ambient subtle elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-40">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-200/40 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-slate-300/40 rounded-full blur-3xl" />
-      </div>
-
-      {/* Main Dual-Panel Enterprise Card */}
-      <div className="relative w-full max-w-5xl bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 z-10">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6 lg:p-8 font-sans selection:bg-emerald-800 selection:text-white">
+      {/* Main Dual-Panel Enterprise Workstation */}
+      <div className="w-full max-w-6xl min-h-[640px] bg-white rounded-2xl lg:rounded-3xl shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 border border-slate-200">
+        
         {/* ========================================================================= */}
-        {/* LEFT PANEL: Vault Security Hero (Light Slate Theme) (5 cols)              */}
+        {/* LEFT PANEL: Vault Identity & Operating Infrastructure (5 cols)            */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-5 bg-slate-50/90 p-6 sm:p-8 lg:p-10 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200 relative overflow-hidden">
-          {/* Subtle Grid Pattern Accent */}
+        <div className="lg:col-span-5 bg-[#043327] text-white p-7 sm:p-10 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-[#064e3b]">
+          {/* Subtle Security Lattice Watermark */}
           <div
-            className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#0f172a_1px,transparent_1px)] [background-size:16px_16px]"
+            className="absolute inset-0 opacity-[0.04] pointer-events-none bg-[radial-gradient(#a7f3d0_1px,transparent_1px)] [background-size:20px_20px]"
             aria-hidden="true"
           />
 
-          {/* Top Brand Header */}
-          <div className="space-y-6 relative">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
-                <Shield className="h-6 w-6 text-white" />
+          {/* Top Brand Identity */}
+          <div className="space-y-6 relative z-10">
+            <div className="flex items-center gap-3.5">
+              <div className="h-14 w-14 shrink-0 rounded-2xl bg-white p-1 shadow-md border border-emerald-900/30 flex items-center justify-center">
+                <img
+                  src="/logo.jpeg"
+                  alt="MSS Locker - Marudhar Safe Deposit"
+                  className="h-full w-full object-contain rounded-xl"
+                  onError={(e) => {
+                    e.currentTarget.src = '/favicon.svg';
+                  }}
+                />
               </div>
               <div>
-                <h1 className="text-lg font-black text-slate-900 tracking-wider uppercase">
-                  MSS Locker
+                <h1 className="text-base sm:text-lg font-black tracking-tight text-white uppercase">
+                  MSS LOCKER
                 </h1>
-                <p className="text-xs text-blue-700 font-semibold tracking-tight">
-                  Safe-Deposit Locker Operations
+                <p className="text-[11px] font-semibold text-emerald-300/90 tracking-wide uppercase">
+                  Safe-Deposit Vault System
                 </p>
               </div>
             </div>
 
-            <div className="space-y-2 pt-2">
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
-                Secure Locker Operations System
-              </h2>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Authorized workspace for locker inventory, customer custody records, allocations, billing and audited counter operations.
+            <div className="pt-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-emerald-900/60 text-emerald-200 border border-emerald-700/50">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                Custody Operations &bull; v2.4.0
+              </span>
+              <p className="mt-3 text-xs text-emerald-100/80 leading-relaxed font-normal">
+                Authorized workstation for physical locker inventory, dual-custody customer records, billing registers, and audited counter actions.
               </p>
             </div>
           </div>
 
-          {/* Security Features Bullet Cards */}
-          <div className="space-y-3 my-8 relative">
-            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-              <div className="p-2 rounded-xl bg-blue-50 text-blue-700 shrink-0 mt-0.5 border border-blue-100">
-                <Layers className="w-4 h-4" />
+          {/* Operational Terminal Context (Real-world infrastructure data) */}
+          <div className="my-8 space-y-2.5 relative z-10">
+            <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-800/40 text-xs space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-mono text-emerald-400 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <Server className="w-3.5 h-3.5" />
+                  Terminal Station
+                </span>
+                <span className="text-emerald-300">CTR-01 / Main Vault</span>
               </div>
-              <div className="text-xs">
-                <p className="font-bold text-slate-900">Central Locker Register</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Structured rack, size and operational-status records</p>
-              </div>
+              <p className="text-[11px] text-emerald-200/70">Branch: Mumbai Central (VL-MUM-01)</p>
             </div>
 
-            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0 mt-0.5 border border-emerald-100">
-                <KeyRound className="w-4 h-4" />
+            <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-800/40 text-xs space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-mono text-emerald-400 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Dual-Custody Key Control
+                </span>
+                <span className="text-emerald-300">Enforced</span>
               </div>
-              <div className="text-xs">
-                <p className="font-bold text-slate-900">Dual-Custody Key Control</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Strict operator authorization with full audit trails</p>
-              </div>
+              <p className="text-[11px] text-emerald-200/70">Master key pairing verification required for all allotments</p>
             </div>
 
-            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-              <div className="p-2 rounded-xl bg-amber-50 text-amber-700 shrink-0 mt-0.5 border border-amber-100">
-                <ShieldCheck className="w-4 h-4" />
+            <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-800/40 text-xs space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-mono text-emerald-400 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  Locker Master Register
+                </span>
+                <span className="text-emerald-300">1,484 Units Capacity</span>
               </div>
-              <div className="text-xs">
-                <p className="font-bold text-slate-900">Resilient PWA Workspace</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Cached application shell with online authentication required</p>
-              </div>
+              <p className="text-[11px] text-emerald-200/70">Racks A through G2 &bull; Active telemetry</p>
             </div>
           </div>
 
-          {/* Terminal & Compliance Status Footer */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 relative">
-            <div className="flex items-center gap-1.5 font-semibold">
-              <Server className="w-3.5 h-3.5 text-slate-500" />
-              <span>Terminal: CTR-01</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Session Controls Active</span>
-            </div>
+          {/* Compliance Notice Footer */}
+          <div className="pt-4 border-t border-emerald-800/40 text-[10.5px] text-emerald-300/70 leading-normal relative z-10">
+            <p>
+              Session activity is cryptographically signed and logged for security compliance. Unauthorized access attempts are monitored and reported.
+            </p>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* RIGHT PANEL: Authentication Form (Pure White Light Surface) (7 cols)      */}
+        {/* RIGHT PANEL: Operator Sign-In Form (7 cols)                              */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-7 bg-white p-6 sm:p-8 lg:p-12 flex flex-col justify-between">
-          {/* Top Bar inside Form: Status & Portal Title */}
+        <div className="lg:col-span-7 bg-white p-7 sm:p-10 lg:p-12 flex flex-col justify-between">
+          
+          {/* Top Bar: Station Header & Connection Badge */}
           <div className="flex items-center justify-between pb-6 border-b border-slate-100">
             <div>
-              <span className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Counter Access Portal
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Operator Station Sign-In
               </span>
             </div>
             <div
               role="status"
               aria-live="polite"
               aria-label={`Service connection: ${status.toLowerCase()}`}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold tracking-wide ${
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold tracking-wide ${
                 isOnline
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-amber-200 bg-amber-50 text-amber-700'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
               }`}
             >
-              {isOnline ? <Wifi className="h-3.5 w-3.5" aria-hidden="true" /> : <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />}
-              <span>{status}</span>
+              {isOnline ? <Wifi className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" /> : <WifiOff className="h-3.5 w-3.5 text-amber-700" aria-hidden="true" />}
+              <span>{isOnline ? 'System Online' : status}</span>
             </div>
           </div>
 
           {/* Form Header */}
-          <div className="py-6 space-y-1">
-            <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-              Staff Operator Sign-In
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium">
-              Provide your authorized operator username or email to begin session.
+          <div className="py-6 space-y-1.5">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+              Sign In to Terminal
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 font-normal">
+              Enter your authorized staff credentials to initiate your counter session.
             </p>
           </div>
 
-          {/* Login Form */}
+          {/* Sign In Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div id="sign-in-error" role="alert" aria-live="assertive" className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2.5 animate-in fade-in-50">
+              <div id="sign-in-error" role="alert" aria-live="assertive" className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2.5 animate-in fade-in-50">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
                 <div className="space-y-1">
-                  <p className="leading-relaxed font-bold">{error}</p>
+                  <p className="leading-relaxed font-semibold">{error}</p>
                 </div>
               </div>
             )}
@@ -234,8 +236,8 @@ export function LoginPage() {
             {/* Username or Email Input */}
             <div className="space-y-1.5">
               <label htmlFor="login-identifier" className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                <span>Username or Email</span>
-                <span className="text-[11px] text-slate-400 font-normal">Registered ID</span>
+                <span>Operator Identifier</span>
+                <span className="text-[11px] text-slate-400 font-normal font-sans">Username or Email</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -247,7 +249,7 @@ export function LoginPage() {
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   onKeyUp={handleKeyUp}
-                  placeholder="Enter your registered username or email"
+                  placeholder="e.g. operator_01 or staff@locker.local"
                   required
                   autoFocus
                   autoComplete="username"
@@ -255,7 +257,7 @@ export function LoginPage() {
                   spellCheck={false}
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? 'sign-in-error' : undefined}
-                  className="pl-10 h-12 text-sm bg-slate-50/70 border-slate-300 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 transition-all font-medium rounded-xl"
+                  className="pl-10 h-11 text-sm bg-slate-50/60 border-slate-300 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 transition-all font-medium rounded-xl"
                 />
               </div>
             </div>
@@ -264,9 +266,9 @@ export function LoginPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label htmlFor="login-password" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Account Password
+                  Security Password
                 </label>
-                <span className="text-[11px] text-slate-400 font-normal">Case-Sensitive</span>
+                <span className="text-[11px] text-slate-400 font-normal">Encrypted</span>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -278,12 +280,12 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyUp={handleKeyUp}
-                  placeholder="Enter your security password"
+                  placeholder="Enter security password"
                   required
                   autoComplete="current-password"
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? 'sign-in-error' : undefined}
-                  className="pl-10 pr-12 h-12 text-sm bg-slate-50/70 border-slate-300 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 transition-all font-medium rounded-xl"
+                  className="pl-10 pr-12 h-11 text-sm bg-slate-50/60 border-slate-300 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 transition-all font-medium rounded-xl"
                 />
                 <button
                   type="button"
@@ -302,16 +304,16 @@ export function LoginPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full h-12 text-sm font-bold tracking-wider uppercase bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all rounded-xl cursor-pointer"
+                className="w-full h-11 text-sm font-bold tracking-wide uppercase bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white shadow-sm flex items-center justify-center gap-2 transition-all rounded-xl cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    <span>Verifying Session...</span>
+                    <span>Authenticating Session...</span>
                   </>
                 ) : (
                   <>
-                    <span>Authenticate & Access Counter</span>
+                    <span>Sign In to Terminal</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -319,36 +321,32 @@ export function LoginPage() {
             </div>
           </form>
 
+          {/* Development Quick-Fill Helper */}
           {DEV_TEST_CREDENTIALS && (
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3">
-              <div>
-                <p className="text-xs font-bold text-slate-700">Development testing</p>
-                <p className="text-[11px] text-slate-500">Fill the local test administrator credentials.</p>
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
+              <div className="text-xs">
+                <p className="font-bold text-slate-700">Development Quick-Fill</p>
+                <p className="text-[11px] text-slate-500">Auto-fill test administrator credentials</p>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 onClick={fillTestCredentials}
-                className="h-9 shrink-0 border-blue-200 bg-white px-3 text-xs font-bold text-blue-700 hover:bg-blue-50"
+                className="h-8 shrink-0 border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer rounded-lg"
               >
-                Auto-fill credentials
+                Fill Credentials
               </Button>
             </div>
           )}
 
           {/* Security Notice Footer */}
-          <div className="pt-6 mt-4 border-t border-slate-100 space-y-3">
-            <p className="text-[11px] text-center text-slate-500 leading-normal font-medium">
-              Authentication attempts are rate-limited and recorded in the security audit trail. Use only your assigned operator account.
+          <div className="pt-6 mt-4 border-t border-slate-100 text-center">
+            <p className="text-[11px] text-slate-400 font-medium">
+              MSS Locker Safe-Deposit System &bull; Authorized Operator Workspace
             </p>
           </div>
         </div>
       </div>
-
-      {/* External Footer */}
-      <footer className="mt-6 text-center text-xs text-slate-500 font-medium">
-        MSS Locker &copy; {new Date().getFullYear()} &bull; Authorized staff access only
-      </footer>
     </div>
   );
 }

@@ -86,6 +86,7 @@ export function AllocationsPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardMode, setWizardMode] = useState<'allocate' | 'reserve'>('allocate');
   const [viewingAllocation, setViewingAllocation] = useState<LockerAllocation | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Mutations
   const createMutation = useMutation({
@@ -215,10 +216,16 @@ export function AllocationsPage() {
         isLoading={isListLoading}
         filters={queryFilters}
         onPageChange={(p) => updateFilters({ page: p })}
-        onView={(a) => setViewingAllocation(a)}
+        onView={(a) => {
+          setIsEditMode(false);
+          setViewingAllocation(a);
+        }}
         onActivate={(a) => activateMutation.mutate(a._id)}
         onCancel={(a) => cancelMutation.mutate(a._id)}
-        onEdit={(a) => setViewingAllocation(a)}
+        onEdit={(a) => {
+          setIsEditMode(true);
+          setViewingAllocation(a);
+        }}
         onNewAllocation={() => {
           setWizardMode('allocate');
           setWizardOpen(true);
@@ -237,10 +244,11 @@ export function AllocationsPage() {
         />
       )}
 
-      {/* 6. Allocation Detail Modal */}
+      {/* 6. Allocation Detail & Edit Modal */}
       {viewingAllocation && (
         <AllocationDetailModal
           allocation={viewingAllocation}
+          initialEditMode={isEditMode}
           onClose={() => setViewingAllocation(null)}
           onActivate={(a) => activateMutation.mutate(a._id)}
           onCancel={(a) => cancelMutation.mutate(a._id)}

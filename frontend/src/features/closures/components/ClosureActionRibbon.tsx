@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, Plus, RotateCw, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Plus, RotateCw, Filter, X } from 'lucide-react';
 import { ClosureStatus, ClosureType } from '../types';
 
 interface ClosureActionRibbonProps {
@@ -25,6 +25,21 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
   onNewClosure,
   canCreate,
 }) => {
+  const [localSearch, setLocalSearch] = useState(search);
+
+  useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== search) {
+        onSearchChange(localSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, search, onSearchChange]);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 p-3 shadow-xs mb-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
       {/* Left: Search & Filter inputs */}
@@ -34,11 +49,23 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Search closure #, customer, phone, locker #..."
-            className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+            className="w-full pl-9 pr-9 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
           />
+          {localSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                setLocalSearch('');
+                onSearchChange('');
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Status filter */}

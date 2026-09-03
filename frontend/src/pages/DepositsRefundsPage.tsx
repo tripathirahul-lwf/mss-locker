@@ -29,6 +29,8 @@ import {
   X,
 } from 'lucide-react';
 
+import { useDebounce } from '../hooks/useDebounce';
+
 export const DepositsRefundsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'LEDGER' | 'REFUNDS'>('LEDGER');
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export const DepositsRefundsPage: React.FC = () => {
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerTotalPages, setLedgerTotalPages] = useState(1);
   const [ledgerSearch, setLedgerSearch] = useState('');
+  const debouncedLedgerSearch = useDebounce(ledgerSearch, 300);
   const [selectedType, setSelectedType] = useState<DepositTransactionType | ''>('');
 
   // Refunds state
@@ -52,6 +55,7 @@ export const DepositsRefundsPage: React.FC = () => {
   const [refundsPage, setRefundsPage] = useState(1);
   const [refundsTotalPages, setRefundsTotalPages] = useState(1);
   const [refundsSearch, setRefundsSearch] = useState('');
+  const debouncedRefundsSearch = useDebounce(refundsSearch, 300);
   const [selectedRefundStatus, setSelectedRefundStatus] = useState<RefundStatus | ''>('');
 
   // Modals state
@@ -87,7 +91,7 @@ export const DepositsRefundsPage: React.FC = () => {
       const res = await depositApi.getDepositTransactions({
         page: ledgerPage,
         limit: 20,
-        search: ledgerSearch.trim() || undefined,
+        search: debouncedLedgerSearch.trim() || undefined,
         transactionType: selectedType || undefined,
       });
       setTransactions(res.transactions);
@@ -106,7 +110,7 @@ export const DepositsRefundsPage: React.FC = () => {
       const res = await depositApi.getRefunds({
         page: refundsPage,
         limit: 20,
-        search: refundsSearch.trim() || undefined,
+        search: debouncedRefundsSearch.trim() || undefined,
         status: selectedRefundStatus || undefined,
       });
       setRefunds(res.refunds);
@@ -123,12 +127,24 @@ export const DepositsRefundsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    setLedgerPage(1);
+  }, [debouncedLedgerSearch, selectedType]);
+
+  useEffect(() => {
+    setRefundsPage(1);
+  }, [debouncedRefundsSearch, selectedRefundStatus]);
+
+  useEffect(() => {
     if (activeTab === 'LEDGER') {
       fetchTransactions();
-    } else {
+    }
+  }, [activeTab, ledgerPage, debouncedLedgerSearch, selectedType]);
+
+  useEffect(() => {
+    if (activeTab === 'REFUNDS') {
       fetchRefunds();
     }
-  }, [activeTab, ledgerPage, ledgerSearch, selectedType, refundsPage, refundsSearch, selectedRefundStatus]);
+  }, [activeTab, refundsPage, debouncedRefundsSearch, selectedRefundStatus]);
 
   // Cancel deposit transaction execution
   const handleConfirmCancelTx = async () => {

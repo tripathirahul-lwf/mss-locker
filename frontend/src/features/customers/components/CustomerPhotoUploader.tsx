@@ -80,7 +80,7 @@ export function CustomerPhotoUploader({
           onClick={() => photoUrl && setIsPreviewOpen(true)}
           disabled={!photoUrl || isUploading}
           aria-label={photoUrl ? 'Preview customer photo' : 'No customer photo uploaded'}
-          className="group relative w-16 h-16 rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 shrink-0 flex items-center justify-center disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+          className="group relative w-16 h-16 rounded-2xl overflow-hidden bg-emerald-50/60 border border-emerald-200/80 shrink-0 flex items-center justify-center disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 shadow-2xs cursor-pointer"
         >
           {photoUrl ? (
             <img
@@ -89,19 +89,23 @@ export function CustomerPhotoUploader({
               className="w-full h-full object-cover"
             />
           ) : (
-            <Camera className="w-6 h-6 text-slate-400" />
+            <Camera className="w-6 h-6 text-emerald-800" />
           )}
 
           {isUploading && (
-            <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center text-white">
-              <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] flex items-center justify-center text-white">
+              <Loader2 className="w-5 h-5 animate-spin text-white" aria-hidden="true" />
             </div>
           )}
-          {photoUrl && !isUploading && <span className="absolute inset-0 grid place-items-center bg-slate-950/0 text-white opacity-0 transition group-hover:bg-slate-950/45 group-hover:opacity-100 group-focus-visible:bg-slate-950/45 group-focus-visible:opacity-100"><Eye className="h-5 w-5" /></span>}
+          {photoUrl && !isUploading && (
+            <span className="absolute inset-0 grid place-items-center bg-slate-950/0 text-white opacity-0 transition group-hover:bg-slate-950/45 group-hover:opacity-100 group-focus-visible:bg-slate-950/45 group-focus-visible:opacity-100">
+              <Eye className="h-5 w-5" />
+            </span>
+          )}
         </button>
 
         {/* Upload & Remove Controls */}
-        <div className="space-y-1 text-xs">
+        <div className="space-y-1.5 text-xs">
           <input
             type="file"
             ref={fileInputRef}
@@ -119,9 +123,9 @@ export function CustomerPhotoUploader({
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
               aria-busy={isUploading}
-              className="h-8 text-xs flex items-center gap-1.5"
+              className="h-9 text-xs font-medium flex items-center gap-1.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3.5 h-3.5 text-slate-500" />
               <span>{isUploading ? `Uploading ${uploadProgress}%` : photoUrl ? 'Replace Photo' : 'Upload Photo'}</span>
             </Button>
 
@@ -132,9 +136,9 @@ export function CustomerPhotoUploader({
                 size="sm"
                 onClick={() => setIsPreviewOpen(true)}
                 disabled={isUploading}
-                className="h-8 px-2 text-xs gap-1.5"
+                className="h-9 px-2.5 text-xs font-medium gap-1.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-3.5 h-3.5 text-slate-500" />
                 <span>Preview</span>
               </Button>
             )}
@@ -145,7 +149,7 @@ export function CustomerPhotoUploader({
                 variant="ghost"
                 size="sm"
                 onClick={() => onChange('')}
-                className="h-8 px-2 text-xs text-rose-600 hover:bg-rose-50"
+                className="h-9 px-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-xl cursor-pointer"
               >
                 <X className="w-3.5 h-3.5 mr-1" />
                 <span>Remove</span>
@@ -153,20 +157,20 @@ export function CustomerPhotoUploader({
             )}
           </div>
 
-          <p className="text-[10px] text-slate-400">
-            JPG, PNG, or WebP. Max 5MB. Photo ID required for KYC.
+          <p className="text-[10.5px] text-slate-400 font-normal">
+            JPG, PNG, or WebP. Max 5MB. Photo ID proof required for KYC.
           </p>
         </div>
       </div>
 
       {isUploading && (
         <div className="h-1.5 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Photo upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
-          <div className="h-full rounded-full bg-blue-600 transition-[width]" style={{ width: `${uploadProgress}%` }} />
+          <div className="h-full rounded-full bg-emerald-800 transition-[width]" style={{ width: `${uploadProgress}%` }} />
         </div>
       )}
 
       {error && (
-        <p role="alert" className="text-[11px] text-rose-600 font-medium">{error}</p>
+        <p role="alert" className="text-[11px] text-rose-600 font-normal">{error}</p>
       )}
 
       {isPreviewOpen && photoUrl && (
