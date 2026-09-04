@@ -20,6 +20,8 @@ import {
   CreateLockerInput,
   UpdateLockerInput,
 } from '../features/lockers/types';
+import { allocationApi } from '../features/allocations/api/allocationApi';
+import { CreateAllocationInput, ReserveLockerInput } from '../features/allocations/types';
 import { LockerOccupancyRing } from '../features/lockers/components/LockerOccupancyRing';
 import { LockerActionRibbon } from '../features/lockers/components/LockerActionRibbon';
 import { LockerFilters } from '../features/lockers/components/LockerFilters';
@@ -31,6 +33,7 @@ import { usePermission } from '../hooks/usePermission';
 const LockerFormModal = lazy(() => import('../features/lockers/components/LockerFormModal').then((module) => ({ default: module.LockerFormModal })));
 const LockerDetailModal = lazy(() => import('../features/lockers/components/LockerDetailModal').then((module) => ({ default: module.LockerDetailModal })));
 const LockerImportModal = lazy(() => import('../features/lockers/components/LockerImportModal').then((module) => ({ default: module.LockerImportModal })));
+const AllocationWizardModal = lazy(() => import('../features/allocations/components/AllocationWizardModal').then((module) => ({ default: module.AllocationWizardModal })));
 
 export function LockersPage() {
   const queryClient = useQueryClient();
@@ -134,6 +137,7 @@ export function LockersPage() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingLocker, setEditingLocker] = useState<Locker | null>(null);
   const [viewingLocker, setViewingLocker] = useState<Locker | null>(null);
+  const [allocatingLocker, setAllocatingLocker] = useState<Locker | null>(null);
   const [deactivatingLocker, setDeactivatingLocker] = useState<Locker | null>(null);
   const [deactivateError, setDeactivateError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -154,6 +158,18 @@ export function LockersPage() {
   };
 
   // Mutations
+  const allocateMutation = useMutation({
+    mutationFn: (data: CreateAllocationInput | ReserveLockerInput) =>
+      allocationApi.createAllocation(data as CreateAllocationInput),
+    onSuccess: () => {
+      setAllocatingLocker(null);
+      queryClient.invalidateQueries({ queryKey: ['lockers'] });
+      queryClient.invalidateQueries({ queryKey: ['locker-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['allocation-stats'] });
+      setNotice('Locker tenancy allocated successfully.');
+    },
+  });
   const createMutation = useMutation({
     mutationFn: (data: CreateLockerInput) => lockerApi.createLocker(data),
     onSuccess: () => {
@@ -476,7 +492,26 @@ export function LockersPage() {
             setEditingLocker(l);
             setFormModalOpen(true);
           }}
+          onAllocate={(l) => {
+            setViewingLocker(null);
+            setAllocatingLocker(l);
+          }}
         />
+        </Suspense>
+      )}
+
+      {/* Allocation Wizard Modal when allocating directly from Locker Detail */}
+      {allocatingLocker && (
+        <Suspense fallback={null}>
+          <AllocationWizardModal
+            mode="allocate"
+            preSelectedLocker={allocatingLocker}
+            onClose={() => setAllocatingLocker(null)}
+            onSubmit={async (data) => {
+              await allocateMutation.mutateAsync(data);
+            }}
+            isSubmitting={allocateMutation.isPending}
+          />
         </Suspense>
       )}
 

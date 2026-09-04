@@ -591,6 +591,7 @@ export class LockerAllocationService {
       lockerId: new Types.ObjectId(lockerId),
     })
       .populate('customerId', 'fullName customerCode phone email kycStatus status photoUrl')
+      .populate('lockerId', 'lockerNumber lockerCode size rackNumber section floor status operationalStatus annualRent securityDeposit')
       .populate('createdBy', 'name username')
       .sort({ createdAt: -1 })
       .lean();

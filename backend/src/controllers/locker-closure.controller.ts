@@ -162,6 +162,14 @@ export class LockerClosureController {
       const id = String(req.params.id);
       const userId = (req as any).user?._id;
       const { approvalNotes, overrideFinancial, overrideReason } = req.body;
+      if (
+        overrideFinancial &&
+        !req.user?.isSuperAdmin &&
+        !req.user?.permissions?.includes('closures.financial_override')
+      ) {
+        res.status(403).json({ success: false, message: 'Financial override permission is required.' });
+        return;
+      }
       const closure = await lockerClosureService.approveClosure(
         id,
         approvalNotes,

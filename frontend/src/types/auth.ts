@@ -1,5 +1,6 @@
 export interface UserRole {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   code: string;
   description?: string;
@@ -9,6 +10,7 @@ export interface UserRole {
 
 export interface User {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   username: string;

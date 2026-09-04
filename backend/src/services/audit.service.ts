@@ -11,6 +11,17 @@ export class AuditService {
     if (query.userId && Types.ObjectId.isValid(String(query.userId))) {
       filter.$or = [{ actorUserId: query.userId }, { performedBy: query.userId }];
     }
+    if (query.startDate || query.endDate) {
+      filter.createdAt = {};
+      if (query.startDate) {
+        filter.createdAt.$gte = new Date(String(query.startDate));
+      }
+      if (query.endDate) {
+        const end = new Date(String(query.endDate));
+        // If date without time or end of day
+        filter.createdAt.$lte = end;
+      }
+    }
     if (query.search) {
       const escaped = String(query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$and = [{ $or: [

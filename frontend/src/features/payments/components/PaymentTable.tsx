@@ -28,7 +28,7 @@ interface PaymentTableProps {
   onPageChange: (page: number) => void;
   onView: (payment: Payment) => void;
   onPrintReceipt: (payment: Payment) => void;
-  onCancel: (payment: Payment) => void;
+  onCancel?: (payment: Payment) => void;
   onRecordPayment?: () => void;
 }
 
@@ -230,7 +230,7 @@ export function PaymentTable({
                         <Printer className="w-4 h-4 text-slate-700" />
                       </Button>
 
-                      {p.paymentStatus === 'COMPLETED' && canCancel && (
+                      {p.paymentStatus === 'COMPLETED' && canCancel && onCancel && (
                         <Button
                           variant="ghost"
                           size="sm"

@@ -11,32 +11,32 @@ export const RefundStatusBadge: React.FC<RefundStatusBadgeProps> = ({ status, si
   const configs: Record<RefundStatus, { label: string; bg: string; icon: React.ReactNode }> = {
     DRAFT: {
       label: 'Draft',
-      bg: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+      bg: 'bg-slate-100 text-slate-700 border-slate-200',
       icon: <FileEdit className="w-3.5 h-3.5 mr-1" />,
     },
     PENDING_APPROVAL: {
       label: 'Pending Approval',
-      bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse',
+      bg: 'bg-amber-50 text-amber-700 border-amber-200',
       icon: <Clock className="w-3.5 h-3.5 mr-1" />,
     },
     APPROVED: {
       label: 'Approved (Ready to Pay)',
-      bg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+      bg: 'bg-sky-50 text-sky-700 border-sky-200',
       icon: <CheckCircle className="w-3.5 h-3.5 mr-1" />,
     },
     REJECTED: {
       label: 'Rejected',
-      bg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+      bg: 'bg-rose-50 text-rose-700 border-rose-200',
       icon: <XCircle className="w-3.5 h-3.5 mr-1" />,
     },
     PAID: {
       label: 'Paid / Disbursed',
-      bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       icon: <DollarSign className="w-3.5 h-3.5 mr-1" />,
     },
     CANCELLED: {
       label: 'Cancelled',
-      bg: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+      bg: 'bg-slate-100 text-slate-700 border-slate-200',
       icon: <Ban className="w-3.5 h-3.5 mr-1" />,
     },
   };

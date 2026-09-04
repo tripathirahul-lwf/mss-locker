@@ -1,168 +1,301 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import {
-  Bell, ChevronDown, Clock, CreditCard, KeyRound, Layers, LayoutDashboard,
-  LogOut, Menu, Search, Settings, Shield, Users, X, UserCog, ScrollText,
-  ArrowUpDown, SlidersHorizontal,
+  ChevronDown,
+  KeyRound,
+  LogOut,
+  Search,
+  UserCheck,
+  ShieldCheck,
+  FileText,
+  SlidersHorizontal,
+  ChevronRight,
+  BarChart3,
 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { NetworkStatusBadge } from '../common/NetworkStatusBadge';
 import { ChangePasswordModal } from '../common/ChangePasswordModal';
-import { cn } from '../../lib/utils';
 
-export interface TopNavHeaderProps { onOpenCommandPalette: () => void; }
+export interface TopNavHeaderProps {
+  onOpenCommandPalette: () => void;
+}
 
 export function TopNavHeader({ onOpenCommandPalette }: TopNavHeaderProps) {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout, hasPermission } = useAuth();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [systemOpen, setSystemOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const systemButtonRef = useRef<HTMLButtonElement>(null);
-  const systemMenuRef = useRef<HTMLDivElement>(null);
 
-  const primaryItems = useMemo(() => [
-    { title: 'Dashboard', href: '/', icon: LayoutDashboard, permission: 'dashboard.view' },
-    { title: 'Lockers', href: '/lockers', icon: KeyRound, permission: 'lockers.view' },
-    { title: 'Customers', href: '/customers', icon: Users, permission: 'customers.view' },
-    { title: 'Allocations', href: '/allocations', icon: Layers, permission: 'allocations.view' },
-    { title: 'Renewals', href: '/renewals', icon: Clock, permission: 'renewals.view' },
-    { title: 'Payments', href: '/payments', icon: CreditCard, permission: 'payments.view' },
-  ].filter((item) => hasPermission(item.permission)), [hasPermission]);
-
-  const systemItems = useMemo(() => [
-    { title: 'Operator Users', description: 'Staff accounts and access', href: '/users', permission: 'users.view', icon: UserCog, exact: true },
-    { title: 'Roles & RBAC', description: 'Roles and permission policies', href: '/users/roles', permission: 'roles.view', icon: Shield, exact: false },
-    { title: 'Audit Trail', description: 'Security and activity records', href: '/audit-logs', permission: 'audit_logs.view', icon: ScrollText, exact: false },
-    { title: 'Import / Export', description: 'Bulk data operations', href: '/import-export', permission: 'imports.view', icon: ArrowUpDown, exact: false },
-    { title: 'System Settings', description: 'Business and billing setup', href: '/settings', permission: 'settings.view', icon: SlidersHorizontal, exact: false },
-  ].filter((item) => hasPermission(item.permission)), [hasPermission]);
-
-  const currentItem = [...primaryItems, ...systemItems]
-    .sort((a, b) => b.href.length - a.href.length)
-    .find((item) => item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href));
-  const systemActive = systemItems.some((item) => item.exact ? location.pathname === item.href : location.pathname.startsWith(item.href));
-
-  useEffect(() => {
-    setDrawerOpen(false); setProfileOpen(false); setSystemOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const close = (event: KeyboardEvent) => event.key === 'Escape' && setDrawerOpen(false);
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', close);
-    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', close); };
-  }, [drawerOpen]);
-
-  useEffect(() => {
-    if (!systemOpen) return;
-    const firstItem = systemMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
-    firstItem?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const items = Array.from(systemMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || []);
-      const index = items.indexOf(document.activeElement as HTMLElement);
-      if (event.key === 'Escape') { event.preventDefault(); setSystemOpen(false); systemButtonRef.current?.focus(); }
-      if (event.key === 'ArrowDown') { event.preventDefault(); items[(index + 1 + items.length) % items.length]?.focus(); }
-      if (event.key === 'ArrowUp') { event.preventDefault(); items[(index - 1 + items.length) % items.length]?.focus(); }
-      if (event.key === 'Home') { event.preventDefault(); items[0]?.focus(); }
-      if (event.key === 'End') { event.preventDefault(); items[items.length - 1]?.focus(); }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [systemOpen]);
-
-  const handleLogout = async () => { setProfileOpen(false); await logout(); navigate('/login', { replace: true }); };
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const initials = (user?.name || 'SA').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+
+  const handleLogout = async () => {
+    setProfileOpen(false);
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
+  // Only genuinely useful management pages
+  const managementLinks = [
+    {
+      label: 'Staff & Operator Users',
+      description: 'Accounts, permissions & access control',
+      path: '/users',
+      icon: UserCheck,
+      allowed: hasPermission('users.view'),
+    },
+    {
+      label: 'Audit Trail',
+      description: 'Security records & tamper-evident logs',
+      path: '/audit',
+      icon: FileText,
+      allowed: hasPermission('audit.view'),
+    },
+    {
+      label: 'System Settings',
+      description: 'Vault tariffs, GST rules & preferences',
+      path: '/settings',
+      icon: SlidersHorizontal,
+      allowed: hasPermission('settings.view'),
+    },
+    {
+      label: 'Reports & Analytics',
+      description: 'Occupancy reports & financial statements',
+      path: '/reports',
+      icon: BarChart3,
+      allowed: hasPermission('reports.view'),
+    },
+  ].filter((item) => item.allowed);
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-xl">
-        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5 lg:px-8">
-          <button type="button" onClick={() => setDrawerOpen(!drawerOpen)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 sm:hidden" aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={drawerOpen} aria-controls="responsive-navigation">
-            {drawerOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-
-          <NavLink to="/" className="flex min-w-0 shrink-0 items-center gap-2.5 group" aria-label="MSS Locker home">
-            <div className="h-9 w-9 shrink-0 rounded-xl bg-white p-0.5 border border-slate-200 shadow-2xs flex items-center justify-center group-hover:border-emerald-300 transition-colors">
-              <img
-                src="/logo.jpeg"
-                alt="MSS Locker"
-                className="h-full w-full object-contain rounded-lg"
-                onError={(e) => {
-                  e.currentTarget.src = '/favicon.svg';
-                }}
-              />
-            </div>
-            <span className="hidden leading-none sm:block">
-              <strong className="block whitespace-nowrap text-sm font-black tracking-tight text-slate-950">MSS LOCKER</strong>
-              <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-800">Custody Operations</span>
-            </span>
-          </NavLink>
-
-          <div className="mx-1 h-7 w-px bg-slate-200 sm:hidden" aria-hidden="true" />
-          <div className="min-w-0 flex-1 sm:hidden">
-            <p className="truncate text-sm font-bold text-slate-900">{currentItem?.title || 'MSS Locker'}</p>
-            <p className="hidden truncate text-[10px] text-slate-500 sm:block">Operations workspace</p>
+      <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 shadow-xs backdrop-blur-xl font-sans select-none">
+        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between gap-3 px-3 sm:px-5 lg:px-8">
+          {/* Left: Brand Logo & Title */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="MSS Locker operations home">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-xs">
+                <img
+                  src="/logo.jpeg"
+                  alt=""
+                  className="h-full w-full rounded-lg object-contain"
+                  onError={(event) => {
+                    event.currentTarget.src = '/favicon.svg';
+                  }}
+                />
+              </span>
+              <span className="leading-none block">
+                <strong className="block whitespace-nowrap text-sm font-bold tracking-tight text-slate-950">
+                  MSS LOCKER
+                </strong>
+                <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
+                  Custody Operations
+                </span>
+              </span>
+            </a>
           </div>
 
-          <div className="hidden min-w-0 flex-1 justify-center px-4 md:flex lg:px-6">
-            <button type="button" onClick={onOpenCommandPalette} className="flex h-10 w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 text-left text-xs text-slate-500 transition hover:border-emerald-300 hover:bg-white hover:shadow-2xs" aria-label="Open global search">
-              <Search className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-emerald-700" /><span className="truncate">Search lockers, customers, agreements…</span><kbd className="ml-auto shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold">Ctrl K</kbd>
+          {/* Center: Global Search & Command Palette */}
+          <div className="min-w-0 flex-1 px-1 sm:px-4 lg:px-8">
+            <button
+              type="button"
+              onClick={onOpenCommandPalette}
+              className="mx-auto flex h-10 w-full max-w-xl items-center gap-2 sm:gap-3 rounded-xl border border-slate-200 bg-slate-50 px-2.5 sm:px-3 text-left text-xs text-slate-500 transition hover:border-emerald-300 hover:bg-white cursor-pointer shadow-2xs group"
+              aria-label="Search lockers, customers and agreements"
+            >
+              <Search className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-emerald-700 transition-colors" />
+              <span className="truncate hidden sm:inline">Search lockers, customers, agreements...</span>
+              <span className="truncate inline sm:hidden">Search lockers...</span>
+              <kbd className="ml-auto hidden shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-500 md:inline">
+                {isMac ? '⌘K' : 'Ctrl K'}
+              </kbd>
             </button>
           </div>
 
-          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-            <button type="button" onClick={onOpenCommandPalette} className="grid h-11 w-11 place-items-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-emerald-800 md:hidden" aria-label="Open global search"><Search className="h-5 w-5" /></button>
-            <NetworkStatusBadge className="hidden lg:inline-flex" showText={false} />
-            <button type="button" className="relative grid h-11 w-11 place-items-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Notifications">
-              <Bell className="h-[18px] w-[18px]" /><span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-emerald-600 ring-2 ring-white" />
-            </button>
+          {/* Right: Network Status & User Profile Menu */}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+            <NetworkStatusBadge className="hidden sm:inline-flex" showText={false} />
 
+            {/* Clean, Non-Bloated User Profile & Management Dropdown */}
             <div className="relative">
-              <button type="button" onClick={() => setProfileOpen(!profileOpen)} className="flex min-h-[44px] items-center gap-2 rounded-xl p-1 pr-1.5 hover:bg-slate-100" aria-expanded={profileOpen} aria-haspopup="true">
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white shadow-2xs">{initials}</span>
-                <span className="hidden max-w-[150px] text-left 2xl:block"><strong className="block truncate text-xs text-slate-900">{user?.name || 'Staff User'}</strong><span className="block truncate text-[10px] font-semibold text-emerald-800">{user?.role?.name || (user?.isSuperAdmin ? 'Super Administrator' : 'Staff')}</span></span>
-                <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
+              <button
+                type="button"
+                onClick={() => setProfileOpen((open) => !open)}
+                className={`flex min-h-[40px] items-center gap-2 rounded-xl p-1 pr-1.5 cursor-pointer transition-all ${
+                  profileOpen ? 'bg-slate-100 ring-2 ring-emerald-600/20' : 'hover:bg-slate-100'
+                }`}
+                aria-expanded={profileOpen}
+                aria-haspopup="menu"
+              >
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white shadow-2xs">
+                  {initials}
+                </span>
+                <span className="hidden max-w-[160px] text-left xl:block">
+                  <strong className="block truncate text-xs text-slate-900">{user?.name || 'Staff User'}</strong>
+                  <span className="block truncate text-[10px] font-semibold text-emerald-800">
+                    {user?.role?.name || (user?.isSuperAdmin ? 'Super Administrator' : 'Staff')}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={`hidden h-4 w-4 text-slate-400 sm:block transition-transform duration-150 ${
+                    profileOpen ? 'rotate-180' : ''
+                  }`}
+                />
               </button>
-              {profileOpen && <><button className="fixed inset-0 z-40 cursor-default" onClick={() => setProfileOpen(false)} aria-label="Close user menu" /><div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                <div className="border-b border-slate-100 bg-slate-50 p-4"><p className="truncate text-sm font-bold text-slate-900">{user?.name}</p><p className="mt-0.5 truncate text-xs text-slate-500">{user?.email}</p><span className="mt-2 inline-flex rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-800">{user?.role?.name || 'Super Administrator'}</span></div>
-                <div className="p-1.5"><button onClick={() => { setProfileOpen(false); setChangePasswordOpen(true); }} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><KeyRound className="h-4 w-4" />Change password</button><button onClick={handleLogout} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-xs font-bold text-rose-600 hover:bg-rose-50"><LogOut className="h-4 w-4" />Sign out & lock session</button></div>
-              </div></>}
+
+              {profileOpen && (
+                <>
+                  <button
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setProfileOpen(false)}
+                    aria-label="Close user menu"
+                  />
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-50 mt-2.5 w-80 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl animate-in fade-in-0 zoom-in-95 duration-100 flex flex-col"
+                  >
+                    {/* User Identity Header */}
+                    <div className="border-b border-slate-100 bg-slate-50/90 p-4 shrink-0">
+                      <div className="flex items-center gap-3">
+                        <div className="relative shrink-0">
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-900 text-sm font-bold text-white shadow-2xs">
+                            {initials}
+                          </div>
+                          <span
+                            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
+                            title="Active Session"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-bold text-slate-900 leading-tight">
+                            {user?.name || 'Super Administrator'}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-slate-500 font-normal">
+                            {user?.email || 'admin@vaultledger.com'}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] font-bold bg-amber-50 text-amber-900 border border-amber-200/70">
+                              <ShieldCheck className="w-3 h-3 text-amber-700" />
+                              {user?.isSuperAdmin ? 'Super Admin' : (user?.role?.name || 'Staff')}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-medium bg-slate-100 text-slate-600 font-mono">
+                              Station 01
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Links Container (Clean & Focused) */}
+                    <div className="p-2 space-y-1">
+                      {/* Section: Management Links */}
+                      {managementLinks.length > 0 && (
+                        <div className="space-y-0.5 pb-1 mb-1 border-b border-slate-100">
+                          <p className="px-2.5 py-1 text-[9px] font-bold tracking-wider text-slate-400 uppercase">
+                            Administration
+                          </p>
+                          {managementLinks.map((item) => {
+                            const Icon = item.icon;
+                            const isActive = location.pathname.startsWith(item.path);
+
+                            return (
+                              <button
+                                key={item.path}
+                                role="menuitem"
+                                onClick={() => {
+                                  setProfileOpen(false);
+                                  navigate(item.path);
+                                }}
+                                className={`group flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left transition-all cursor-pointer ${
+                                  isActive
+                                    ? 'bg-emerald-50/80 text-emerald-950 font-bold'
+                                    : 'hover:bg-slate-50 text-slate-700 hover:text-slate-900'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div
+                                    className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors ${
+                                      isActive
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-slate-100 text-slate-600 group-hover:bg-emerald-50 group-hover:text-emerald-700'
+                                    }`}
+                                  >
+                                    <Icon className="h-3.5 w-3.5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className={`text-xs truncate ${isActive ? 'font-bold text-emerald-950' : 'font-semibold text-slate-800'}`}>
+                                      {item.label}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-normal truncate">
+                                      {item.description}
+                                    </p>
+                                  </div>
+                                </div>
+                                <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 ${isActive ? 'text-emerald-700' : 'text-slate-300'}`} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Section: Account & Security */}
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          setChangePasswordOpen(true);
+                        }}
+                        className="group flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left hover:bg-slate-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 group-hover:bg-emerald-50 group-hover:text-emerald-700 transition-colors">
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <span className="block text-xs font-semibold text-slate-800 group-hover:text-slate-900">
+                              Change Password
+                            </span>
+                            <span className="block text-[10px] text-slate-400 font-normal">
+                              Update login credentials
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    </div>
+
+                    {/* Session Termination Footer */}
+                    <div className="border-t border-slate-100 p-2 bg-slate-50/60 shrink-0">
+                      <button
+                        role="menuitem"
+                        onClick={handleLogout}
+                        className="group flex w-full items-center justify-between rounded-xl p-2 text-left hover:bg-rose-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="grid h-7 w-7 place-items-center rounded-lg bg-rose-100 text-rose-700 group-hover:bg-rose-200 transition-colors">
+                            <LogOut className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <span className="block text-xs font-bold text-rose-700">
+                              Sign Out
+                            </span>
+                            <span className="block text-[10px] text-rose-500/90 font-normal">
+                              Safely end counter session
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
-
-        <div className="hidden border-t border-slate-100 sm:block">
-          <div className="mx-auto flex h-12 max-w-[1600px] items-center gap-3 px-5 lg:px-8">
-            <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Primary navigation">
-              {primaryItems.map((item) => { const Icon = item.icon; return <NavLink key={item.href} to={item.href} className={({ isActive }) => cn('flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold transition', isActive ? 'bg-emerald-50/90 text-emerald-900 ring-1 ring-inset ring-emerald-200/80 shadow-2xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950')}><Icon className="h-4 w-4" />{item.title}</NavLink>; })}
-            </nav>
-            {systemItems.length > 0 && <div className="relative shrink-0">
-              <button ref={systemButtonRef} type="button" onClick={() => setSystemOpen(!systemOpen)} className={cn('flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-bold transition', systemActive || systemOpen ? 'bg-emerald-50/90 text-emerald-900 ring-1 ring-inset ring-emerald-200/80' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950')} aria-expanded={systemOpen} aria-haspopup="menu" aria-controls="system-navigation"><Settings className="h-4 w-4" /><span className="hidden md:inline">System</span><ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-200', systemOpen && 'rotate-180')} /></button>
-              {systemOpen && <><button className="fixed inset-0 z-40 cursor-default" onClick={() => setSystemOpen(false)} aria-label="Close system navigation" /><div ref={systemMenuRef} id="system-navigation" role="menu" aria-label="System management" className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_-12px_rgba(15,23,42,.28)]">
-                <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3"><p className="text-xs font-bold text-slate-900">System administration</p><p className="mt-0.5 text-[10px] text-slate-500">Manage access, governance and configuration</p></div>
-                <div className="p-1.5">{systemItems.map((item) => { const Icon = item.icon; return <NavLink role="menuitem" tabIndex={-1} end={item.exact} key={item.href} to={item.href} onClick={() => setSystemOpen(false)} className={({isActive}) => cn('group flex min-h-[58px] items-center gap-3 rounded-xl px-3 outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500', isActive ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-950')}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-white group-hover:text-emerald-800 group-aria-[current=page]:bg-emerald-100 group-aria-[current=page]:text-emerald-800"><Icon className="h-4 w-4" /></span><span className="min-w-0"><span className="block text-xs font-bold">{item.title}</span><span className="mt-0.5 block truncate text-[10px] font-normal text-slate-500">{item.description}</span></span><ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-slate-300 group-hover:text-slate-500" /></NavLink>; })}</div>
-                <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-2 text-[9px] font-medium text-slate-400">Use ↑ ↓ to navigate · Esc to close</div>
-              </div></>}
-            </div>}
-          </div>
-        </div>
-
-        {drawerOpen && <><button className="fixed inset-0 top-16 z-30 bg-slate-950/40 backdrop-blur-[2px] sm:hidden" onClick={() => setDrawerOpen(false)} aria-label="Close navigation" /><section id="responsive-navigation" className="fixed inset-x-0 bottom-0 top-16 z-40 overflow-y-auto bg-slate-50 p-4 pb-24 shadow-2xl sm:hidden" aria-label="Mobile navigation">
-          <div className="mx-auto max-w-lg">
-            <div className="mb-5 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"><NetworkStatusBadge /><button onClick={onOpenCommandPalette} className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><Search className="h-4 w-4" />Search</button></div>
-            <nav className="grid grid-cols-2 gap-2" aria-label="Mobile primary navigation">{primaryItems.map((item) => { const Icon = item.icon; return <NavLink key={item.href} to={item.href} className={({isActive}) => cn('flex min-h-[64px] items-center gap-3 rounded-2xl border bg-white px-3 text-sm font-bold shadow-sm', isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-700')}><Icon className="h-5 w-5" />{item.title}</NavLink>; })}</nav>
-            {systemItems.length > 0 && <><p className="mb-2 mt-6 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Management & system</p><nav className="overflow-hidden rounded-2xl border border-slate-200 bg-white" aria-label="Mobile system navigation">{systemItems.map((item) => { const Icon = item.icon; return <NavLink end={item.exact} key={item.href} to={item.href} className={({isActive}) => cn('flex min-h-[58px] items-center gap-3 border-b border-slate-100 px-4 text-sm font-semibold last:border-0', isActive ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700')}><Icon className="h-4 w-4" /><span><span className="block">{item.title}</span><span className="block text-[10px] font-normal text-slate-500">{item.description}</span></span></NavLink>; })}</nav></>}
-          </div>
-        </section></>}
       </header>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-slate-200 bg-white/95 px-2 pb-[max(.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_24px_rgba(15,23,42,.08)] backdrop-blur-md sm:hidden" aria-label="Quick navigation">
-        {primaryItems.slice(0, 4).map((item) => { const Icon = item.icon; return <NavLink key={item.href} to={item.href} className={({isActive}) => cn('flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold', isActive ? 'bg-emerald-50 text-emerald-800' : 'text-slate-500')}><Icon className="h-5 w-5" /><span>{item.title}</span></NavLink>; })}
-      </nav>
+      {/* Change Password Modal */}
       <ChangePasswordModal isOpen={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
     </>
   );

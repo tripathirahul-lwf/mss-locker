@@ -29,7 +29,7 @@ interface RenewalTableProps {
   filters: InvoiceQueryParams;
   onPageChange: (page: number) => void;
   onView: (invoice: LockerInvoice) => void;
-  onCancel: (invoice: LockerInvoice) => void;
+  onCancel?: (invoice: LockerInvoice) => void;
   onGenerateRenewal?: () => void;
 }
 
@@ -233,7 +233,7 @@ export function RenewalTable({
                         <Eye className="w-4 h-4" />
                       </Button>
 
-                      {inv.paymentStatus === 'UNPAID' && inv.status !== 'CANCELLED' && canCreate && (
+                      {inv.paymentStatus === 'UNPAID' && inv.status !== 'CANCELLED' && canCreate && onCancel && (
                         <Button
                           variant="ghost"
                           size="sm"

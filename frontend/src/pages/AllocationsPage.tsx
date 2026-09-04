@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Layers, Plus, Clock, Download, RefreshCw } from 'lucide-react';
 import { allocationApi } from '../features/allocations/api/allocationApi';
+import { lockerApi } from '../features/lockers/api/lockerApi';
+import { Locker } from '../features/lockers/types';
 import {
   LockerAllocation,
   AllocationQueryParams,
@@ -85,8 +87,23 @@ export function AllocationsPage() {
   // Modal States
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardMode, setWizardMode] = useState<'allocate' | 'reserve'>('allocate');
+  const [preSelectedLocker, setPreSelectedLocker] = useState<Locker | null>(null);
   const [viewingAllocation, setViewingAllocation] = useState<LockerAllocation | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Check for direct locker allocation query param
+  const allocateLockerId = searchParams.get('allocateLocker');
+  useEffect(() => {
+    if (allocateLockerId) {
+      lockerApi.getLockerById(allocateLockerId).then((locker) => {
+        if (locker) {
+          setPreSelectedLocker(locker);
+          setWizardMode('allocate');
+          setWizardOpen(true);
+        }
+      }).catch(() => {});
+    }
+  }, [allocateLockerId]);
 
   // Mutations
   const createMutation = useMutation({
@@ -98,6 +115,7 @@ export function AllocationsPage() {
     },
     onSuccess: () => {
       setWizardOpen(false);
+      setPreSelectedLocker(null);
       queryClient.invalidateQueries({ queryKey: ['allocations'] });
       queryClient.invalidateQueries({ queryKey: ['allocation-stats'] });
       queryClient.invalidateQueries({ queryKey: ['lockers'] });
@@ -236,7 +254,11 @@ export function AllocationsPage() {
       {wizardOpen && (
         <AllocationWizardModal
           mode={wizardMode}
-          onClose={() => setWizardOpen(false)}
+          preSelectedLocker={preSelectedLocker}
+          onClose={() => {
+            setWizardOpen(false);
+            setPreSelectedLocker(null);
+          }}
           onSubmit={async (data) => {
             await createMutation.mutateAsync(data);
           }}

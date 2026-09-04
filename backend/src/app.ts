@@ -23,27 +23,31 @@ app.use(
   })
 );
 
-// Allowed origins
-const allowedOrigins = [
-  env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:4173',
-];
-
-// CORS configuration with credentials support
+// CORS configuration with dynamic localhost & production origin support
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || env.CLIENT_URL === '*') {
+      
+      // Allow configured client URL and Vercel / Render origins
+      if (
+        env.CLIENT_URL === '*' ||
+        origin === env.CLIENT_URL ||
+        origin.endsWith('.vercel.app') ||
+        origin.endsWith('.onrender.com')
+      ) {
         return callback(null, true);
       }
+
+      // Allow all local development origins (localhost & 127.0.0.1 on any port like 5173, 5174, 5175, 3000, etc.)
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+
       return callback(new Error(`CORS origin not allowed: ${origin}`), false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     credentials: true,
   })
 );

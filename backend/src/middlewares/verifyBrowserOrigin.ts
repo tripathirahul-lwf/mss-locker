@@ -22,12 +22,21 @@ export const verifyBrowserOrigin = (req: Request, res: Response, next: NextFunct
     return;
   }
 
-  const developmentOrigins = new Set([
-    expected,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-  ]);
-  const allowed = env.NODE_ENV === 'production' ? candidate === expected : developmentOrigins.has(candidate || '');
+  let allowed = false;
+
+  if (candidate) {
+    if (
+      env.CLIENT_URL === '*' ||
+      candidate === expected ||
+      candidate.endsWith('.vercel.app') ||
+      candidate.endsWith('.onrender.com') ||
+      candidate === 'https://mss-locker.vercel.app'
+    ) {
+      allowed = true;
+    } else if (env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(candidate)) {
+      allowed = true;
+    }
+  }
 
   if (!allowed) {
     res.status(403).json(errorResponse('Cross-site request rejected.'));

@@ -30,17 +30,23 @@ export function AppLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <a
+        href="#operations-top"
+        className="fixed left-3 top-3 z-[100] -translate-y-20 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-transform focus:translate-y-0"
+      >
+        Skip to operations
+      </a>
       {/* Persistent Offline Notification Banner */}
       <OfflineBanner />
 
-      {/* Tablet-First Full-Width Enterprise Top Navigation */}
+      {/* Top Navigation Header without sidebar */}
       <TopNavHeader
         onOpenCommandPalette={() => setSearchModalOpen(true)}
       />
 
-      {/* Full-Width Tablet Canvas Main Body */}
-      <main className="flex-1 w-full max-w-[1600px] mx-auto px-3 py-4 pb-24 sm:p-5 sm:pb-8 lg:p-8">
+      {/* Full-Width Canvas Main Body */}
+      <main id="operations-top" className="flex-1 w-full max-w-[1600px] mx-auto px-3 py-4 sm:p-5 sm:pb-8 lg:p-8">
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>

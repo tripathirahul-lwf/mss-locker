@@ -38,7 +38,7 @@ export const ClosureStatusBadge: React.FC<ClosureStatusBadgeProps> = ({
         <span
           className={`inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 ${sizeClasses}`}
         >
-          <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+          <Clock className="w-3.5 h-3.5 text-amber-600" />
           Pending Review
         </span>
       );

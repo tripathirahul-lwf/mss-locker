@@ -59,6 +59,18 @@ export class DepositController {
       const userId = String((req as any).user?.id || (req as any).user?._id);
       const idempotencyKey = req.headers['idempotency-key'] as string;
 
+      if (
+        req.body?.allowOverride &&
+        !req.user?.isSuperAdmin &&
+        !req.user?.permissions?.includes('deposits.override')
+      ) {
+        res.status(403).json({
+          success: false,
+          message: 'Deposit override permission is required for overcollection.',
+        });
+        return;
+      }
+
       const result = await depositService.collectDeposit(
         req.body,
         userId,

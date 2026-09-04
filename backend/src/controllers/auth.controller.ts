@@ -46,9 +46,23 @@ export class AuthController {
           user: result.user,
         })
       );
-    } catch {
-      // Deliberately generic to prevent username, status and lockout enumeration.
-      res.status(401).json(errorResponse('Sign-in failed. Check your credentials or contact an administrator.'));
+    } catch (err: any) {
+      const msg = err.message || '';
+      let statusCode = 401;
+      let userFriendlyMessage = 'Incorrect username, email, or password. Please verify your credentials.';
+
+      if (msg.includes('temporarily locked')) {
+        statusCode = 423;
+        userFriendlyMessage = msg;
+      } else if (msg.includes('deactivated') || msg.includes('inactive')) {
+        statusCode = 403;
+        userFriendlyMessage = 'This account has been deactivated. Please contact your system administrator.';
+      } else if (msg.includes('Database') || msg.includes('MongoDB') || msg.includes('unavailable')) {
+        statusCode = 503;
+        userFriendlyMessage = 'Database service is temporarily unreachable. Please try again in a moment.';
+      }
+
+      res.status(statusCode).json(errorResponse(userFriendlyMessage));
     }
   }
 

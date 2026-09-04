@@ -22,6 +22,7 @@ import { usePermission } from '../hooks/usePermission';
 
 const CustomerFormModal = lazy(() => import('../features/customers/components/CustomerFormModal').then((module) => ({ default: module.CustomerFormModal })));
 const CustomerQuickPreview = lazy(() => import('../features/customers/components/CustomerQuickPreview').then((module) => ({ default: module.CustomerQuickPreview })));
+const KycDocumentModal = lazy(() => import('../features/customers/components/KycDocumentModal').then((module) => ({ default: module.KycDocumentModal })));
 
 const allowedStatuses = new Set(['ACTIVE', 'INACTIVE', 'BLOCKED', 'ARCHIVED']);
 const allowedKycStatuses = new Set(['PENDING', 'PARTIAL', 'PENDING,PARTIAL', 'VERIFIED', 'REJECTED', 'EXPIRED']);
@@ -38,6 +39,7 @@ export function CustomersPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [previewCustomer, setPreviewCustomer] = useState<Customer | null>(null);
+  const [kycCustomerId, setKycCustomerId] = useState<string | null>(null);
   const [archiveCustomer, setArchiveCustomer] = useState<Customer | null>(null);
 
   // Extract query filters from URL
@@ -244,13 +246,13 @@ export function CustomersPage() {
         }}
         onPageChange={(page) => updateFilters({ page })}
         onLimitChange={(limit) => updateFilters({ limit, page: 1 })}
-        onView={(customer) => navigate(`/customers/${customer._id}`)}
+        onView={(customer) => setPreviewCustomer(customer)}
         onEdit={async (customer) => {
           const fullCustomer = await queryClient.fetchQuery({ queryKey: ['customer', customer._id], queryFn: ({ signal }) => customerApi.getCustomerById(customer._id, signal), staleTime: 30_000 });
           setEditingCustomer(fullCustomer);
           setIsFormModalOpen(true);
         }}
-        onManageKyc={(customer) => navigate(`/customers/${customer._id}?tab=kyc`)}
+        onManageKyc={(customer) => setKycCustomerId(customer._id)}
         onQuickPreview={(customer) => setPreviewCustomer(customer)}
         onDeactivate={handleDeactivate}
       />
@@ -277,8 +279,28 @@ export function CustomersPage() {
             setEditingCustomer(customer);
             setIsFormModalOpen(true);
           }}
+          onManageKyc={(customer) => {
+            setKycCustomerId(customer._id);
+          }}
         />
       )}</Suspense>
+
+      {/* KYC Document Upload / Verification Modal */}
+      <Suspense fallback={null}>
+        {kycCustomerId && (
+          <KycDocumentModal
+            customerId={kycCustomerId}
+            onClose={() => setKycCustomerId(null)}
+            onSubmit={async (data) => {
+              await customerApi.addKycDocument(kycCustomerId, data as any);
+              setKycCustomerId(null);
+              queryClient.invalidateQueries({ queryKey: ['customers'] });
+              queryClient.invalidateQueries({ queryKey: ['customer-stats'] });
+            }}
+            isSubmitting={false}
+          />
+        )}
+      </Suspense>
 
       {archiveCustomer && (
         <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setArchiveCustomer(null)}>

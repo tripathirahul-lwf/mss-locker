@@ -90,20 +90,23 @@ export function CustomerFormModal({
 
   useEffect(() => {
     if (customer) {
-      setFullName(customer.fullName);
-      setPhone(customer.phone);
+      setFullName(customer.fullName || '');
+      setPhone(customer.phone || '');
       setAlternatePhone(customer.alternatePhone || '');
       setEmail(customer.email || '');
       setDateOfBirth(customer.dateOfBirth || '');
-      setGender(customer.gender || 'OTHER');
+      setGender(customer.gender || 'MALE');
       setAddress(customer.address || '');
-      setCity(customer.city || '');
-      setState(customer.state || '');
+      // Sanitize legacy imported values where Vault location was saved as City/State
+      const sanitizedCity = customer.city === 'Main Vault' ? '' : (customer.city || '');
+      const sanitizedState = customer.state === 'Operational' ? '' : (customer.state || '');
+      setCity(sanitizedCity);
+      setState(sanitizedState);
       setPostalCode(customer.postalCode || '');
       setCountry(customer.country || 'India');
       setPhotoUrl(customer.photoUrl || '');
       setNotes(customer.notes || '');
-      setStatus(customer.status);
+      setStatus(customer.status || 'ACTIVE');
     }
   }, [customer]);
 
@@ -261,15 +264,15 @@ export function CustomerFormModal({
             </div>
 
             {/* Basic Information */}
-            <div className="space-y-3">
-              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[10.5px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
+            <div className="space-y-3.5">
+              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-emerald-800" />
                 <span>Personal Identification</span>
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label htmlFor="customer-full-name" className="font-medium text-slate-700 text-xs block">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-full-name" className="font-semibold text-slate-800 text-xs block">
                     Full Customer Name <span className="text-rose-500">*</span>
                   </label>
                   <Input
@@ -283,32 +286,32 @@ export function CustomerFormModal({
                     required
                     aria-invalid={Boolean(fieldErrors.fullName)}
                     aria-describedby={fieldErrors.fullName ? 'customer-full-name-error' : undefined}
-                    className="h-10 text-xs bg-white border-slate-300 font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs font-sans"
+                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs font-sans transition-all hover:border-slate-400"
                   />
                   {fieldErrors.fullName && <p id="customer-full-name-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.fullName}</p>}
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="customer-gender" className="font-medium text-slate-700 text-xs block">Gender</label>
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-gender" className="font-semibold text-slate-800 text-xs block">Gender</label>
                   <div className="relative">
                     <select
                       id="customer-gender"
                       value={gender}
                       onChange={(e) => setGender(e.target.value as any)}
-                      className="w-full h-10 pl-3.5 pr-9 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 text-xs focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs font-sans"
+                      className="w-full h-11 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 text-xs sm:text-[13px] focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs font-sans transition-all hover:border-slate-400"
                     >
                       <option value="MALE">Male</option>
                       <option value="FEMALE">Female</option>
                       <option value="OTHER">Other / Corporate Entity</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label htmlFor="customer-dob" className="font-medium text-slate-700 text-xs block">Date of Birth</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-dob" className="font-semibold text-slate-800 text-xs block">Date of Birth</label>
                   <Input
                     id="customer-dob"
                     type="date"
@@ -318,40 +321,40 @@ export function CustomerFormModal({
                     aria-invalid={Boolean(fieldErrors.dateOfBirth)}
                     aria-describedby={fieldErrors.dateOfBirth ? 'customer-dob-error' : undefined}
                     onChange={(e) => setDateOfBirth(e.target.value)}
-                    className="h-10 text-xs bg-white border-slate-300 font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs font-sans"
+                    className="h-11 px-3.5 text-xs sm:text-[13px] bg-white border-slate-300 font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs font-sans transition-all hover:border-slate-400"
                   />
                   {fieldErrors.dateOfBirth && <p id="customer-dob-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.dateOfBirth}</p>}
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="customer-status" className="font-medium text-slate-700 text-xs block">Account Status</label>
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-status" className="font-semibold text-slate-800 text-xs block">Account Status</label>
                   <div className="relative">
                     <select
                       id="customer-status"
                       value={status}
                       onChange={(e) => setStatus(e.target.value as CustomerStatus)}
-                      className="w-full h-10 pl-3.5 pr-9 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 text-xs focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs font-sans"
+                      className="w-full h-11 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 text-xs sm:text-[13px] focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs font-sans transition-all hover:border-slate-400"
                     >
                       <option value="ACTIVE">ACTIVE - Operational</option>
                       <option value="INACTIVE">INACTIVE - Inactive record</option>
                       <option value="BLOCKED">BLOCKED - Access restricted</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Contact Details */}
-            <div className="space-y-3 pt-2">
-              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[10.5px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
+            <div className="space-y-3.5 pt-2">
+              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-emerald-800" />
                 <span>Contact Information</span>
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label htmlFor="customer-phone" className="font-medium text-slate-700 text-xs block">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-phone" className="font-semibold text-slate-800 text-xs block">
                     Primary Mobile Phone <span className="text-rose-500">*</span>
                   </label>
                   <Input
@@ -367,15 +370,15 @@ export function CustomerFormModal({
                     aria-describedby={fieldErrors.phone ? 'customer-phone-error' : 'customer-phone-help'}
                     placeholder="e.g. 9876543210"
                     required
-                    className="h-10 text-xs bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
                   />
                   <p id="customer-phone-help" className="text-[10.5px] text-slate-400 font-normal">10–15 digits; spaces and + accepted.</p>
                   {fieldErrors.phone && <p id="customer-phone-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.phone}</p>}
                   {isCheckingDuplicate && <p className="inline-flex items-center gap-1 text-[10px] text-emerald-800" role="status"><Loader2 className="h-3 w-3 animate-spin" /> Checking existing records…</p>}
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="customer-alt-phone" className="font-medium text-slate-700 text-xs block">Alternate Phone</label>
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-alt-phone" className="font-semibold text-slate-800 text-xs block">Alternate Phone</label>
                   <Input
                     id="customer-alt-phone"
                     type="tel"
@@ -387,13 +390,13 @@ export function CustomerFormModal({
                     aria-invalid={Boolean(fieldErrors.alternatePhone)}
                     aria-describedby={fieldErrors.alternatePhone ? 'customer-alt-phone-error' : undefined}
                     placeholder="e.g. 9876500000"
-                    className="h-10 text-xs bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
                   />
                   {fieldErrors.alternatePhone && <p id="customer-alt-phone-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.alternatePhone}</p>}
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="customer-email" className="font-medium text-slate-700 text-xs block">Email Address</label>
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-email" className="font-semibold text-slate-800 text-xs block">Email Address</label>
                   <Input
                     id="customer-email"
                     type="email"
@@ -401,21 +404,21 @@ export function CustomerFormModal({
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
                     placeholder="e.g. customer@gmail.com"
-                    className="h-10 text-xs bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
                   />
                 </div>
               </div>
             </div>
 
             {/* Residential Address */}
-            <div className="space-y-3 pt-2">
-              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[10.5px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
+            <div className="space-y-3.5 pt-2">
+              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-emerald-800" />
                 <span>Postal Address</span>
               </h3>
 
-              <div className="space-y-1">
-                <label htmlFor="customer-address" className="font-medium text-slate-700 text-xs block">Street / Flat Address</label>
+              <div className="space-y-1.5">
+                <label htmlFor="customer-address" className="font-semibold text-slate-800 text-xs block">Street / Flat Address</label>
                 <Input
                   id="customer-address"
                   type="text"
@@ -423,13 +426,13 @@ export function CustomerFormModal({
                   onChange={(e) => setAddress(e.target.value)}
                   autoComplete="street-address"
                   placeholder="e.g. Flat 402, Royal Residency, M.G. Road"
-                  className="h-10 text-xs bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                  className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="space-y-1 sm:col-span-2">
-                  <label htmlFor="customer-city" className="font-medium text-slate-700 text-xs block">City / District</label>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label htmlFor="customer-city" className="font-semibold text-slate-800 text-xs block">City / District</label>
                   <Input
                     id="customer-city"
                     type="text"
@@ -437,12 +440,12 @@ export function CustomerFormModal({
                     onChange={(e) => setCity(e.target.value)}
                     autoComplete="address-level2"
                     placeholder="e.g. Mumbai"
-                    className="h-10 text-xs bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="customer-state" className="font-medium text-slate-700 text-xs block">State</label>
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-state" className="font-semibold text-slate-800 text-xs block">State</label>
                   <Input
                     id="customer-state"
                     type="text"
@@ -450,12 +453,12 @@ export function CustomerFormModal({
                     onChange={(e) => setState(e.target.value)}
                     autoComplete="address-level1"
                     placeholder="e.g. Maharashtra"
-                    className="h-10 text-xs bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="customer-postal-code" className="font-medium text-slate-700 text-xs block">Postal PIN</label>
+                <div className="space-y-1.5">
+                  <label htmlFor="customer-postal-code" className="font-semibold text-slate-800 text-xs block">Postal PIN</label>
                   <Input
                     id="customer-postal-code"
                     type="text"
@@ -467,7 +470,7 @@ export function CustomerFormModal({
                     aria-invalid={Boolean(fieldErrors.postalCode)}
                     aria-describedby={fieldErrors.postalCode ? 'customer-postal-code-error' : undefined}
                     placeholder="e.g. 400001"
-                    className="h-10 text-xs bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
                   />
                   {fieldErrors.postalCode && <p id="customer-postal-code-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.postalCode}</p>}
                 </div>
@@ -475,8 +478,8 @@ export function CustomerFormModal({
             </div>
 
             {/* Notes */}
-            <div className="space-y-1 pt-1">
-              <div className="flex items-center justify-between gap-3"><label htmlFor="customer-notes" className="font-medium text-slate-700 text-xs block">Staff Operational Remarks</label><span className="text-[10px] text-slate-400 font-normal">{notes.length}/500</span></div>
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between gap-3"><label htmlFor="customer-notes" className="font-semibold text-slate-800 text-xs block">Staff Operational Remarks</label><span className="text-[10px] text-slate-400 font-normal">{notes.length}/500</span></div>
               <textarea
                 id="customer-notes"
                 value={notes}
@@ -484,7 +487,7 @@ export function CustomerFormModal({
                 placeholder="Optional notes regarding nominee, joint operators, or identification guidelines"
                 rows={2}
                 maxLength={500}
-                className="w-full p-3 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+                className="w-full p-3.5 text-xs sm:text-[13px] bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400 font-normal"
               />
             </div>
           </div>

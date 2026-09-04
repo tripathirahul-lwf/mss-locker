@@ -36,10 +36,10 @@ interface CustomerTableProps {
   onPageChange: (page: number) => void;
   onLimitChange: (limit: number) => void;
   onView: (customer: Customer) => void;
-  onEdit: (customer: Customer) => void;
+  onEdit?: (customer: Customer) => void;
   onManageKyc: (customer: Customer) => void;
   onQuickPreview: (customer: Customer) => void;
-  onDeactivate: (customer: Customer) => void;
+  onDeactivate?: (customer: Customer) => void;
 }
 
 export function CustomerTable({
@@ -130,11 +130,55 @@ export function CustomerTable({
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" onClick={() => onView(customer)} className="h-9 text-xs gap-1.5 rounded-xl border-slate-300 font-medium text-slate-700 cursor-pointer hover:bg-slate-50"><Eye className="w-3.5 h-3.5 text-slate-500" /> Profile</Button>
-              {canManageKyc && <Button variant="outline" size="sm" onClick={() => onManageKyc(customer)} className="h-9 text-xs gap-1.5 rounded-xl border-emerald-300 text-emerald-800 bg-emerald-50/50 hover:bg-emerald-50 font-medium cursor-pointer"><ShieldCheck className="w-3.5 h-3.5 text-emerald-800" /> KYC</Button>}
-              {canUpdate && <Button variant="outline" size="sm" onClick={() => onEdit(customer)} className="h-9 text-xs gap-1.5 rounded-xl border-slate-300 font-medium text-slate-700 cursor-pointer hover:bg-slate-50"><Edit3 className="w-3.5 h-3.5 text-slate-500" /> Edit</Button>}
-              {canDelete && customer.isActive && <Button variant="outline" size="sm" onClick={() => onDeactivate(customer)} className="h-9 text-xs gap-1.5 rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 font-medium cursor-pointer"><Trash2 className="w-3.5 h-3.5 text-rose-600" /> Archive</Button>}
+            <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onView(customer)}
+                className="flex-1 h-8 text-xs gap-1.5 rounded-lg border-emerald-300 text-emerald-900 bg-emerald-50/70 hover:bg-emerald-100/80 font-semibold cursor-pointer justify-center"
+              >
+                <Eye className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
+                <span>View Profile</span>
+              </Button>
+
+              {canManageKyc && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onManageKyc(customer)}
+                  className="h-8 px-2.5 text-xs gap-1 rounded-lg border-slate-200 text-slate-700 hover:bg-slate-50 font-medium cursor-pointer shrink-0"
+                  title="Verify KYC Documents"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
+                  <span>KYC</span>
+                </Button>
+              )}
+
+              {canUpdate && onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onEdit(customer)}
+                  className="h-8 w-8 p-0 grid place-items-center rounded-lg border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 cursor-pointer shrink-0"
+                  title="Edit Customer"
+                  aria-label={`Edit ${customer.fullName}`}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+
+              {canDelete && customer.isActive && onDeactivate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDeactivate(customer)}
+                  className="h-8 w-8 p-0 grid place-items-center rounded-lg border-rose-200 text-rose-600 hover:text-rose-800 hover:bg-rose-50 cursor-pointer shrink-0"
+                  title="Archive Customer"
+                  aria-label={`Archive ${customer.fullName}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
             </div>
           </article>
         ))}
@@ -250,7 +294,8 @@ export function CustomerTable({
               customers.map((customer) => (
                 <tr
                   key={customer._id}
-                  className="hover:bg-emerald-50/30 transition-colors group"
+                  onClick={() => onQuickPreview(customer)}
+                  className="hover:bg-emerald-50/40 transition-colors group cursor-pointer"
                 >
                   {/* Customer Photo & Name */}
                   <td className="py-3 px-4">
@@ -259,28 +304,24 @@ export function CustomerTable({
                         <img
                           src={customer.photoUrl}
                           alt={customer.fullName}
-                          className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
+                          className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0 shadow-2xs"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center font-semibold shrink-0 border border-emerald-200/80 text-xs font-sans tracking-wide">
+                        <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center font-semibold shrink-0 border border-emerald-200/80 text-xs font-sans tracking-wide shadow-2xs">
                           {customer.fullName.slice(0, 2).toUpperCase()}
                         </div>
                       )}
 
-                      <div className="space-y-0.5">
-                        <button
-                          type="button"
-                          onClick={() => onQuickPreview(customer)}
-                          className="font-semibold text-slate-900 text-[13.5px] sm:text-sm font-sans hover:text-emerald-800 text-left transition-colors truncate block max-w-[200px] cursor-pointer"
-                        >
+                      <div className="space-y-0.5 min-w-0">
+                        <span className="font-semibold text-slate-900 text-[13.5px] sm:text-sm font-sans group-hover:text-emerald-900 text-left transition-colors truncate block max-w-[200px]">
                           {customer.fullName}
-                        </button>
+                        </span>
                         <Badge
                           variant="outline"
-                          className="text-[11px] font-sans bg-slate-100/80 border-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded-md tabular-nums tracking-normal"
+                          className="text-[10.5px] font-sans bg-slate-100/90 border-slate-200 text-slate-600 font-medium px-1.5 py-0.2 rounded-md tabular-nums tracking-normal"
                         >
                           {customer.customerCode}
                         </Badge>
@@ -290,7 +331,7 @@ export function CustomerTable({
 
                   {/* Phone & Email */}
                   <td className="py-3 px-3">
-                    <div className="flex items-center gap-2 font-sans font-medium text-[13.5px] text-slate-900 tracking-tight tabular-nums">
+                    <div className="flex items-center gap-1.5 font-sans font-medium text-[13.5px] text-slate-900 tracking-tight tabular-nums">
                       <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>{formatPhone(customer.phone)}</span>
                     </div>
@@ -304,7 +345,7 @@ export function CustomerTable({
 
                   {/* Location */}
                   <td className="py-3 px-3 text-slate-600 font-normal">
-                    <span className="font-medium text-slate-800">
+                    <span className="font-medium text-slate-800 text-xs">
                       {customer.city || 'Main Vault'}
                     </span>
                     <span className="text-[10.5px] text-slate-400 block font-normal">
@@ -332,12 +373,15 @@ export function CustomerTable({
                   </td>
 
                   {/* Row Actions */}
-                  <td className="py-3 px-4 text-right">
+                  <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onView(customer)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onView(customer);
+                        }}
                         className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer"
                         title="View Customer Profile"
                         aria-label={`View ${customer.fullName}`}
@@ -349,7 +393,10 @@ export function CustomerTable({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onManageKyc(customer)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onManageKyc(customer);
+                          }}
                           className="h-8 px-2 text-xs text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
                           title="Manage KYC Documents"
                           aria-label={`Manage KYC for ${customer.fullName}`}
@@ -359,11 +406,14 @@ export function CustomerTable({
                         </Button>
                       )}
 
-                      {canUpdate && (
+                      {canUpdate && onEdit && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onEdit(customer)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(customer);
+                          }}
                           className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer"
                           title="Edit Customer"
                           aria-label={`Edit ${customer.fullName}`}
@@ -372,11 +422,14 @@ export function CustomerTable({
                         </Button>
                       )}
 
-                      {canDelete && customer.isActive && (
+                      {canDelete && customer.isActive && onDeactivate && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onDeactivate(customer)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeactivate(customer);
+                          }}
                           className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                           title="Archive Customer"
                           aria-label={`Archive ${customer.fullName}`}

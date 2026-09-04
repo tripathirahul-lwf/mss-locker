@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { DepositTransaction, DepositTransactionType } from '../types';
 import { DepositTypeBadge, DepositTxStatusBadge } from './DepositStatusBadge';
-import { Receipt, Search, Filter, RefreshCw, XCircle, ArrowUpDown } from 'lucide-react';
+import { Receipt, Search, Filter, RefreshCw, XCircle, Inbox } from 'lucide-react';
 
 interface DepositLedgerTableProps {
   transactions: DepositTransaction[];
@@ -16,6 +16,7 @@ interface DepositLedgerTableProps {
   onSearchChange: (search: string) => void;
   selectedType: DepositTransactionType | '';
   onTypeChange: (type: DepositTransactionType | '') => void;
+  canCancel?: boolean;
 }
 
 export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
@@ -31,9 +32,8 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
   onSearchChange,
   selectedType,
   onTypeChange,
+  canCancel = false,
 }) => {
-  const [selectedTxForCancel, setSelectedTxForCancel] = useState<DepositTransaction | null>(null);
-  const [cancelReason, setCancelReason] = useState('');
 
   const typeOptions: { value: DepositTransactionType | ''; label: string }[] = [
     { value: '', label: 'All Transactions' },
@@ -57,7 +57,8 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
               placeholder="Search by Tx #, Receipt #, Customer, Locker..."
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 text-sm text-white placeholder:text-slate-500 outline-none transition-all"
+              aria-label="Search deposit transactions"
+              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 placeholder:text-slate-400"
             />
           </div>
 
@@ -66,10 +67,11 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
             <select
               value={selectedType}
               onChange={(e) => onTypeChange(e.target.value as any)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 focus:border-cyan-500/50 text-sm text-slate-200 outline-none transition-all appearance-none cursor-pointer"
+              aria-label="Filter deposit transactions by type"
+              className="w-full cursor-pointer appearance-none rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             >
               {typeOptions.map((opt) => (
-                <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
@@ -81,7 +83,7 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
         {/* Action button */}
         <button
           onClick={onRefresh}
-          className="px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white flex items-center justify-center space-x-2 text-sm font-medium transition-all"
+          className="flex items-center justify-center space-x-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
         >
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
@@ -89,24 +91,25 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
       </div>
 
       {/* Table Container */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-xl overflow-hidden shadow-2xl">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-950/60 text-xs uppercase font-semibold tracking-wider text-slate-400 border-b border-slate-800/80">
+          <table className="w-full min-w-[980px] text-left text-sm text-slate-700" aria-busy={isLoading}>
+            <caption className="sr-only">Security deposit transaction ledger</caption>
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
               <tr>
-                <th className="py-3.5 px-4">Transaction Details</th>
-                <th className="py-3.5 px-4">Customer & Locker</th>
-                <th className="py-3.5 px-4">Type</th>
-                <th className="py-3.5 px-4 text-right">Amount</th>
-                <th className="py-3.5 px-4">Method / Ref</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-center">Actions</th>
+                <th scope="col" className="py-3.5 px-4">Transaction Details</th>
+                <th scope="col" className="py-3.5 px-4">Customer & Locker</th>
+                <th scope="col" className="py-3.5 px-4">Type</th>
+                <th scope="col" className="py-3.5 px-4 text-right">Amount</th>
+                <th scope="col" className="py-3.5 px-4">Method / Ref</th>
+                <th scope="col" className="py-3.5 px-4">Status</th>
+                <th scope="col" className="py-3.5 px-4 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <td colSpan={7} className="py-12 text-center text-slate-500" role="status">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-500" />
                     Loading deposit ledger transactions...
                   </td>
@@ -114,7 +117,9 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
               ) : transactions.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-500">
-                    No deposit transactions found matching filters.
+                    <Inbox className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                    <p className="font-medium text-slate-700">No deposit transactions found</p>
+                    <p className="mt-1 text-xs">Try clearing the search or transaction filter.</p>
                   </td>
                 </tr>
               ) : (
@@ -124,7 +129,7 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
                   );
 
                   return (
-                    <tr key={tx._id} className="hover:bg-slate-800/30 transition-colors group">
+                    <tr key={tx._id} className="transition-colors hover:bg-slate-50">
                       {/* Tx Details */}
                       <td className="py-3.5 px-4">
                         <div className="font-mono font-medium text-cyan-400 text-xs">
@@ -148,7 +153,7 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
 
                       {/* Customer & Locker */}
                       <td className="py-3.5 px-4">
-                        <div className="font-medium text-white">
+                        <div className="font-medium text-slate-900">
                           {tx.customerId?.fullName || 'N/A'}
                         </div>
                         <div className="text-xs text-slate-400 flex items-center space-x-1.5 mt-0.5">
@@ -213,10 +218,11 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
                           </button>
 
                           {/* Cancel if completed */}
-                          {tx.status === 'COMPLETED' && (
+                          {canCancel && tx.status === 'COMPLETED' && (
                             <button
                               onClick={() => onCancelTransaction(tx)}
-                              title="Soft Cancel Transaction"
+                              title="Cancel transaction"
+                              aria-label={`Cancel transaction ${tx.depositTransactionNumber}`}
                               className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all"
                             >
                               <XCircle className="w-4 h-4" />
@@ -234,7 +240,7 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center justify-between border-t border-slate-200 p-4 text-xs text-slate-500">
             <span>
               Page {currentPage} of {totalPages}
             </span>
@@ -242,14 +248,14 @@ export const DepositLedgerTable: React.FC<DepositLedgerTableProps> = ({
               <button
                 disabled={currentPage <= 1}
                 onClick={() => onPageChange(currentPage - 1)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-all"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 disabled={currentPage >= totalPages}
                 onClick={() => onPageChange(currentPage + 1)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-all"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>

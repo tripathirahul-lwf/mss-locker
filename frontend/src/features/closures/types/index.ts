@@ -186,6 +186,7 @@ export interface ClosureStats {
   pendingReview: number;
   pendingSettlement: number;
   readyForClosure: number;
+  approved: number;
   completedToday: number;
   completedThisMonth: number;
   rejected: number;

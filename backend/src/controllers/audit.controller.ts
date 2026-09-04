@@ -10,6 +10,8 @@ const auditQuerySchema = z.object({
   action: z.string().trim().max(100).optional(),
   module: z.string().trim().max(100).optional(),
   userId: z.string().trim().max(50).optional(),
+  startDate: z.string().trim().optional(),
+  endDate: z.string().trim().optional(),
 });
 
 export const listAuditLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

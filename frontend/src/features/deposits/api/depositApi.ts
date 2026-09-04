@@ -68,7 +68,7 @@ export const depositApi = {
     source?: PaymentSource;
     allowOverride?: boolean;
     overrideReason?: string;
-  }): Promise<{
+  }, idempotencyKey?: string): Promise<{
     payment: any;
     transaction: DepositTransaction;
     summary: DepositSummary;
@@ -80,7 +80,9 @@ export const depositApi = {
         transaction: DepositTransaction;
         summary: DepositSummary;
       };
-    }>('/deposits/collect', data);
+    }>('/deposits/collect', data, {
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    });
     return res.data.data;
   },
 

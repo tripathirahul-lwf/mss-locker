@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefundRequest, RefundStatus } from '../types';
 import { RefundStatusBadge } from './RefundStatusBadge';
-import { Search, Filter, RefreshCw, CheckCircle, XCircle, DollarSign, Send, Ban } from 'lucide-react';
+import { Search, Filter, RefreshCw, CheckCircle, DollarSign, Send, Ban, Inbox } from 'lucide-react';
 
 interface RefundTableProps {
   refunds: RefundRequest[];
@@ -18,6 +18,10 @@ interface RefundTableProps {
   onSearchChange: (search: string) => void;
   selectedStatus: RefundStatus | '';
   onStatusChange: (status: RefundStatus | '') => void;
+  canSubmit?: boolean;
+  canReview?: boolean;
+  canPay?: boolean;
+  canCancel?: boolean;
 }
 
 export const RefundTable: React.FC<RefundTableProps> = ({
@@ -35,6 +39,10 @@ export const RefundTable: React.FC<RefundTableProps> = ({
   onSearchChange,
   selectedStatus,
   onStatusChange,
+  canSubmit = false,
+  canReview = false,
+  canPay = false,
+  canCancel = false,
 }) => {
   const statusOptions: { value: RefundStatus | ''; label: string }[] = [
     { value: '', label: 'All Statuses' },
@@ -59,7 +67,8 @@ export const RefundTable: React.FC<RefundTableProps> = ({
               placeholder="Search by Refund #, Customer, Reason..."
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 text-sm text-white placeholder:text-slate-500 outline-none transition-all"
+              aria-label="Search refund requests"
+              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 placeholder:text-slate-400"
             />
           </div>
 
@@ -68,10 +77,11 @@ export const RefundTable: React.FC<RefundTableProps> = ({
             <select
               value={selectedStatus}
               onChange={(e) => onStatusChange(e.target.value as any)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 focus:border-cyan-500/50 text-sm text-slate-200 outline-none transition-all appearance-none cursor-pointer"
+              aria-label="Filter refund requests by status"
+              className="w-full cursor-pointer appearance-none rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             >
               {statusOptions.map((opt) => (
-                <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
@@ -82,7 +92,7 @@ export const RefundTable: React.FC<RefundTableProps> = ({
 
         <button
           onClick={onRefresh}
-          className="px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white flex items-center justify-center space-x-2 text-sm font-medium transition-all"
+          className="flex items-center justify-center space-x-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
         >
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
@@ -90,24 +100,25 @@ export const RefundTable: React.FC<RefundTableProps> = ({
       </div>
 
       {/* Table Container */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-xl overflow-hidden shadow-2xl">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-950/60 text-xs uppercase font-semibold tracking-wider text-slate-400 border-b border-slate-800/80">
+          <table className="w-full min-w-[980px] text-left text-sm text-slate-700" aria-busy={isLoading}>
+            <caption className="sr-only">Refund request workflow</caption>
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
               <tr>
-                <th className="py-3.5 px-4">Refund #</th>
-                <th className="py-3.5 px-4">Customer & Locker</th>
-                <th className="py-3.5 px-4 text-right">Requested</th>
-                <th className="py-3.5 px-4 text-right">Approved</th>
-                <th className="py-3.5 px-4">Reason</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-center">Actions</th>
+                <th scope="col" className="py-3.5 px-4">Refund #</th>
+                <th scope="col" className="py-3.5 px-4">Customer & Locker</th>
+                <th scope="col" className="py-3.5 px-4 text-right">Requested</th>
+                <th scope="col" className="py-3.5 px-4 text-right">Approved</th>
+                <th scope="col" className="py-3.5 px-4">Reason</th>
+                <th scope="col" className="py-3.5 px-4">Status</th>
+                <th scope="col" className="py-3.5 px-4 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <td colSpan={7} className="py-12 text-center text-slate-500" role="status">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-500" />
                     Loading refund requests...
                   </td>
@@ -115,12 +126,14 @@ export const RefundTable: React.FC<RefundTableProps> = ({
               ) : refunds.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-500">
-                    No refund requests found.
+                    <Inbox className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                    <p className="font-medium text-slate-700">No refund requests found</p>
+                    <p className="mt-1 text-xs">Try clearing the search or status filter.</p>
                   </td>
                 </tr>
               ) : (
                 refunds.map((refund) => (
-                  <tr key={refund._id} className="hover:bg-slate-800/30 transition-colors">
+                  <tr key={refund._id} className="transition-colors hover:bg-slate-50">
                     {/* Refund # */}
                     <td className="py-3.5 px-4">
                       <div className="font-mono font-medium text-cyan-400 text-xs">
@@ -137,7 +150,7 @@ export const RefundTable: React.FC<RefundTableProps> = ({
 
                     {/* Customer */}
                     <td className="py-3.5 px-4">
-                      <div className="font-medium text-white">
+                      <div className="font-medium text-slate-900">
                         {refund.customerId?.fullName || 'N/A'}
                       </div>
                       <div className="text-xs text-slate-400 flex items-center space-x-1.5 mt-0.5">
@@ -153,7 +166,7 @@ export const RefundTable: React.FC<RefundTableProps> = ({
 
                     {/* Requested Amount */}
                     <td className="py-3.5 px-4 text-right">
-                      <span className="font-semibold font-mono text-white">
+                      <span className="font-mono font-semibold text-slate-900">
                         ₹{refund.requestedAmount.toLocaleString('en-IN')}
                       </span>
                     </td>
@@ -188,7 +201,7 @@ export const RefundTable: React.FC<RefundTableProps> = ({
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center space-x-1.5">
                         {/* Draft -> Submit */}
-                        {refund.status === 'DRAFT' && (
+                        {canSubmit && refund.status === 'DRAFT' && (
                           <button
                             onClick={() => onSubmitDraft(refund)}
                             title="Submit for Approval"
@@ -200,7 +213,7 @@ export const RefundTable: React.FC<RefundTableProps> = ({
                         )}
 
                         {/* Pending Approval -> Review / Approve / Reject */}
-                        {refund.status === 'PENDING_APPROVAL' && (
+                        {canReview && refund.status === 'PENDING_APPROVAL' && (
                           <button
                             onClick={() => onReviewRefund(refund)}
                             title="Review Refund (Maker-Checker)"
@@ -212,7 +225,7 @@ export const RefundTable: React.FC<RefundTableProps> = ({
                         )}
 
                         {/* Approved -> Disburse Payment */}
-                        {refund.status === 'APPROVED' && (
+                        {canPay && refund.status === 'APPROVED' && (
                           <button
                             onClick={() => onPayRefund(refund)}
                             title="Disburse Refund Payout"
@@ -224,10 +237,11 @@ export const RefundTable: React.FC<RefundTableProps> = ({
                         )}
 
                         {/* Cancel */}
-                        {['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(refund.status) && (
+                        {canCancel && ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(refund.status) && (
                           <button
                             onClick={() => onCancelRefund(refund)}
-                            title="Cancel Refund Request"
+                            title="Cancel refund request"
+                            aria-label={`Cancel refund request ${refund.refundNumber}`}
                             className="p-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all"
                           >
                             <Ban className="w-3.5 h-3.5" />
@@ -244,7 +258,7 @@ export const RefundTable: React.FC<RefundTableProps> = ({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center justify-between border-t border-slate-200 p-4 text-xs text-slate-500">
             <span>
               Page {currentPage} of {totalPages}
             </span>
@@ -252,14 +266,14 @@ export const RefundTable: React.FC<RefundTableProps> = ({
               <button
                 disabled={currentPage <= 1}
                 onClick={() => onPageChange(currentPage - 1)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-all"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 disabled={currentPage >= totalPages}
                 onClick={() => onPageChange(currentPage + 1)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-all"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>

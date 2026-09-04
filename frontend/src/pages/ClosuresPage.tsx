@@ -13,13 +13,13 @@ import { ClosureTable } from '../features/closures/components/ClosureTable';
 import { NewClosureWizard } from '../features/closures/components/NewClosureWizard';
 import { ClosureDetailModal } from '../features/closures/components/ClosureDetailModal';
 import { ClosureStatementModal } from '../features/closures/components/ClosureStatementModal';
-import { Lock, ShieldCheck } from 'lucide-react';
+import { ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
 
 export const ClosuresPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, permissions, hasPermission } = useAuth();
   const navigate = useNavigate();
-  const userPermissions = (user as any)?.role?.permissions || [];
-  const currentUserId = (user as any)?._id;
+  const userPermissions = permissions;
+  const currentUserId = user?.id;
 
   const [closures, setClosures] = useState<LockerClosure[]>([]);
   const [stats, setStats] = useState<ClosureStats | null>(null);
@@ -33,6 +33,7 @@ export const ClosuresPage: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [total, setTotal] = useState<number>(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Modals
   const [wizardOpen, setWizardOpen] = useState<boolean>(false);
@@ -44,11 +45,12 @@ export const ClosuresPage: React.FC = () => {
     useState<LockerClosure | null>(null);
   const [statementModalOpen, setStatementModalOpen] = useState<boolean>(false);
 
-  const canCreate = userPermissions.includes('closures.create');
+  const canCreate = hasPermission('closures.create');
 
   // Load closure list
   const fetchClosures = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params: ClosureQueryParams = {
         page,
@@ -63,6 +65,7 @@ export const ClosuresPage: React.FC = () => {
       setTotal(res.pagination.total);
     } catch (err) {
       console.error('Error loading closures:', err);
+      setLoadError('Closure records could not be loaded. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -116,23 +119,22 @@ export const ClosuresPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Locker Surrenders & Closures
-            </h1>
-            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-bold tracking-tight text-slate-950">Surrender workflow</h3>
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
               <ShieldCheck className="w-3.5 h-3.5" />
               Maker-Checker Controlled
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="mt-1 text-sm text-slate-600">
             Manage customer locker surrenders, dues clearance, key inspection, and release lockers back to vacant.
           </p>
-        </div>
+          <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-4" aria-label="Closure workflow stages">
+            {['Request', 'Review & settle', 'Approve', 'Release locker'].map((stage, index) => <li key={stage} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2"><span className="grid h-5 w-5 place-items-center rounded-full bg-slate-800 font-bold text-white">{index + 1}</span><span className="font-semibold">{stage}</span>{index < 3 && <ArrowRight className="ml-auto hidden h-3.5 w-3.5 text-slate-400 sm:block" />}</li>)}
+          </ol>
       </div>
 
       {/* Summary KPI Cards */}
@@ -157,9 +159,12 @@ export const ClosuresPage: React.FC = () => {
         }}
         onNewClosure={() => setWizardOpen(true)}
         canCreate={canCreate}
+        loading={loading}
+        onClearFilters={() => { setSearch(''); setStatus('ALL'); setClosureType('ALL'); setPage(1); }}
       />
 
       {/* Closures Data Table */}
+      {loadError && <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><span className="flex items-center gap-2"><AlertCircle className="h-4 w-4" />{loadError}</span><button type="button" onClick={fetchClosures} className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 font-semibold hover:bg-rose-100">Retry</button></div>}
       <ClosureTable
         closures={closures}
         loading={loading}
@@ -174,7 +179,11 @@ export const ClosuresPage: React.FC = () => {
         onPrint={handlePrint}
         userPermissions={userPermissions}
         currentUserId={currentUserId}
+        hasActiveFilters={Boolean(search || status !== 'ALL' || closureType !== 'ALL')}
+        onClearFilters={() => { setSearch(''); setStatus('ALL'); setClosureType('ALL'); setPage(1); }}
+        onCreate={canCreate ? () => setWizardOpen(true) : undefined}
       />
+      {!loading && !loadError && <p role="status" className="sr-only">{total} closure record{total === 1 ? '' : 's'} found.</p>}
 
       {/* New Closure Wizard Modal */}
       <NewClosureWizard
@@ -203,11 +212,11 @@ export const ClosuresPage: React.FC = () => {
         currentUserId={currentUserId}
         onNavigateToPayments={(invoiceId) => {
           setDetailModalOpen(false);
-          navigate('/payments');
+          navigate('/#payments');
         }}
         onNavigateToDeposits={(allocationId) => {
           setDetailModalOpen(false);
-          navigate('/deposits-refunds');
+          navigate('/#deposits-refunds');
         }}
       />
 

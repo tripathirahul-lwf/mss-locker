@@ -40,20 +40,20 @@ export function StatCard({
 
   const card = (
     <Card className={cn('overflow-hidden rounded-2xl border border-slate-200/90 transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md bg-white', className)}>
-      <CardContent className="p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3 sm:gap-4">
-          <div className="min-w-0 space-y-1.5 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+      <CardContent className="p-3.5 sm:p-4.5 lg:p-5">
+        <div className="flex items-start justify-between gap-2.5 sm:gap-3">
+          <div className="min-w-0 space-y-1 sm:space-y-1.5 flex-1">
+            <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-slate-500 truncate">
               {title}
             </p>
-            <div className="flex flex-wrap items-baseline gap-2">
-              <span className="text-2xl sm:text-[1.65rem] font-semibold tracking-tight text-slate-900 font-sans tabular-nums leading-tight">
+            <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+              <span className="text-xl sm:text-2xl lg:text-[1.65rem] font-semibold tracking-tight text-slate-900 font-sans tabular-nums leading-tight">
                 {value}
               </span>
               {badge && (
                 <span
                   className={cn(
-                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium border leading-none',
+                    'inline-flex items-center rounded-full px-1.5 sm:px-2 py-0.5 text-[9.5px] sm:text-[10.5px] font-medium border leading-none',
                     badgeStyles[badge.variant || 'neutral']
                   )}
                 >
@@ -62,19 +62,19 @@ export function StatCard({
               )}
             </div>
             {subtitle && (
-              <p className="text-xs leading-relaxed text-slate-500 font-normal">
+              <p className="text-[11px] sm:text-xs leading-relaxed text-slate-500 font-normal truncate">
                 {subtitle}
               </p>
             )}
           </div>
           <div
             className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200/60 shadow-2xs',
+              'flex h-9 w-9 sm:h-10 sm:w-10 lg:h-11 lg:w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200/60 shadow-2xs',
               iconBg,
               iconColor
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
       </CardContent>

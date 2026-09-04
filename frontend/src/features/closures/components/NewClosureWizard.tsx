@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Search,
@@ -157,13 +158,13 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex h-[100dvh] w-screen items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+      <div role="dialog" aria-modal="true" aria-labelledby="new-closure-title" className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl sm:max-h-[calc(100dvh-3rem)]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 id="new-closure-title" className="text-lg font-bold text-slate-900">
               Initiate Locker Surrender & Closure
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -176,7 +177,9 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close new closure workflow"
             className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -609,6 +612,7 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

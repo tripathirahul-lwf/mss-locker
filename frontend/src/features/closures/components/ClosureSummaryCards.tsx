@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ThumbsUp,
   CheckCircle2,
-  XCircle,
 } from 'lucide-react';
 
 interface ClosureSummaryCardsProps {
@@ -53,37 +52,35 @@ export const ClosureSummaryCards: React.FC<ClosureSummaryCardsProps> = ({
       activeBorder: 'ring-2 ring-blue-500 border-blue-500',
     },
     {
-      id: 'COMPLETED',
-      label: 'Completed This Month',
-      count: stats?.completedThisMonth ?? 0,
-      icon: CheckCircle2,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
-      borderColor: 'border-emerald-200',
-      activeBorder: 'ring-2 ring-emerald-500 border-emerald-500',
+      id: 'APPROVED',
+      label: 'Approved to Release',
+      count: stats?.approved ?? 0,
+      icon: ThumbsUp,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      borderColor: 'border-indigo-200',
+      activeBorder: 'ring-2 ring-indigo-500 border-indigo-500',
     },
     {
-      id: 'REJECTED',
-      label: 'Rejected',
-      count: stats?.rejected ?? 0,
-      icon: XCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
-      borderColor: 'border-red-200',
-      activeBorder: 'ring-2 ring-red-500 border-red-500',
+      id: 'COMPLETED', label: 'Completed This Month', count: stats?.completedThisMonth ?? 0,
+      icon: CheckCircle2, color: 'text-emerald-600', bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-200', activeBorder: 'ring-2 ring-emerald-500 border-emerald-500',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+    <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {cards.map((card) => {
         const Icon = card.icon;
         const isSelected = selectedStatus === card.id;
 
         return (
           <button
+            type="button"
             key={card.id}
             onClick={() => onSelectStatus?.(isSelected ? 'ALL' : card.id)}
+            aria-pressed={isSelected}
+            aria-label={`${card.label}: ${card.count}. ${isSelected ? 'Clear' : 'Apply'} this status filter.`}
             className={`flex flex-col text-left p-3.5 rounded-xl border bg-white shadow-xs transition-all hover:shadow-sm cursor-pointer ${
               card.borderColor
             } ${isSelected ? card.activeBorder : ''}`}

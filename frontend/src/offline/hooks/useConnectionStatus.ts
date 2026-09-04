@@ -16,8 +16,8 @@ export function useConnectionStatus() {
       return;
     }
     try {
-      await apiClient.get('/health', { timeout: 4000 });
-      setServerReachable(true);
+      const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
+      setServerReachable(res.ok);
     } catch {
       setServerReachable(false);
     } finally {

@@ -114,7 +114,7 @@ export function PaymentReceiptModal({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[120] w-screen h-screen flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-md select-none animate-in fade-in-0 duration-150 print:p-0 print:bg-white"
+      className="fixed inset-0 z-[130] w-screen h-screen flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-md select-none animate-in fade-in-0 duration-150 print:p-0 print:bg-white"
       onClick={onClose}
     >
       <div

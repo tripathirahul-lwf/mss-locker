@@ -12,6 +12,8 @@ interface ClosureActionRibbonProps {
   onRefresh: () => void;
   onNewClosure: () => void;
   canCreate: boolean;
+  loading?: boolean;
+  onClearFilters: () => void;
 }
 
 export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
@@ -24,6 +26,8 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
   onRefresh,
   onNewClosure,
   canCreate,
+  loading = false,
+  onClearFilters,
 }) => {
   const [localSearch, setLocalSearch] = useState(search);
 
@@ -52,6 +56,7 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Search closure #, customer, phone, locker #..."
+            aria-label="Search closure records"
             className="w-full pl-9 pr-9 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
           />
           {localSearch && (
@@ -62,6 +67,7 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
                 onSearchChange('');
               }}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+              aria-label="Clear closure search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -72,6 +78,7 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
         <div className="flex items-center gap-1.5">
           <Filter className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
           <select
+            aria-label="Filter closures by status"
             value={status}
             onChange={(e) => onStatusChange(e.target.value)}
             className="px-2.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-700"
@@ -90,6 +97,7 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
 
         {/* Closure Type filter */}
         <select
+          aria-label="Filter closures by type"
           value={closureType}
           onChange={(e) => onClosureTypeChange(e.target.value)}
           className="px-2.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-700"
@@ -106,10 +114,13 @@ export const ClosureActionRibbon: React.FC<ClosureActionRibbonProps> = ({
         <button
           onClick={onRefresh}
           title="Refresh closures"
+          aria-label="Refresh closure records"
+          disabled={loading}
           className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
         >
-          <RotateCw className="w-4 h-4" />
+          <RotateCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
+        {(localSearch || status !== 'ALL' || closureType !== 'ALL') && <button type="button" onClick={() => { setLocalSearch(''); onClearFilters(); }} className="rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Clear filters</button>}
       </div>
 
       {/* Right: + New Closure Button */}

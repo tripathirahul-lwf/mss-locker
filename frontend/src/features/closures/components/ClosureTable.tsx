@@ -25,6 +25,9 @@ interface ClosureTableProps {
   onPrint: (closure: LockerClosure) => void;
   userPermissions: string[];
   currentUserId?: string;
+  hasActiveFilters?: boolean;
+  onClearFilters: () => void;
+  onCreate?: () => void;
 }
 
 export const ClosureTable: React.FC<ClosureTableProps> = ({
@@ -41,6 +44,9 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
   onPrint,
   userPermissions,
   currentUserId,
+  hasActiveFilters = false,
+  onClearFilters,
+  onCreate,
 }) => {
   const canReview = userPermissions.includes('closures.review');
   const canApprove = userPermissions.includes('closures.approve');
@@ -49,7 +55,7 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
 
   if (loading && closures.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center" role="status">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mb-3" />
         <p className="text-sm text-slate-500 font-medium">Loading closure records...</p>
       </div>
@@ -58,12 +64,13 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
 
   if (closures.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
         <ShieldAlert className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-        <h3 className="text-base font-semibold text-slate-800 mb-1">No Closures Found</h3>
+        <h3 className="mb-1 text-base font-semibold text-slate-800">{hasActiveFilters ? 'No matching closures' : 'No closure requests yet'}</h3>
         <p className="text-sm text-slate-500 max-w-md mx-auto">
-          No locker closure requests match your search or filter criteria.
+          {hasActiveFilters ? 'No requests match the current search and filters.' : 'Start a closure when a customer surrenders a locker or an allocation must be ended.'}
         </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">{hasActiveFilters && <button type="button" onClick={onClearFilters} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Clear filters</button>}{!hasActiveFilters && onCreate && <button type="button" onClick={onCreate} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800">Start a closure</button>}</div>
       </div>
     );
   }
@@ -71,17 +78,12 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-sm">
+        <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
+          <caption className="sr-only">Locker closure requests and workflow status</caption>
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200/80 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              <th className="py-3.5 px-4">Closure No.</th>
-              <th className="py-3.5 px-4">Customer</th>
-              <th className="py-3.5 px-4">Locker</th>
-              <th className="py-3.5 px-4">Allocation</th>
-              <th className="py-3.5 px-4">Requested Date</th>
-              <th className="py-3.5 px-4">Status</th>
-              <th className="py-3.5 px-4">Operator</th>
-              <th className="py-3.5 px-4 text-right">Actions</th>
+              <th scope="col" className="py-3.5 px-4">Closure No.</th>
+              <th scope="col" className="py-3.5 px-4">Customer</th><th scope="col" className="py-3.5 px-4">Locker</th><th scope="col" className="py-3.5 px-4">Allocation</th><th scope="col" className="py-3.5 px-4">Requested Date</th><th scope="col" className="py-3.5 px-4">Status</th><th scope="col" className="py-3.5 px-4">Operator</th><th scope="col" className="py-3.5 px-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -95,8 +97,7 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
               return (
                 <tr
                   key={closure._id}
-                  className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
-                  onClick={() => onView(closure)}
+                  className="transition-colors hover:bg-slate-50/70"
                 >
                   {/* Closure Number */}
                   <td className="py-3.5 px-4 font-mono font-bold text-slate-900 text-xs">
@@ -171,6 +172,7 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
                       <button
                         onClick={() => onView(closure)}
                         title="View Details"
+                        aria-label={`View closure ${closure.closureNumber}`}
                         className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
                       >
                         <Eye className="w-4 h-4" />
@@ -240,6 +242,7 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
               className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Previous closure page"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -250,6 +253,7 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
               className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Next closure page"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Printer,
@@ -140,9 +141,9 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex h-[100dvh] w-screen items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+      <div role="dialog" aria-modal="true" aria-labelledby="closure-detail-title" className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl sm:max-h-[calc(100dvh-3rem)]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-3">
@@ -151,7 +152,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-900 font-mono">
+                <h2 id="closure-detail-title" className="text-lg font-bold text-slate-900 font-mono">
                   {closure.closureNumber}
                 </h2>
                 <ClosureStatusBadge status={closure.status} />
@@ -179,7 +180,9 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
               </button>
             )}
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Close closure details"
               className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
             >
               <X className="w-5 h-5" />
@@ -582,6 +585,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

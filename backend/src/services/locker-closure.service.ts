@@ -685,6 +685,7 @@ export class LockerClosureService {
       pendingReview,
       pendingSettlement,
       readyForClosure,
+      approved,
       completedToday,
       completedThisMonth,
       rejected,
@@ -693,6 +694,7 @@ export class LockerClosureService {
       LockerClosure.countDocuments({ status: CLOSURE_STATUSES.PENDING_REVIEW }),
       LockerClosure.countDocuments({ status: CLOSURE_STATUSES.PENDING_SETTLEMENT }),
       LockerClosure.countDocuments({ status: CLOSURE_STATUSES.READY_FOR_CLOSURE }),
+      LockerClosure.countDocuments({ status: CLOSURE_STATUSES.APPROVED }),
       LockerClosure.countDocuments({
         status: CLOSURE_STATUSES.COMPLETED,
         completedAt: { $gte: startOfToday },
@@ -709,6 +711,7 @@ export class LockerClosureService {
       pendingReview,
       pendingSettlement,
       readyForClosure,
+      approved,
       completedToday,
       completedThisMonth,
       rejected,

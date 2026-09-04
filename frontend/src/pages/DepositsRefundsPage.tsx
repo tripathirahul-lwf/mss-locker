@@ -21,8 +21,6 @@ import {
   ArrowUpRight,
   SlidersHorizontal,
   PlusCircle,
-  Clock,
-  Layers,
   XCircle,
   FileCheck2,
   CheckCircle2,
@@ -30,9 +28,12 @@ import {
 } from 'lucide-react';
 
 import { useDebounce } from '../hooks/useDebounce';
+import { useAuth } from '../context/AuthContext';
+import { allocationApi } from '../features/allocations/api/allocationApi';
+import { LockerAllocation } from '../features/allocations/types';
 
 export const DepositsRefundsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'LEDGER' | 'REFUNDS'>('LEDGER');
+  const { hasPermission } = useAuth();
   const [notice, setNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
@@ -70,6 +71,20 @@ export const DepositsRefundsPage: React.FC = () => {
   const [cancellingTx, setCancellingTx] = useState<DepositTransaction | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
+  const [cancellingRefund, setCancellingRefund] = useState<RefundRequest | null>(null);
+  const [refundCancelReason, setRefundCancelReason] = useState('');
+  const [submittingRefundCancel, setSubmittingRefundCancel] = useState(false);
+  const [activeAllocations, setActiveAllocations] = useState<LockerAllocation[]>([]);
+  const [selectedAllocationId, setSelectedAllocationId] = useState('');
+  const [loadingAllocations, setLoadingAllocations] = useState(false);
+
+  const canCollect = hasPermission('deposits.collect');
+  const canAdjust = hasPermission('deposits.adjust');
+  const canCreateRefund = hasPermission('refunds.create');
+  const canReviewRefund = hasPermission('refunds.approve') || hasPermission('refunds.reject');
+  const canPayRefund = hasPermission('refunds.pay');
+  const canCancelRefund = hasPermission('refunds.cancel');
+  const hasAccountAction = canCollect || canAdjust || canCreateRefund;
 
   // Load stats
   const fetchStats = async () => {
@@ -127,6 +142,31 @@ export const DepositsRefundsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!hasAccountAction) return;
+    let active = true;
+    setLoadingAllocations(true);
+    allocationApi.getAllocations({ status: 'ACTIVE', page: 1, limit: 100 })
+      .then((result) => {
+        if (active) setActiveAllocations(result.allocations);
+      })
+      .catch(() => {
+        if (active) setErrorNotice('Active customer-locker accounts could not be loaded');
+      })
+      .finally(() => {
+        if (active) setLoadingAllocations(false);
+      });
+    return () => { active = false; };
+  }, [hasAccountAction]);
+
+  const openForSelectedAccount = (open: () => void) => {
+    if (!selectedAllocationId) {
+      setErrorNotice('Select a customer-locker account before starting this action');
+      return;
+    }
+    open();
+  };
+
+  useEffect(() => {
     setLedgerPage(1);
   }, [debouncedLedgerSearch, selectedType]);
 
@@ -135,16 +175,12 @@ export const DepositsRefundsPage: React.FC = () => {
   }, [debouncedRefundsSearch, selectedRefundStatus]);
 
   useEffect(() => {
-    if (activeTab === 'LEDGER') {
-      fetchTransactions();
-    }
-  }, [activeTab, ledgerPage, debouncedLedgerSearch, selectedType]);
+    fetchTransactions();
+  }, [ledgerPage, debouncedLedgerSearch, selectedType]);
 
   useEffect(() => {
-    if (activeTab === 'REFUNDS') {
-      fetchRefunds();
-    }
-  }, [activeTab, refundsPage, debouncedRefundsSearch, selectedRefundStatus]);
+    fetchRefunds();
+  }, [refundsPage, debouncedRefundsSearch, selectedRefundStatus]);
 
   // Cancel deposit transaction execution
   const handleConfirmCancelTx = async () => {
@@ -183,17 +219,23 @@ export const DepositsRefundsPage: React.FC = () => {
   };
 
   // Cancel refund request
-  const handleCancelRefund = async (refund: RefundRequest) => {
-    const reason = window.prompt('Enter reason for cancelling this refund request:');
-    if (!reason || reason.trim().length < 3) return;
-
+  const handleConfirmCancelRefund = async () => {
+    if (!cancellingRefund || refundCancelReason.trim().length < 3) {
+      setErrorNotice('Cancellation reason must contain at least 3 characters');
+      return;
+    }
     try {
-      await depositApi.cancelRefund(refund._id, { cancellationReason: reason.trim() });
+      setSubmittingRefundCancel(true);
+      await depositApi.cancelRefund(cancellingRefund._id, { cancellationReason: refundCancelReason.trim() });
       setNotice('Refund request cancelled');
+      setCancellingRefund(null);
+      setRefundCancelReason('');
       fetchRefunds();
       fetchStats();
     } catch (err: any) {
       setErrorNotice(err?.response?.data?.message || 'Failed to cancel refund request');
+    } finally {
+      setSubmittingRefundCancel(false);
     }
   };
 
@@ -203,14 +245,15 @@ export const DepositsRefundsPage: React.FC = () => {
       {notice && (
         <div
           role="status"
-          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-500/30 bg-slate-900 p-3 text-xs font-semibold text-emerald-300 shadow-2xl"
+          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-xl border border-emerald-200 bg-white p-3 text-xs font-semibold text-emerald-800 shadow-xl"
         >
           <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
           <span className="flex-1">{notice}</span>
           <button
             type="button"
             onClick={() => setNotice(null)}
-            className="grid h-7 w-7 place-items-center rounded-lg hover:bg-slate-800 cursor-pointer text-slate-400"
+            aria-label="Dismiss success message"
+            className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
@@ -219,15 +262,16 @@ export const DepositsRefundsPage: React.FC = () => {
 
       {errorNotice && (
         <div
-          role="status"
-          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-2xl border border-rose-500/30 bg-slate-900 p-3 text-xs font-semibold text-rose-300 shadow-2xl"
+          role="alert"
+          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-xl border border-rose-200 bg-white p-3 text-xs font-semibold text-rose-800 shadow-xl"
         >
           <XCircle className="h-5 w-5 shrink-0 text-rose-400" />
           <span className="flex-1">{errorNotice}</span>
           <button
             type="button"
             onClick={() => setErrorNotice(null)}
-            className="grid h-7 w-7 place-items-center rounded-lg hover:bg-slate-800 cursor-pointer text-slate-400"
+            aria-label="Dismiss error message"
+            className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
@@ -235,42 +279,61 @@ export const DepositsRefundsPage: React.FC = () => {
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center space-x-2">
-            <ShieldCheck className="w-7 h-7 text-emerald-400" />
+          <h3 className="flex items-center space-x-2 text-lg font-bold tracking-tight text-slate-950">
+            <ShieldCheck className="h-6 w-6 text-emerald-700" />
             <span>Caution Money & Refund Desk</span>
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          </h3>
+          <p className="mt-1 text-sm text-slate-600">
             Deposit ledger, damage adjustments, and Maker-Checker refund authorization
           </p>
         </div>
 
+        {hasAccountAction && (
+          <div className="min-w-0 flex-1 xl:max-w-lg">
+            <label htmlFor="deposit-allocation" className="mb-1 block text-xs font-semibold text-slate-700">
+              Customer-locker account <span className="text-rose-600">*</span>
+            </label>
+            <select id="deposit-allocation" value={selectedAllocationId} onChange={(event) => setSelectedAllocationId(event.target.value)} disabled={loadingAllocations}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-100">
+              <option value="">{loadingAllocations ? 'Loading active accounts…' : 'Select an active account'}</option>
+              {activeAllocations.map((allocation) => (
+                <option key={allocation._id} value={allocation._id}>
+                  {allocation.customerId.fullName} · Locker {allocation.lockerId.lockerNumber} · {allocation.allocationCode}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Quick Action Buttons */}
         <div className="flex flex-wrap gap-2.5">
-          <button
-            onClick={() => setIsCollectModalOpen(true)}
+          {canCollect && <button
+            onClick={() => openForSelectedAccount(() => setIsCollectModalOpen(true))}
             className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold shadow-lg shadow-emerald-500/20 transition-all flex items-center space-x-2"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Collect Deposit</span>
-          </button>
+          </button>}
 
-          <button
-            onClick={() => setIsAdjustModalOpen(true)}
-            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all flex items-center space-x-1.5"
+          {canAdjust && <button
+            onClick={() => openForSelectedAccount(() => setIsAdjustModalOpen(true))}
+            className="flex items-center space-x-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
             <span>Adjust Deposit</span>
-          </button>
+          </button>}
 
-          <button
-            onClick={() => setIsCreateRefundModalOpen(true)}
-            className="px-3.5 py-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-xs font-semibold transition-all flex items-center space-x-1.5"
+          {canCreateRefund && <button
+            onClick={() => openForSelectedAccount(() => setIsCreateRefundModalOpen(true))}
+            className="flex items-center space-x-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2.5 text-xs font-semibold text-purple-700 transition hover:bg-purple-100"
           >
             <ArrowUpRight className="w-4 h-4" />
             <span>Request Refund</span>
-          </button>
+          </button>}
+        </div>
         </div>
       </div>
 
@@ -280,46 +343,14 @@ export const DepositsRefundsPage: React.FC = () => {
         isLoading={loadingStats}
         onFilterClick={(cardId) => {
           if (cardId === 'pendingRefunds') {
-            setActiveTab('REFUNDS');
             setSelectedRefundStatus('PENDING_APPROVAL');
+            document.getElementById('refund-requests')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         }}
       />
 
-      {/* Tabs */}
-      <div className="flex border-b border-slate-800 space-x-6">
-        <button
-          onClick={() => setActiveTab('LEDGER')}
-          className={`pb-3 text-sm font-semibold flex items-center space-x-2 border-b-2 transition-all ${
-            activeTab === 'LEDGER'
-              ? 'border-emerald-500 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Security Deposit Ledger</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('REFUNDS')}
-          className={`pb-3 text-sm font-semibold flex items-center space-x-2 border-b-2 transition-all ${
-            activeTab === 'REFUNDS'
-              ? 'border-cyan-500 text-cyan-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          <span>Refund Requests (Maker-Checker)</span>
-          {(stats?.pendingRefundCount ?? 0) > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 ml-1.5 animate-pulse">
-              {stats?.pendingRefundCount}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'LEDGER' ? (
+      <section id="deposit-ledger" aria-labelledby="deposit-ledger-heading" className="scroll-mt-24 space-y-3">
+        <h3 id="deposit-ledger-heading" className="text-base font-semibold text-slate-900">Security deposit ledger</h3>
         <DepositLedgerTable
           transactions={transactions}
           isLoading={loadingTransactions}
@@ -336,8 +367,15 @@ export const DepositsRefundsPage: React.FC = () => {
           onSearchChange={setLedgerSearch}
           selectedType={selectedType}
           onTypeChange={setSelectedType}
+          canCancel={canAdjust}
         />
-      ) : (
+      </section>
+
+      <section id="refund-requests" aria-labelledby="refund-requests-heading" className="scroll-mt-24 space-y-3 border-t border-slate-200 pt-5">
+        <div className="flex items-center gap-2">
+          <h3 id="refund-requests-heading" className="text-base font-semibold text-slate-900">Refund requests (maker-checker)</h3>
+          {(stats?.pendingRefundCount ?? 0) > 0 && <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950">{stats?.pendingRefundCount} pending</span>}
+        </div>
         <RefundTable
           refunds={refunds}
           isLoading={loadingRefunds}
@@ -348,7 +386,7 @@ export const DepositsRefundsPage: React.FC = () => {
           onSubmitDraft={handleSubmitDraft}
           onReviewRefund={(refund) => setReviewingRefundId(refund._id)}
           onPayRefund={(refund) => setPayingRefund(refund)}
-          onCancelRefund={handleCancelRefund}
+          onCancelRefund={setCancellingRefund}
           currentPage={refundsPage}
           totalPages={refundsTotalPages}
           onPageChange={setRefundsPage}
@@ -356,14 +394,19 @@ export const DepositsRefundsPage: React.FC = () => {
           onSearchChange={setRefundsSearch}
           selectedStatus={selectedRefundStatus}
           onStatusChange={setSelectedRefundStatus}
+          canSubmit={canCreateRefund}
+          canReview={canReviewRefund}
+          canPay={canPayRefund}
+          canCancel={canCancelRefund}
         />
-      )}
+      </section>
 
       {/* Collect Deposit Modal */}
       <CollectDepositModal
         isOpen={isCollectModalOpen}
         onClose={() => setIsCollectModalOpen(false)}
-        allocationId={transactions[0]?.allocationId?._id}
+        allocationId={selectedAllocationId || undefined}
+        canOverride={hasPermission('deposits.override')}
         onSuccess={(result) => {
           fetchTransactions();
           fetchStats();
@@ -377,7 +420,7 @@ export const DepositsRefundsPage: React.FC = () => {
       <AdjustDepositModal
         isOpen={isAdjustModalOpen}
         onClose={() => setIsAdjustModalOpen(false)}
-        allocationId={transactions[0]?.allocationId?._id}
+        allocationId={selectedAllocationId || undefined}
         onSuccess={() => {
           fetchTransactions();
           fetchStats();
@@ -388,11 +431,11 @@ export const DepositsRefundsPage: React.FC = () => {
       <CreateRefundModal
         isOpen={isCreateRefundModalOpen}
         onClose={() => setIsCreateRefundModalOpen(false)}
-        allocationId={transactions[0]?.allocationId?._id}
+        allocationId={selectedAllocationId || undefined}
         onSuccess={() => {
           fetchRefunds();
           fetchStats();
-          setActiveTab('REFUNDS');
+          document.getElementById('refund-requests')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }}
       />
 
@@ -430,28 +473,28 @@ export const DepositsRefundsPage: React.FC = () => {
 
       {/* Soft Cancel Transaction Modal Dialog */}
       {cancellingTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center space-x-3 text-rose-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="cancel-transaction-title" className="relative w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center space-x-3 text-rose-700">
               <XCircle className="w-6 h-6" />
-              <h3 className="text-base font-semibold text-white">Cancel Deposit Transaction</h3>
+              <h3 id="cancel-transaction-title" className="text-base font-semibold text-slate-950">Cancel deposit transaction?</h3>
             </div>
-            <p className="text-xs text-slate-300">
+            <p className="text-sm text-slate-600">
               Are you sure you want to cancel transaction{' '}
               <span className="font-mono text-cyan-400">{cancellingTx.depositTransactionNumber}</span>{' '}
               for ₹{cancellingTx.amount.toLocaleString('en-IN')}? This action is audited and cannot be undone.
             </p>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label htmlFor="deposit-cancel-reason" className="mb-1 block text-xs font-semibold text-slate-700">
                 Mandatory Cancellation Reason *
               </label>
               <textarea
-                rows={2}
+                id="deposit-cancel-reason" rows={3}
                 required
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="Reason for cancellation..."
-                className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-rose-500/40 text-xs text-white outline-none"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 outline-none focus:border-rose-600 focus:ring-2 focus:ring-rose-100"
               />
             </div>
             <div className="flex justify-end space-x-3 pt-2">
@@ -461,7 +504,7 @@ export const DepositsRefundsPage: React.FC = () => {
                   setCancellingTx(null);
                   setCancelReason('');
                 }}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
                 Back
               </button>
@@ -472,6 +515,34 @@ export const DepositsRefundsPage: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/20"
               >
                 Confirm Cancellation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancellingRefund && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="cancel-refund-title" className="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-700">
+              <XCircle className="h-6 w-6" />
+              <h3 id="cancel-refund-title" className="font-semibold text-slate-950">Cancel refund request?</h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              <span className="font-mono font-semibold text-slate-900">{cancellingRefund.refundNumber}</span> will leave the active approval workflow. This action is audited.
+            </p>
+            <div>
+              <label htmlFor="refund-cancel-reason" className="mb-1 block text-xs font-semibold text-slate-700">Cancellation reason *</label>
+              <textarea id="refund-cancel-reason" rows={3} autoFocus value={refundCancelReason} onChange={(event) => setRefundCancelReason(event.target.value)}
+                placeholder="Explain why this request is being cancelled"
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm text-slate-900 outline-none focus:border-rose-600 focus:ring-2 focus:ring-rose-100" />
+              <p className="mt-1 text-xs text-slate-500">Minimum 3 characters. Saved in the audit trail.</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => { setCancellingRefund(null); setRefundCancelReason(''); }} className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">Keep request</button>
+              <button type="button" onClick={handleConfirmCancelRefund} disabled={submittingRefundCancel || refundCancelReason.trim().length < 3}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">
+                {submittingRefundCancel ? 'Cancelling…' : 'Cancel refund'}
               </button>
             </div>
           </div>

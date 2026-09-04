@@ -65,7 +65,7 @@ export const DepositSummaryCards: React.FC<DepositSummaryCardsProps> = ({
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="h-28 rounded-2xl bg-slate-900/60 border border-slate-800 animate-pulse"
+            className="h-28 animate-pulse rounded-2xl border border-slate-200 bg-slate-100"
           />
         ))}
       </div>
@@ -79,15 +79,17 @@ export const DepositSummaryCards: React.FC<DepositSummaryCardsProps> = ({
         const isSelected = selectedFilter === c.id;
 
         return (
-          <div
+          <button
+            type="button"
             key={c.id}
             onClick={() => onFilterClick && onFilterClick(c.id)}
-            className={`relative p-5 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-slate-700 transition-all cursor-pointer backdrop-blur-md group ${
+            disabled={!onFilterClick || c.id !== 'pendingRefunds'}
+            className={`relative w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all enabled:cursor-pointer enabled:hover:border-emerald-300 enabled:hover:shadow-md disabled:cursor-default ${
               isSelected ? c.activeBorder : ''
             }`}
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 {c.label}
               </span>
               <div className={`p-2 rounded-xl border ${c.bgColor}`}>
@@ -96,18 +98,18 @@ export const DepositSummaryCards: React.FC<DepositSummaryCardsProps> = ({
             </div>
 
             <div className="flex items-baseline space-x-1">
-              <span className="text-2xl font-bold tracking-tight text-white">
+              <span className="text-2xl font-bold tracking-tight text-slate-950">
                 ₹{c.amount.toLocaleString('en-IN')}
               </span>
             </div>
 
             <div className="mt-2 flex items-center justify-between">
-              <span className="text-xs text-slate-400 flex items-center">
-                {c.highlight && <AlertCircle className="w-3 h-3 text-amber-400 mr-1 animate-pulse" />}
+              <span className="flex items-center text-xs text-slate-500">
+                {c.highlight && <AlertCircle className="mr-1 h-3 w-3 text-amber-600" />}
                 {c.subtext}
               </span>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
