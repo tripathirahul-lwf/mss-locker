@@ -52,6 +52,14 @@ app.use(
   })
 );
 
+// Lightweight Root Health Check for Render & External Uptime Keep-Alive Monitors
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Rate Limiting
 app.use(globalRateLimiter);
 
