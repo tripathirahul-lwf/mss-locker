@@ -136,7 +136,11 @@ export class LockerService {
 
     const skip = (page - 1) * limit;
 
-    const findQuery = Locker.find(filter).sort(sortOptions).skip(skip).limit(limit);
+    const findQuery = Locker.find(filter)
+      .collation({ locale: 'en', numericOrdering: true })
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limit);
     if (compact) {
       findQuery.select('_id lockerNumber lockerCode size rackNumber section floor annualRent securityDeposit status operationalStatus isActive');
     } else {
@@ -291,6 +295,7 @@ export class LockerService {
     }
 
     const availableLockers = await Locker.find(query)
+      .collation({ locale: 'en', numericOrdering: true })
       .sort({ lockerNumber: 1 })
       .limit(100);
 

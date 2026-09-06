@@ -13,6 +13,9 @@ import {
   Mail,
   MapPin,
   CalendarDays,
+  KeyRound,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { Customer, CustomerQueryParams } from '../types';
 import { CustomerStatusBadge } from './CustomerStatusBadge';
@@ -21,6 +24,32 @@ import { formatPhone } from '../utils/phoneFormatter';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { usePermission } from '../../../hooks/usePermission';
+
+const getInitials = (fullName: string): string => {
+  if (!fullName) return 'CU';
+  const clean = fullName.replace(/[^a-zA-Z\s]/g, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  if (parts.length === 1 && parts[0].length >= 2) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return (fullName.slice(0, 2).replace(/[^a-zA-Z]/g, '') || 'CU').toUpperCase();
+};
+
+const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  if (currentPage <= 3) {
+    return [1, 2, 3, 4, '...', totalPages];
+  }
+  if (currentPage >= totalPages - 2) {
+    return [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+  return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+};
 
 interface CustomerTableProps {
   customers: Customer[];
@@ -60,6 +89,14 @@ export function CustomerTable({
   const canDelete = usePermission('customers.delete');
   const canManageKyc = usePermission('customers.kyc.manage');
 
+  const [copiedPhoneId, setCopiedPhoneId] = React.useState<string | null>(null);
+
+  const handleCopyPhone = (id: string, phone: string) => {
+    navigator.clipboard.writeText(phone);
+    setCopiedPhoneId(id);
+    setTimeout(() => setCopiedPhoneId(null), 2000);
+  };
+
   const currentPage = pagination?.page || 1;
   const totalPages = pagination?.totalPages || 1;
   const totalRecords = pagination?.total || 0;
@@ -68,6 +105,14 @@ export function CustomerTable({
   const lastRecord = Math.min(currentPage * limit, totalRecords);
   const sortDirection = (field: string): 'ascending' | 'descending' | 'none' =>
     filters.sortBy === field ? (filters.sortOrder === 'asc' ? 'ascending' : 'descending') : 'none';
+
+  const paginationItems = getPaginationItems(currentPage, totalPages);
+
+  const handlePageSelect = (page: number) => {
+    if (page === currentPage || page < 1 || page > totalPages) return;
+    onPageChange(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col">
@@ -93,7 +138,7 @@ export function CustomerTable({
                   <img src={customer.photoUrl} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center font-semibold border border-emerald-200/80 shrink-0 text-xs font-sans tracking-wide">
-                    {customer.fullName.slice(0, 2).toUpperCase()}
+                    {getInitials(customer.fullName)}
                   </div>
                 )}
                 <span className="min-w-0">
@@ -110,10 +155,35 @@ export function CustomerTable({
                 <span className="font-sans font-medium text-[13px] tracking-tight tabular-nums truncate text-slate-900">
                   {formatPhone(customer.phone)}
                 </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyPhone(customer._id, customer.phone);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
+                  title="Copy phone number"
+                  aria-label={`Copy phone number for ${customer.fullName}`}
+                >
+                  {copiedPhoneId === customer._id ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
               </div>
               <div className="flex items-center gap-1.5 min-w-0">
-                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="truncate text-slate-600 font-normal">{customer.city || 'Main Vault'}</span>
+                <KeyRound className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                {customer.assignedLockers && customer.assignedLockers.length > 0 ? (
+                  <span className="truncate text-slate-800 font-medium font-sans">
+                    Locker #{customer.assignedLockers[0].lockerNumber}
+                    <span className="text-[10px] text-slate-500 font-normal ml-1">
+                      ({customer.assignedLockers[0].size})
+                    </span>
+                  </span>
+                ) : (
+                  <span className="truncate text-slate-400 font-normal italic">No Lease</span>
+                )}
               </div>
               {customer.email && (
                 <div className="col-span-2 flex items-center gap-1.5 min-w-0 text-slate-600 font-normal">
@@ -209,7 +279,12 @@ export function CustomerTable({
                   <ArrowUpDown className="w-3 h-3 text-slate-400" />
                 </button>
               </th>
-              <th className="py-3 px-3">Location</th>
+              <th className="py-3 px-3">
+                <div className="flex items-center gap-1.5 text-slate-700">
+                  <KeyRound className="w-3 h-3 text-slate-400" />
+                  <span>Allocated Locker</span>
+                </div>
+              </th>
               <th
                 aria-sort={sortDirection('kycStatus')}
                 className="py-3 px-3"
@@ -311,14 +386,22 @@ export function CustomerTable({
                         />
                       ) : (
                         <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center font-semibold shrink-0 border border-emerald-200/80 text-xs font-sans tracking-wide shadow-2xs">
-                          {customer.fullName.slice(0, 2).toUpperCase()}
+                          {getInitials(customer.fullName)}
                         </div>
                       )}
 
                       <div className="space-y-0.5 min-w-0">
-                        <span className="font-semibold text-slate-900 text-[13.5px] sm:text-sm font-sans group-hover:text-emerald-900 text-left transition-colors truncate block max-w-[200px]">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onView(customer);
+                          }}
+                          className="font-semibold text-slate-900 text-[13.5px] sm:text-sm font-sans hover:text-emerald-800 hover:underline text-left transition-colors truncate block max-w-[200px] cursor-pointer"
+                          title="View Full Customer Profile"
+                        >
                           {customer.fullName}
-                        </span>
+                        </button>
                         <Badge
                           variant="outline"
                           className="text-[10.5px] font-sans bg-slate-100/90 border-slate-200 text-slate-600 font-medium px-1.5 py-0.2 rounded-md tabular-nums tracking-normal"
@@ -331,9 +414,26 @@ export function CustomerTable({
 
                   {/* Phone & Email */}
                   <td className="py-3 px-3">
-                    <div className="flex items-center gap-1.5 font-sans font-medium text-[13.5px] text-slate-900 tracking-tight tabular-nums">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{formatPhone(customer.phone)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-sans font-medium text-[13.5px] text-slate-900 tracking-tight tabular-nums">
+                        {formatPhone(customer.phone)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyPhone(customer._id, customer.phone);
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
+                        title="Copy phone number"
+                        aria-label={`Copy phone number for ${customer.fullName}`}
+                      >
+                        {copiedPhoneId === customer._id ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                     </div>
                     {customer.email && (
                       <div className="flex items-center gap-1.5 text-xs text-slate-500 truncate max-w-[180px] font-normal font-sans mt-0.5">
@@ -343,14 +443,27 @@ export function CustomerTable({
                     )}
                   </td>
 
-                  {/* Location */}
-                  <td className="py-3 px-3 text-slate-600 font-normal">
-                    <span className="font-medium text-slate-800 text-xs">
-                      {customer.city || 'Main Vault'}
-                    </span>
-                    <span className="text-[10.5px] text-slate-400 block font-normal">
-                      {customer.state || 'Operational'}
-                    </span>
+                  {/* Allocated Locker */}
+                  <td className="py-3 px-3">
+                    {customer.assignedLockers && customer.assignedLockers.length > 0 ? (
+                      <div className="space-y-0.5">
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/70 text-emerald-900 font-semibold text-xs font-sans">
+                          <KeyRound className="w-3 h-3 text-emerald-700 shrink-0" />
+                          <span>Locker #{customer.assignedLockers[0].lockerNumber}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-normal pl-0.5">
+                          Size {customer.assignedLockers[0].size}
+                          {customer.assignedLockers[0].rackNumber && ` • ${customer.assignedLockers[0].rackNumber}`}
+                          {customer.assignedLockers.length > 1 && (
+                            <span className="ml-1 text-emerald-700 font-medium">+{customer.assignedLockers.length - 1} more</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/80 border border-slate-200/80 text-slate-500 text-[11px] font-normal">
+                        <span>No Vault Lease</span>
+                      </div>
+                    )}
                   </td>
 
                   {/* KYC Compliance */}
@@ -383,8 +496,8 @@ export function CustomerTable({
                           onView(customer);
                         }}
                         className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer"
-                        title="View Customer Profile"
-                        aria-label={`View ${customer.fullName}`}
+                        title="View Full Profile (Open Page)"
+                        aria-label={`View full profile for ${customer.fullName}`}
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
@@ -473,36 +586,65 @@ export function CustomerTable({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-700">
-            Page {currentPage} of {totalPages}
-          </span>
+        <div className="flex items-center gap-1.5 flex-wrap justify-center sm:justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageSelect(currentPage - 1)}
+            disabled={currentPage <= 1 || isLoading}
+            className="h-8 px-2.5 text-xs rounded-lg border-slate-300 text-slate-700 font-medium hover:bg-slate-50 cursor-pointer disabled:opacity-40"
+            aria-label="Previous customer page"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline ml-1">Prev</span>
+          </Button>
 
+          {/* Direct Page Number Jump Chips */}
           <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage <= 1 || isLoading}
-              className="h-8 px-2.5 text-xs rounded-lg border-slate-300 text-slate-700 font-medium hover:bg-slate-50 cursor-pointer disabled:opacity-40"
-              aria-label="Previous customer page"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline ml-1">Prev</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages || isLoading}
-              className="h-8 px-2.5 text-xs rounded-lg border-slate-300 text-slate-700 font-medium hover:bg-slate-50 cursor-pointer disabled:opacity-40"
-              aria-label="Next customer page"
-            >
-              <span className="hidden sm:inline mr-1">Next</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Button>
+            {paginationItems.map((item, index) => {
+              if (item === '...') {
+                return (
+                  <span
+                    key={`ellipsis-${index}`}
+                    className="w-8 h-8 flex items-center justify-center text-slate-400 font-sans text-xs select-none"
+                  >
+                    …
+                  </span>
+                );
+              }
+              const pageNum = Number(item);
+              const isActive = pageNum === currentPage;
+              return (
+                <button
+                  key={`page-${pageNum}`}
+                  type="button"
+                  onClick={() => handlePageSelect(pageNum)}
+                  disabled={isLoading}
+                  className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-sans font-medium transition-colors cursor-pointer tabular-nums ${
+                    isActive
+                      ? 'bg-emerald-800 text-white font-semibold shadow-2xs'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                  }`}
+                  aria-label={`Go to page ${pageNum}`}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageSelect(currentPage + 1)}
+            disabled={currentPage >= totalPages || isLoading}
+            className="h-8 px-2.5 text-xs rounded-lg border-slate-300 text-slate-700 font-medium hover:bg-slate-50 cursor-pointer disabled:opacity-40"
+            aria-label="Next customer page"
+          >
+            <span className="hidden sm:inline mr-1">Next</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </div>
     </div>

@@ -42,9 +42,9 @@ export function CustomerFilters({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-3 sm:p-3.5 space-y-2.5">
       {/* Top Search & Fast Filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
         {/* Search Bar */}
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -53,8 +53,8 @@ export function CustomerFilters({
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by name, customer code, phone, or email..."
-            className="pl-10 h-10 text-xs sm:text-sm bg-white border-slate-300 rounded-xl font-medium text-slate-900 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs"
+            placeholder="Search by customer name, code (CUS-...), mobile number, or email..."
+            className="pl-10 pr-9 h-9.5 text-xs bg-slate-50/50 border-slate-200 rounded-xl font-medium text-slate-900 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
           />
           {searchInput && (
             <button
@@ -63,7 +63,7 @@ export function CustomerFilters({
                 setSearchInput('');
                 onFilterChange({ search: undefined, page: 1 });
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-md cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-md cursor-pointer"
               aria-label="Clear customer search"
             >
               <X className="w-3.5 h-3.5" />
@@ -84,7 +84,7 @@ export function CustomerFilters({
                   page: 1,
                 })
               }
-              className="h-10 pl-3.5 pr-8 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 font-medium appearance-none cursor-pointer shadow-2xs"
+              className="h-9.5 pl-3 pr-7.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 font-medium appearance-none cursor-pointer"
             >
               <option value="ALL">All Account Status</option>
               <option value="ACTIVE">Active</option>
@@ -92,7 +92,7 @@ export function CustomerFilters({
               <option value="BLOCKED">Blocked</option>
               <option value="ARCHIVED">Archived</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div>
 
           {/* KYC Status */}
@@ -106,17 +106,16 @@ export function CustomerFilters({
                   page: 1,
                 })
               }
-              className="h-10 pl-3.5 pr-8 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 font-medium appearance-none cursor-pointer shadow-2xs"
+              className="h-9.5 pl-3 pr-7.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 font-medium appearance-none cursor-pointer"
             >
               <option value="ALL">All KYC Status</option>
-              <option value="VERIFIED">Verified</option>
-              <option value="PENDING,PARTIAL">Incomplete (Pending + Partial)</option>
-              <option value="PARTIAL">Incomplete / Partial</option>
+              <option value="VERIFIED">KYC Verified</option>
+              <option value="PENDING,PARTIAL">Incomplete / Partial</option>
               <option value="PENDING">Pending Documents</option>
               <option value="REJECTED">Rejected</option>
               <option value="EXPIRED">Expired</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div>
 
           {/* Reset Filters */}
@@ -125,10 +124,10 @@ export function CustomerFilters({
               variant="outline"
               size="sm"
               onClick={onClearFilters}
-              className="h-10 px-3 text-xs flex items-center gap-1.5 text-slate-600 hover:text-slate-900 border-slate-300 rounded-xl font-medium"
+              className="h-9.5 px-3 text-xs flex items-center gap-1.5 text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-xl font-medium cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-              <span>Clear</span>
+              <span>Reset</span>
             </Button>
           )}
         </div>
@@ -139,9 +138,9 @@ export function CustomerFilters({
             variant="outline"
             size="sm"
             onClick={() => setIsMobileDrawerOpen(true)}
-            className="h-10 flex-1 flex items-center justify-center gap-2 text-xs font-medium border-slate-300 rounded-xl"
+            className="h-9.5 flex-1 flex items-center justify-center gap-2 text-xs font-medium border-slate-200 rounded-xl"
           >
-            <SlidersHorizontal className="w-4 h-4 text-emerald-800" />
+            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-800" />
             <span>Filters {hasActiveFilters && '(Active)'}</span>
           </Button>
           {hasActiveFilters && (
@@ -149,13 +148,63 @@ export function CustomerFilters({
               variant="outline"
               size="sm"
               onClick={onClearFilters}
-              className="h-10 px-3 text-xs border-slate-300 rounded-xl"
+              className="h-9.5 px-2.5 text-xs border-slate-200 rounded-xl"
             >
-              <RotateCcw className="w-4 h-4 text-slate-500" />
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
             </Button>
           )}
         </div>
       </div>
+
+      {/* Active Filter Chips */}
+      {hasActiveFilters && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-100 text-xs">
+          <span className="text-[11px] font-medium text-slate-400 mr-1">Active Filters:</span>
+          {filters.search && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
+              <span>Search: "{filters.search}"</span>
+              <button
+                type="button"
+                onClick={() => onFilterChange({ search: undefined, page: 1 })}
+                className="hover:text-slate-950 p-0.5 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filters.status && filters.status !== 'ALL' && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
+              <span>Status: {filters.status}</span>
+              <button
+                type="button"
+                onClick={() => onFilterChange({ status: undefined, page: 1 })}
+                className="hover:text-slate-950 p-0.5 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filters.kycStatus && filters.kycStatus !== 'ALL' && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
+              <span>KYC: {filters.kycStatus}</span>
+              <button
+                type="button"
+                onClick={() => onFilterChange({ kycStatus: undefined, page: 1 })}
+                className="hover:text-slate-950 p-0.5 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className="text-[11px] font-medium text-emerald-800 hover:text-emerald-950 underline ml-1 cursor-pointer"
+          >
+            Clear All
+          </button>
+        </div>
+      )}
 
       {/* Mobile / Tablet Filter Drawer Modal */}
       {isMobileDrawerOpen && (

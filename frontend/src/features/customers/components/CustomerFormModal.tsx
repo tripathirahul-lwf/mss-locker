@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, UserPlus, AlertCircle, AlertTriangle, User, Phone, MapPin, Loader2, ChevronDown } from 'lucide-react';
+import { X, UserPlus, AlertCircle, AlertTriangle, User, Phone, MapPin, Loader2, ChevronDown, CheckCircle2, Mail, Building2 } from 'lucide-react';
 import {
   Customer,
   CreateCustomerInput,
@@ -27,6 +27,7 @@ export function CustomerFormModal({
 }: CustomerFormModalProps) {
   const isEdit = Boolean(customer);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const isSubmittingRef = useRef(isSubmitting);
@@ -39,7 +40,7 @@ export function CustomerFormModal({
   const [alternatePhone, setAlternatePhone] = useState('');
   const [email, setEmail] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
-  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('OTHER');
+  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -54,6 +55,39 @@ export function CustomerFormModal({
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  const calculateAgeInfo = (dob: string) => {
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    if (age < 0) return null;
+    return {
+      age,
+      isSenior: age >= 60,
+      isMinor: age < 18,
+    };
+  };
+
+  const ageInfo = calculateAgeInfo(dateOfBirth);
+
+  const handlePhoneInput = (val: string, setter: (cleaned: string) => void) => {
+    let raw = val.replace(/[^\d+]/g, '');
+    if (raw.startsWith('+91')) {
+      raw = raw.slice(3);
+    } else if (raw.startsWith('91') && raw.length > 10) {
+      raw = raw.slice(2);
+    } else if (raw.startsWith('0') && raw.length > 10) {
+      raw = raw.slice(1);
+    }
+    const digitsOnly = raw.replace(/\D/g, '').slice(0, 15);
+    setter(digitsOnly);
+  };
+
   useEffect(() => {
     previouslyFocusedRef.current = document.activeElement as HTMLElement;
     const originalOverflow = document.body.style.overflow;
@@ -65,6 +99,11 @@ export function CustomerFormModal({
       if (event.key === 'Escape' && !isSubmittingRef.current) {
         event.preventDefault();
         onCloseRef.current();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !isSubmittingRef.current) {
+        event.preventDefault();
+        formRef.current?.requestSubmit();
         return;
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
@@ -144,12 +183,48 @@ export function CustomerFormModal({
     const errors: Record<string, string> = {};
     const phoneDigits = phone.replace(/\D/g, '').length;
     const alternateDigits = alternatePhone.replace(/\D/g, '').length;
-    if (fullName.trim().length < 2) errors.fullName = 'Enter at least 2 characters.';
-    if (phoneDigits < 10 || phoneDigits > 15) errors.phone = 'Enter a valid phone number with 10 to 15 digits.';
-    if (alternatePhone && (alternateDigits < 10 || alternateDigits > 15)) errors.alternatePhone = 'Enter 10 to 15 digits or leave this blank.';
-    if (phone && alternatePhone && phone.replace(/\D/g, '') === alternatePhone.replace(/\D/g, '')) errors.alternatePhone = 'Alternate phone must differ from the primary phone.';
-    if (postalCode && !/^\d{6}$/.test(postalCode)) errors.postalCode = 'Indian PIN must contain exactly 6 digits.';
-    if (dateOfBirth && dateOfBirth > new Date().toISOString().slice(0, 10)) errors.dateOfBirth = 'Date of birth cannot be in the future.';
+    if (fullName.trim().length < 2) {
+      errors.fullName = 'Full Name must be at least 2 characters.';
+    } else if (fullName.trim().length > 100) {
+      errors.fullName = 'Full Name cannot exceed 100 characters.';
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanAlt = alternatePhone.replace(/\D/g, '');
+
+    if (phoneDigits !== 10) {
+      errors.phone = 'Enter a valid 10-digit mobile number.';
+    } else if (!/^[6-9]/.test(cleanPhone)) {
+      errors.phone = 'Indian mobile number should begin with 6, 7, 8, or 9.';
+    }
+
+    if (alternatePhone) {
+      if (alternateDigits !== 10) {
+        errors.alternatePhone = 'Enter a valid 10-digit mobile number or leave blank.';
+      } else if (!/^[6-9]/.test(cleanAlt)) {
+        errors.alternatePhone = 'Mobile number should begin with 6, 7, 8, or 9.';
+      } else if (cleanPhone === cleanAlt) {
+        errors.alternatePhone = 'Alternate phone must differ from the primary phone.';
+      }
+    }
+
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = 'Enter a valid email address (e.g. name@example.com).';
+    }
+
+    if (postalCode && !/^[1-9]\d{5}$/.test(postalCode)) {
+      errors.postalCode = 'Indian PIN must be 6 digits and cannot begin with 0.';
+    }
+
+    if (dateOfBirth) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (dateOfBirth > today) {
+        errors.dateOfBirth = 'Date of birth cannot be in the future.';
+      } else if (dateOfBirth < '1900-01-01') {
+        errors.dateOfBirth = 'Enter a valid date of birth after year 1900.';
+      }
+    }
+
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       setError(`Please correct ${Object.keys(errors).length} highlighted field${Object.keys(errors).length > 1 ? 's' : ''}.`);
@@ -239,8 +314,8 @@ export function CustomerFormModal({
         </div>
 
         {/* Modal Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1 text-xs scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
             {error && (
               <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 font-normal">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
@@ -256,19 +331,22 @@ export function CustomerFormModal({
             )}
 
             {/* Profile Photo Uploader */}
-            <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/90 shadow-2xs">
-              <CustomerPhotoUploader
-                photoUrl={photoUrl}
-                onChange={(url) => setPhotoUrl(url)}
-              />
-            </div>
+            <CustomerPhotoUploader
+              photoUrl={photoUrl}
+              onChange={(url) => setPhotoUrl(url)}
+            />
 
-            {/* Basic Information */}
+            {/* Step 1: Customer Identification & Demographics */}
             <div className="space-y-3.5">
-              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-emerald-800" />
-                <span>Personal Identification</span>
-              </h3>
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-md bg-emerald-700 text-white text-[11px] font-bold shadow-2xs">1</span>
+                  <h3 className="font-bold text-slate-900 text-xs tracking-wide">
+                    Personal Details & Demographics
+                  </h3>
+                </div>
+                <span className="text-[10.5px] text-slate-400 font-normal">Fields marked <span className="text-rose-500">*</span> are mandatory</span>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1.5">
@@ -292,17 +370,17 @@ export function CustomerFormModal({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="customer-gender" className="font-semibold text-slate-800 text-xs block">Gender</label>
+                  <label htmlFor="customer-status" className="font-semibold text-slate-800 text-xs block">Account Status</label>
                   <div className="relative">
                     <select
-                      id="customer-gender"
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value as any)}
+                      id="customer-status"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as CustomerStatus)}
                       className="w-full h-11 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 text-xs sm:text-[13px] focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs font-sans transition-all hover:border-slate-400"
                     >
-                      <option value="MALE">Male</option>
-                      <option value="FEMALE">Female</option>
-                      <option value="OTHER">Other / Corporate Entity</option>
+                      <option value="ACTIVE">ACTIVE - Operational Account</option>
+                      <option value="INACTIVE">INACTIVE - Suspended / Dormant</option>
+                      <option value="BLOCKED">BLOCKED - Access Restricted</option>
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   </div>
@@ -311,7 +389,45 @@ export function CustomerFormModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1.5">
-                  <label htmlFor="customer-dob" className="font-semibold text-slate-800 text-xs block">Date of Birth</label>
+                  <label className="font-semibold text-slate-800 text-xs block">Gender Category</label>
+                  <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80">
+                    {[
+                      { value: 'MALE', label: 'Male', icon: <User className="w-3.5 h-3.5 text-slate-500" /> },
+                      { value: 'FEMALE', label: 'Female', icon: <User className="w-3.5 h-3.5 text-slate-500" /> },
+                      { value: 'OTHER', label: 'Other / Entity', icon: <Building2 className="w-3.5 h-3.5 text-slate-500" /> },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setGender(opt.value as any)}
+                        className={`py-2 px-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                          gender === opt.value
+                            ? 'bg-white text-emerald-900 shadow-xs ring-1 ring-slate-200/90 font-bold'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                        }`}
+                      >
+                        {opt.icon}
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="customer-dob" className="font-semibold text-slate-800 text-xs block">Date of Birth</label>
+                    {ageInfo && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold border ${
+                        ageInfo.isMinor
+                          ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                          : ageInfo.isSenior
+                          ? 'bg-purple-50 text-purple-700 border-purple-200/80'
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+                      }`}>
+                        {ageInfo.isMinor && '⚠️ Minor • '}{ageInfo.isSenior && '🎖️ Senior • '}{ageInfo.age} yrs
+                      </span>
+                    )}
+                  </div>
                   <Input
                     id="customer-dob"
                     type="date"
@@ -325,97 +441,143 @@ export function CustomerFormModal({
                   />
                   {fieldErrors.dateOfBirth && <p id="customer-dob-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.dateOfBirth}</p>}
                 </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="customer-status" className="font-semibold text-slate-800 text-xs block">Account Status</label>
-                  <div className="relative">
-                    <select
-                      id="customer-status"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as CustomerStatus)}
-                      className="w-full h-11 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 text-xs sm:text-[13px] focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 appearance-none cursor-pointer shadow-2xs font-sans transition-all hover:border-slate-400"
-                    >
-                      <option value="ACTIVE">ACTIVE - Operational</option>
-                      <option value="INACTIVE">INACTIVE - Inactive record</option>
-                      <option value="BLOCKED">BLOCKED - Access restricted</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  </div>
-                </div>
               </div>
             </div>
 
-            {/* Contact Details */}
-            <div className="space-y-3.5 pt-2">
-              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-emerald-800" />
-                <span>Contact Information</span>
-              </h3>
+            {/* Step 2: Contact & Communications */}
+            <div className="space-y-3.5 pt-1">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                <span className="flex items-center justify-center w-5 h-5 rounded-md bg-emerald-700 text-white text-[11px] font-bold shadow-2xs">2</span>
+                <h3 className="font-bold text-slate-900 text-xs tracking-wide">
+                  Contact & Communications
+                </h3>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Primary Mobile Phone */}
                 <div className="space-y-1.5">
-                  <label htmlFor="customer-phone" className="font-semibold text-slate-800 text-xs block">
-                    Primary Mobile Phone <span className="text-rose-500">*</span>
-                  </label>
-                  <Input
-                    id="customer-phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    onBlur={handlePhoneBlur}
-                    inputMode="tel"
-                    autoComplete="tel"
-                    maxLength={20}
-                    aria-invalid={Boolean(fieldErrors.phone)}
-                    aria-describedby={fieldErrors.phone ? 'customer-phone-error' : 'customer-phone-help'}
-                    placeholder="e.g. 9876543210"
-                    required
-                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
-                  />
-                  <p id="customer-phone-help" className="text-[10.5px] text-slate-400 font-normal">10–15 digits; spaces and + accepted.</p>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="customer-phone" className="font-semibold text-slate-800 text-xs block">
+                      Primary Mobile Phone <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-1">
+                      {phone.replace(/\D/g, '').length === 10 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                      <span className={`text-[10px] font-mono ${phone.replace(/\D/g, '').length === 10 ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                        {phone.replace(/\D/g, '').length}/10
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`flex items-center h-11 w-full rounded-xl border bg-white shadow-2xs transition-all ${
+                    fieldErrors.phone
+                      ? 'border-rose-400 ring-2 ring-rose-500/20'
+                      : 'border-slate-300 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-700/20 hover:border-slate-400'
+                  }`}>
+                    <div className="flex items-center gap-1.5 px-3 h-full bg-slate-50 border-r border-slate-200 rounded-l-xl shrink-0 select-none">
+                      <svg className="w-4 h-3 rounded-2xs shrink-0 shadow-2xs" viewBox="0 0 640 480" aria-hidden="true">
+                        <path fill="#f93" d="M0 0h640v160H0z"/>
+                        <path fill="#fff" d="M0 160h640v160H0z"/>
+                        <path fill="#128807" d="M0 320h640v160H0z"/>
+                        <circle cx="320" cy="240" r="40" fill="#008"/>
+                      </svg>
+                      <span className="text-xs font-semibold text-slate-700 font-mono">+91</span>
+                    </div>
+                    <input
+                      id="customer-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => handlePhoneInput(e.target.value, setPhone)}
+                      onBlur={handlePhoneBlur}
+                      inputMode="tel"
+                      autoComplete="tel-national"
+                      maxLength={15}
+                      aria-invalid={Boolean(fieldErrors.phone)}
+                      aria-describedby={fieldErrors.phone ? 'customer-phone-error' : undefined}
+                      placeholder="98765 43210"
+                      required
+                      className="flex-1 min-w-0 h-full px-3 text-xs sm:text-[13px] font-sans font-medium text-slate-900 placeholder:text-slate-400 bg-transparent border-none outline-none focus:ring-0"
+                    />
+                  </div>
                   {fieldErrors.phone && <p id="customer-phone-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.phone}</p>}
                   {isCheckingDuplicate && <p className="inline-flex items-center gap-1 text-[10px] text-emerald-800" role="status"><Loader2 className="h-3 w-3 animate-spin" /> Checking existing records…</p>}
                 </div>
 
+                {/* Alternate Phone */}
                 <div className="space-y-1.5">
-                  <label htmlFor="customer-alt-phone" className="font-semibold text-slate-800 text-xs block">Alternate Phone</label>
-                  <Input
-                    id="customer-alt-phone"
-                    type="tel"
-                    value={alternatePhone}
-                    onChange={(e) => setAlternatePhone(e.target.value)}
-                    inputMode="tel"
-                    autoComplete="tel-national"
-                    maxLength={20}
-                    aria-invalid={Boolean(fieldErrors.alternatePhone)}
-                    aria-describedby={fieldErrors.alternatePhone ? 'customer-alt-phone-error' : undefined}
-                    placeholder="e.g. 9876500000"
-                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 tabular-nums rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="customer-alt-phone" className="font-semibold text-slate-800 text-xs block">Alternate Phone (Optional)</label>
+                    {alternatePhone.length > 0 && (
+                      <span className={`text-[10px] font-mono ${alternatePhone.replace(/\D/g, '').length === 10 ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                        {alternatePhone.replace(/\D/g, '').length}/10
+                      </span>
+                    )}
+                  </div>
+                  <div className={`flex items-center h-11 w-full rounded-xl border bg-white shadow-2xs transition-all ${
+                    fieldErrors.alternatePhone
+                      ? 'border-rose-400 ring-2 ring-rose-500/20'
+                      : 'border-slate-300 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-700/20 hover:border-slate-400'
+                  }`}>
+                    <div className="flex items-center gap-1.5 px-3 h-full bg-slate-50 border-r border-slate-200 rounded-l-xl shrink-0 select-none">
+                      <svg className="w-4 h-3 rounded-2xs shrink-0 shadow-2xs" viewBox="0 0 640 480" aria-hidden="true">
+                        <path fill="#f93" d="M0 0h640v160H0z"/>
+                        <path fill="#fff" d="M0 160h640v160H0z"/>
+                        <path fill="#128807" d="M0 320h640v160H0z"/>
+                        <circle cx="320" cy="240" r="40" fill="#008"/>
+                      </svg>
+                      <span className="text-xs font-semibold text-slate-700 font-mono">+91</span>
+                    </div>
+                    <input
+                      id="customer-alt-phone"
+                      type="tel"
+                      value={alternatePhone}
+                      onChange={(e) => handlePhoneInput(e.target.value, setAlternatePhone)}
+                      inputMode="tel"
+                      autoComplete="tel-national"
+                      maxLength={15}
+                      aria-invalid={Boolean(fieldErrors.alternatePhone)}
+                      aria-describedby={fieldErrors.alternatePhone ? 'customer-alt-phone-error' : undefined}
+                      placeholder="98765 00000"
+                      className="flex-1 min-w-0 h-full px-3 text-xs sm:text-[13px] font-sans font-medium text-slate-900 placeholder:text-slate-400 bg-transparent border-none outline-none focus:ring-0"
+                    />
+                  </div>
                   {fieldErrors.alternatePhone && <p id="customer-alt-phone-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.alternatePhone}</p>}
                 </div>
+              </div>
 
-                <div className="space-y-1.5">
-                  <label htmlFor="customer-email" className="font-semibold text-slate-800 text-xs block">Email Address</label>
-                  <Input
+              {/* Email Address */}
+              <div className="space-y-1.5">
+                <label htmlFor="customer-email" className="font-semibold text-slate-800 text-xs block">Email Address (Optional)</label>
+                <div className={`flex items-center h-11 w-full rounded-xl border bg-white shadow-2xs transition-all ${
+                  fieldErrors.email
+                    ? 'border-rose-400 ring-2 ring-rose-500/20'
+                    : 'border-slate-300 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-700/20 hover:border-slate-400'
+                }`}>
+                  <div className="flex items-center justify-center pl-3.5 pr-2 h-full text-slate-400 shrink-0 select-none">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
                     id="customer-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    aria-describedby={fieldErrors.email ? 'customer-email-error' : undefined}
                     placeholder="e.g. customer@gmail.com"
-                    className="h-11 px-4 text-xs sm:text-[13px] bg-white border-slate-300 font-sans font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400"
+                    className="flex-1 min-w-0 h-full pr-3 text-xs sm:text-[13px] font-sans font-medium text-slate-900 placeholder:text-slate-400 bg-transparent border-none outline-none focus:ring-0"
                   />
                 </div>
+                {fieldErrors.email && <p id="customer-email-error" className="text-[11px] font-medium text-rose-600">{fieldErrors.email}</p>}
               </div>
             </div>
 
-            {/* Residential Address */}
-            <div className="space-y-3.5 pt-2">
-              <h3 className="font-semibold text-slate-800 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-emerald-800" />
-                <span>Postal Address</span>
-              </h3>
+            {/* Step 3: Registered Postal Address */}
+            <div className="space-y-3.5 pt-1">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                <span className="flex items-center justify-center w-5 h-5 rounded-md bg-emerald-700 text-white text-[11px] font-bold shadow-2xs">3</span>
+                <h3 className="font-bold text-slate-900 text-xs tracking-wide">
+                  Registered Postal Address
+                </h3>
+              </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="customer-address" className="font-semibold text-slate-800 text-xs block">Street / Flat Address</label>
@@ -430,8 +592,8 @@ export function CustomerFormModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
-                <div className="space-y-1.5 sm:col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
                   <label htmlFor="customer-city" className="font-semibold text-slate-800 text-xs block">City / District</label>
                   <Input
                     id="customer-city"
@@ -458,7 +620,17 @@ export function CustomerFormModal({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="customer-postal-code" className="font-semibold text-slate-800 text-xs block">Postal PIN</label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="customer-postal-code" className="font-semibold text-slate-800 text-xs block">Postal PIN</label>
+                    {postalCode.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {postalCode.length === 6 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                        <span className={`text-[10px] font-mono ${postalCode.length === 6 ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                          {postalCode.length}/6 PIN
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <Input
                     id="customer-postal-code"
                     type="text"
@@ -477,14 +649,22 @@ export function CustomerFormModal({
               </div>
             </div>
 
-            {/* Notes */}
+            {/* Step 4: Operational Remarks */}
             <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between gap-3"><label htmlFor="customer-notes" className="font-semibold text-slate-800 text-xs block">Staff Operational Remarks</label><span className="text-[10px] text-slate-400 font-normal">{notes.length}/500</span></div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-md bg-emerald-700 text-white text-[11px] font-bold shadow-2xs">4</span>
+                  <label htmlFor="customer-notes" className="font-bold text-slate-900 text-xs tracking-wide">
+                    Staff Operational Remarks
+                  </label>
+                </div>
+                <span className="text-[10.5px] text-slate-400 font-normal">{notes.length}/500</span>
+              </div>
               <textarea
                 id="customer-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes regarding nominee, joint operators, or identification guidelines"
+                placeholder="Optional notes regarding nominee, joint operators, locker allocation instructions, or identification references"
                 rows={2}
                 maxLength={500}
                 className="w-full p-3.5 text-xs sm:text-[13px] bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 shadow-2xs transition-all hover:border-slate-400 font-normal"
@@ -493,30 +673,39 @@ export function CustomerFormModal({
           </div>
 
           {/* Modal Footer */}
-          <div className="p-3.5 sm:px-6 sm:py-3.5 bg-white border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={isSubmitting}
-              aria-busy={isSubmitting}
-              className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 cursor-pointer hover:bg-slate-50"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isSubmitting}
-              className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-xs min-w-[140px] rounded-xl text-xs h-9.5 px-4 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:border disabled:border-slate-200 disabled:shadow-none disabled:cursor-not-allowed"
-            >
-              {isSubmitting
-                ? 'Saving…'
-                : isEdit
-                ? 'Save Changes'
-                : 'Register Customer'}
-            </Button>
+          <div className="p-3.5 sm:px-6 sm:py-3.5 bg-white border-t border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-400 font-normal">
+              <span>Press</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px] font-medium">Ctrl</kbd>
+              <span>+</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px] font-medium">Enter</kbd>
+              <span>to save</span>
+            </div>
+            <div className="flex items-center gap-2.5 ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+                disabled={isSubmitting}
+                aria-busy={isSubmitting}
+                className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 cursor-pointer hover:bg-slate-50"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmitting}
+                className="bg-emerald-800 hover:bg-emerald-900 text-white font-medium shadow-xs min-w-[140px] rounded-xl text-xs h-9.5 px-4 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:border disabled:border-slate-200 disabled:shadow-none disabled:cursor-not-allowed"
+              >
+                {isSubmitting
+                  ? 'Saving…'
+                  : isEdit
+                  ? 'Save Changes'
+                  : 'Register Customer'}
+              </Button>
+            </div>
           </div>
         </form>
       </div>

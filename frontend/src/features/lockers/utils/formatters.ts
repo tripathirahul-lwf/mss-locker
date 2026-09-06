@@ -6,9 +6,9 @@ import { Locker } from '../types';
  */
 export function formatINR(amount: number | undefined | null): string {
   if (amount === undefined || amount === null || isNaN(amount)) {
-    return '₹0';
+    return '₹ 0';
   }
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  return `₹ ${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
 /**

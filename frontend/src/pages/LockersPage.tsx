@@ -8,10 +8,23 @@ import {
   AlertTriangle,
   LayoutGrid,
   List,
-  Archive,
   CheckCircle2,
   ArrowUp,
   X,
+  Search,
+  RefreshCw,
+  Eye,
+  SlidersHorizontal,
+  Layers,
+  Inbox,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  ChevronDown,
+  Filter,
+  ArrowUpDown,
+  Building2,
+  Maximize2,
 } from 'lucide-react';
 import { lockerApi } from '../features/lockers/api/lockerApi';
 import {
@@ -22,18 +35,33 @@ import {
 } from '../features/lockers/types';
 import { allocationApi } from '../features/allocations/api/allocationApi';
 import { CreateAllocationInput, ReserveLockerInput } from '../features/allocations/types';
-import { LockerOccupancyRing } from '../features/lockers/components/LockerOccupancyRing';
-import { LockerActionRibbon } from '../features/lockers/components/LockerActionRibbon';
-import { LockerFilters } from '../features/lockers/components/LockerFilters';
+import { LockerModernCard } from '../features/lockers/components/LockerModernCard';
 import { LockerTable } from '../features/lockers/components/LockerTable';
 import { LockerVaultGrid } from '../features/lockers/components/LockerVaultGrid';
 import { Button } from '../components/ui/button';
 import { usePermission } from '../hooks/usePermission';
+import { LOCKER_SIZES } from '../features/lockers/constants';
 
-const LockerFormModal = lazy(() => import('../features/lockers/components/LockerFormModal').then((module) => ({ default: module.LockerFormModal })));
-const LockerDetailModal = lazy(() => import('../features/lockers/components/LockerDetailModal').then((module) => ({ default: module.LockerDetailModal })));
-const LockerImportModal = lazy(() => import('../features/lockers/components/LockerImportModal').then((module) => ({ default: module.LockerImportModal })));
-const AllocationWizardModal = lazy(() => import('../features/allocations/components/AllocationWizardModal').then((module) => ({ default: module.AllocationWizardModal })));
+const LockerFormModal = lazy(() =>
+  import('../features/lockers/components/LockerFormModal').then((module) => ({
+    default: module.LockerFormModal,
+  }))
+);
+const LockerDetailModal = lazy(() =>
+  import('../features/lockers/components/LockerDetailModal').then((module) => ({
+    default: module.LockerDetailModal,
+  }))
+);
+const LockerImportModal = lazy(() =>
+  import('../features/lockers/components/LockerImportModal').then((module) => ({
+    default: module.LockerImportModal,
+  }))
+);
+const AllocationWizardModal = lazy(() =>
+  import('../features/allocations/components/AllocationWizardModal').then((module) => ({
+    default: module.AllocationWizardModal,
+  }))
+);
 
 export function LockersPage() {
   const queryClient = useQueryClient();
@@ -47,41 +75,81 @@ export function LockersPage() {
   const requestedPage = Number(searchParams.get('page'));
   const requestedLimit = Number(searchParams.get('limit'));
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-  const limit = [15, 25, 50, 100].includes(requestedLimit) ? requestedLimit : 25;
-  const search = searchParams.get('search') || undefined;
+  const limit = [12, 24, 48, 96].includes(requestedLimit) ? requestedLimit : 24;
+  const search = searchParams.get('search') || '';
+  const statusParam = searchParams.get('status') || 'ALL';
   const size = searchParams.get('size') || undefined;
-  const status = searchParams.get('status') || undefined;
-  const operationalStatus = searchParams.get('operationalStatus') || undefined;
   const rackNumber = searchParams.get('rackNumber') || undefined;
-  const section = searchParams.get('section') || undefined;
-  const allowedSortFields = ['lockerNumber', 'size', 'rackNumber', 'status', 'operationalStatus', 'annualRent', 'createdAt'];
-  const requestedSort = searchParams.get('sortBy');
-  const sortBy = requestedSort && allowedSortFields.includes(requestedSort) ? requestedSort : 'lockerNumber';
-  const sortOrder = searchParams.get('sortOrder') === 'desc' ? 'desc' : 'asc';
+  const sortBy = searchParams.get('sortBy') || 'lockerNumber';
+  const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
+
   const requestedView = searchParams.get('view');
-  const segmentedTab: 'directory' | 'by_rack' | 'closed' =
-    requestedView === 'by_rack' || requestedView === 'closed' ? requestedView : 'directory';
+  const viewMode: 'cards' | 'table' | 'by_rack' =
+    requestedView === 'table' || requestedView === 'by_rack' ? requestedView : 'cards';
+
+  // Check if any filter is active for Clear Filters button
+  const hasActiveFilters = Boolean(
+    search ||
+      (statusParam && statusParam !== 'ALL') ||
+      size ||
+      rackNumber ||
+      sortBy !== 'lockerNumber' ||
+      sortOrder !== 'asc'
+  );
+
+  const handleClearFilters = () => {
+    const updated = new URLSearchParams();
+    if (viewMode !== 'cards') updated.set('view', viewMode);
+    setLocalSearch('');
+    setSearchParams(updated);
+  };
+
+  // Search input state with debounce
+  const [localSearch, setLocalSearch] = useState(search);
+
+  useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (localSearch !== search) {
+        updateFilters({ search: localSearch || undefined, page: 1 });
+      }
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [localSearch]);
+
+  // Translate status selection into API query
+  let apiStatus: string | undefined = undefined;
+  let apiOpStatus: string | undefined = undefined;
+  let apiIsActive: boolean | undefined = undefined;
+
+  if (statusParam === 'CLOSED') {
+    apiIsActive = false;
+  } else if (statusParam === 'MAINTENANCE') {
+    apiOpStatus = 'MAINTENANCE';
+    apiIsActive = true;
+  } else if (statusParam !== 'ALL') {
+    apiStatus = statusParam;
+    apiIsActive = true;
+  }
 
   const queryFilters: LockerQueryParams = {
     page,
-    limit: segmentedTab === 'by_rack' ? 2000 : limit,
-    search,
+    limit: viewMode === 'by_rack' ? 2000 : limit,
+    search: search || undefined,
     size,
-    status,
-    operationalStatus,
+    status: apiStatus,
+    operationalStatus: apiOpStatus,
     rackNumber,
-    section,
+    isActive: apiIsActive,
+    compact: true,
     sortBy,
     sortOrder,
-    isActive: segmentedTab === 'closed' ? false : true,
-    compact: true,
-  };
-  const statsFilters: LockerQueryParams = {
-    search, size, status, operationalStatus, rackNumber, section,
-    isActive: segmentedTab === 'closed' ? false : true,
   };
 
-  const updateFilters = (newFilters: Partial<LockerQueryParams>) => {
+  const updateFilters = (newFilters: Partial<Record<string, any>>) => {
     const updated = new URLSearchParams(searchParams);
 
     Object.entries(newFilters).forEach(([key, value]) => {
@@ -95,20 +163,15 @@ export function LockersPage() {
     setSearchParams(updated);
   };
 
-  const setSegmentedTab = (view: 'directory' | 'by_rack' | 'closed') => {
+  const setView = (v: 'cards' | 'table' | 'by_rack') => {
     const updated = new URLSearchParams(searchParams);
-    if (view === 'directory') updated.delete('view');
-    else updated.set('view', view);
+    if (v === 'cards') updated.delete('view');
+    else updated.set('view', v);
     updated.delete('page');
     setSearchParams(updated);
   };
 
   // Queries
-  const { data: stats, isLoading: isStatsLoading, isError: isStatsError, refetch: refetchStats } = useQuery({
-    queryKey: ['locker-stats', statsFilters],
-    queryFn: ({ signal }) => lockerApi.getLockerStats(statsFilters, signal),
-  });
-
   const {
     data: listData,
     isLoading: isListLoading,
@@ -119,7 +182,7 @@ export function LockersPage() {
   } = useQuery({
     queryKey: ['lockers', queryFilters],
     queryFn: async ({ signal }) => {
-      if (segmentedTab !== 'by_rack') return lockerApi.getLockers(queryFilters, signal);
+      if (viewMode !== 'by_rack') return lockerApi.getLockers(queryFilters, signal);
       const allLockers = await lockerApi.getAllLockers(queryFilters, signal);
       return {
         lockers: allLockers,
@@ -131,6 +194,14 @@ export function LockersPage() {
 
   const lockers = listData?.lockers || [];
   const pagination = listData?.pagination;
+  const totalLockers = pagination?.total ?? 0;
+  const totalPages = pagination?.totalPages ?? 1;
+
+  const { data: lockerStats } = useQuery({
+    queryKey: ['locker-stats'],
+    queryFn: () => lockerApi.getLockerStats(),
+    staleTime: 60_000,
+  });
 
   // Modal States
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -141,20 +212,16 @@ export function LockersPage() {
   const [deactivatingLocker, setDeactivatingLocker] = useState<Locker | null>(null);
   const [deactivateError, setDeactivateError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
   const [showGoToTop, setShowGoToTop] = useState(false);
 
   useEffect(() => {
-    const updateVisibility = () => setShowGoToTop(window.scrollY > 600);
-    updateVisibility();
+    const updateVisibility = () => setShowGoToTop(window.scrollY > 500);
     window.addEventListener('scroll', updateVisibility, { passive: true });
     return () => window.removeEventListener('scroll', updateVisibility);
   }, []);
 
   const scrollToTop = () => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Mutations
@@ -166,10 +233,10 @@ export function LockersPage() {
       queryClient.invalidateQueries({ queryKey: ['lockers'] });
       queryClient.invalidateQueries({ queryKey: ['locker-stats'] });
       queryClient.invalidateQueries({ queryKey: ['allocations'] });
-      queryClient.invalidateQueries({ queryKey: ['allocation-stats'] });
       setNotice('Locker tenancy allocated successfully.');
     },
   });
+
   const createMutation = useMutation({
     mutationFn: (data: CreateLockerInput) => lockerApi.createLocker(data),
     onSuccess: () => {
@@ -199,7 +266,7 @@ export function LockersPage() {
       setDeactivateError(null);
       queryClient.invalidateQueries({ queryKey: ['lockers'] });
       queryClient.invalidateQueries({ queryKey: ['locker-stats'] });
-      setNotice('Locker deactivated successfully. Historical records are preserved.');
+      setNotice('Locker deactivated successfully.');
     },
     onError: (err: any) => {
       setDeactivateError(
@@ -219,11 +286,6 @@ export function LockersPage() {
     }
   };
 
-  const handleSortChange = (newSortBy: string) => {
-    const newOrder = sortBy === newSortBy && sortOrder === 'asc' ? 'desc' : 'asc';
-    updateFilters({ sortBy: newSortBy, sortOrder: newOrder, page: 1 });
-  };
-
   const loadLockerDetail = async (locker: Locker): Promise<Locker> =>
     queryClient.fetchQuery({
       queryKey: ['locker', locker._id],
@@ -231,207 +293,480 @@ export function LockersPage() {
       staleTime: 60_000,
     });
 
-  const handleViewLocker = async (locker: Locker) => setViewingLocker(await loadLockerDetail(locker));
-  const handleEditLocker = async (locker: Locker) => {
-    setEditingLocker(await loadLockerDetail(locker));
-    setFormModalOpen(true);
+  const handleViewLocker = async (locker: Locker) => {
+    setViewingLocker(await loadLockerDetail(locker));
   };
 
-  const handleExportCSV = async () => {
-    setIsExporting(true);
-    setExportError(null);
-    try {
-      const exportFilters = { ...queryFilters };
-      delete exportFilters.page;
-      delete exportFilters.limit;
-      const exportLockers = await lockerApi.getAllLockers(exportFilters);
-      if (exportLockers.length === 0) {
-        setExportError('There are no locker records matching the current filters.');
-        return;
-      }
-
-    const headers = [
-      'Locker Number',
-      'Locker Code',
-      'Size',
-      'Rack Number',
-      'Section',
-      'Floor',
-      'Occupancy Status',
-      'Ops Status',
-      'Annual Rent',
-      'Security Deposit',
-    ];
-
-      const safeCsvCell = (value: string | number) => {
-        let text = String(value ?? '');
-        if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-        return `"${text.replace(/"/g, '""')}"`;
-      };
-      const rows = exportLockers.map((locker) => [
-        locker.lockerNumber, locker.lockerCode, locker.size, locker.rackNumber,
-        locker.section || '', locker.floor || '', locker.status, locker.operationalStatus,
-        locker.annualRent, locker.securityDeposit,
-      ].map(safeCsvCell));
-      const csv = `\uFEFF${[headers.map(safeCsvCell).join(','), ...rows.map((row) => row.join(','))].join('\r\n')}`;
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Lockers_Export_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setNotice(`${exportLockers.length.toLocaleString('en-IN')} filtered locker records exported.`);
-    } catch (error: any) {
-      setExportError(error.response?.data?.message || error.message || 'Locker export failed.');
-    } finally {
-      setIsExporting(false);
-    }
+  const handleAllocate = (locker: Locker) => {
+    setAllocatingLocker(locker);
   };
+
+  // Calculate item range for pagination label
+  const startIndex = totalLockers === 0 ? 0 : (page - 1) * limit + 1;
+  const endIndex = Math.min(page * limit, totalLockers);
 
   return (
-    <div className="space-y-4 sm:space-y-5 lg:space-y-6">
+    <div className="space-y-6 font-sans pb-12">
+      {/* Toast Notice */}
       {notice && (
-        <div role="status" className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-3 text-xs font-semibold text-emerald-800 shadow-xl">
-          <CheckCircle2 className="h-5 w-5 shrink-0" /><span>{notice}</span><button type="button" onClick={() => setNotice(null)} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-slate-100" aria-label="Dismiss notification"><X className="h-4 w-4" /></button>
-        </div>
-      )}
-      {exportError && (
-        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
-          <span>{exportError}</span><button type="button" onClick={() => setExportError(null)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg hover:bg-rose-100" aria-label="Dismiss export error"><X className="h-4 w-4" /></button>
-        </div>
-      )}
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5">
-            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 sm:flex shadow-2xs">
-              <KeyRound className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
-                Locker Register
-              </h1>
-              <p className="mt-0.5 text-xs sm:text-sm text-slate-500 font-normal">
-                Search, inspect and manage the physical safe-deposit vault inventory.
-              </p>
-            </div>
-          </div>
-        </div>
-        {canCreate && (
-          <Button
-            onClick={() => { setEditingLocker(null); setFormModalOpen(true); }}
-            className="hidden shrink-0 gap-2 rounded-xl bg-emerald-800 font-medium text-xs hover:bg-emerald-900 text-white shadow-sm sm:inline-flex h-10 px-4 cursor-pointer"
+        <div
+          role="status"
+          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-3.5 text-xs font-semibold text-emerald-800 shadow-xl"
+        >
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+          <span>{notice}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="grid h-8 w-8 place-items-center rounded-lg hover:bg-slate-100 ml-auto cursor-pointer"
+            aria-label="Dismiss notification"
           >
-            <Plus className="h-4 w-4" />
-            <span>Add Locker</span>
-          </Button>
-        )}
-      </header>
-
-      {/* 1. Circular Occupancy Donut Meter & Top Summary Widgets */}
-      <LockerOccupancyRing
-        stats={stats}
-        isLoading={isStatsLoading}
-        selectedStatus={status}
-        selectedOpStatus={operationalStatus}
-        onSelectStatus={(value) => updateFilters({ status: value, page: 1 })}
-        onSelectOpStatus={(value) => updateFilters({ operationalStatus: value, page: 1 })}
-        onSelectFilters={(values) => updateFilters({ status: values.status, operationalStatus: values.operationalStatus, page: 1 })}
-      />
-      {isStatsError && (
-        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-          <span><strong>Inventory summary unavailable.</strong> The register list can still be used.</span>
-          <Button variant="outline" size="sm" onClick={() => refetchStats()} className="shrink-0 border-amber-300 bg-white">Retry</Button>
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
-      {/* 2. Filters & Actions Ribbon */}
-      <section className="rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4.5 shadow-xs" aria-label="Find and manage lockers">
-        <LockerFilters
-          filters={queryFilters}
-          onFilterChange={updateFilters}
-          onClearFilters={() => updateFilters({ search: undefined, size: undefined, status: undefined, operationalStatus: undefined, rackNumber: undefined, section: undefined, page: 1 })}
-        />
-        <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-slate-500 font-normal" role="status" aria-live="polite" aria-atomic="true">
-            <span className="font-semibold text-slate-900">{pagination?.total ?? 0}</span> lockers match the current view
+      {/* Modern Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            Lockers Management
+          </h1>
+          <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5">
+            {totalLockers.toLocaleString('en-IN')} physical compartments registered across vault racks
           </p>
-          <LockerActionRibbon
-            searchQuery={search}
-            onSearchChange={(q) => updateFilters({ search: q, page: 1 })}
-            onAddLocker={() => { setEditingLocker(null); setFormModalOpen(true); }}
-            onImportCSV={() => setImportModalOpen(true)}
-            onExportCSV={handleExportCSV}
-            onRefresh={() => { refetchList(); refetchStats(); }}
-            isRefreshing={isFetching}
-            canCreate={canCreate}
-            canImport={canCreate}
-            isExporting={isExporting}
-            showSearch={false}
-            showPrimaryAction={false}
-          />
         </div>
-      </section>
-      {isFetching && !isListLoading && (
-        <div role="status" aria-live="polite" className="-mt-2 flex items-center gap-2 px-1 text-[11px] font-medium text-emerald-800">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />
-          Updating locker results…
+
+        {/* Top Actions: Refresh & Add Locker */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetchList()}
+            disabled={isFetching}
+            className="h-9 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold text-xs gap-1.5 px-3 cursor-pointer shadow-2xs"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin text-emerald-700' : ''}`}
+            />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+
+          {canCreate && (
+            <Button
+              onClick={() => {
+                setEditingLocker(null);
+                setFormModalOpen(true);
+              }}
+              className="h-9 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs gap-1.5 px-3.5 shadow-2xs cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Locker</span>
+            </Button>
+          )}
         </div>
-      )}
-
-      {/* 3. Segmented Navigation Tabs */}
-      <div className="grid grid-cols-3 items-center gap-1 rounded-xl border border-slate-200 bg-slate-100/90 p-1 shadow-2xs" role="tablist" aria-label="Locker register views">
-        <button
-          type="button"
-          onClick={() => setSegmentedTab('directory')}
-          role="tab"
-          aria-selected={segmentedTab === 'directory'}
-          className={`min-h-[42px] rounded-lg px-2 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            segmentedTab === 'directory'
-              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/90 font-semibold'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <List className="w-4 h-4 text-emerald-800" />
-          <span>Lockers <span className="hidden sm:inline">({stats?.total ?? 0})</span></span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSegmentedTab('by_rack')}
-          role="tab"
-          aria-selected={segmentedTab === 'by_rack'}
-          className={`min-h-[42px] rounded-lg px-2 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            segmentedTab === 'by_rack'
-              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/90 font-semibold'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <LayoutGrid className="w-4 h-4 text-emerald-800" />
-          <span><span className="sm:hidden">Racks</span><span className="hidden sm:inline">By Rack</span></span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSegmentedTab('closed')}
-          role="tab"
-          aria-selected={segmentedTab === 'closed'}
-          className={`min-h-[42px] rounded-lg px-2 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            segmentedTab === 'closed'
-              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/90 font-semibold'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Archive className="w-4 h-4 text-slate-600" />
-          <span><span className="sm:hidden">Closed</span><span className="hidden sm:inline">Closed / Surrendered</span></span>
-        </button>
       </div>
 
-      {/* 5. Main Content Area according to Segmented Tab */}
+      {/* Unified Vault Control Console */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        {/* Upper Tier: Segmented Status Tabs + View Switcher */}
+        <div className="p-2 sm:p-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          {/* Status Tabs Segmented Group */}
+          <div className="flex items-center rounded-xl bg-slate-100 p-1 overflow-x-auto select-none gap-1">
+            {[
+              {
+                key: 'ALL',
+                label: 'All Lockers',
+                count: lockerStats?.total ?? totalLockers,
+                dotColor: 'bg-slate-400',
+              },
+              {
+                key: 'VACANT',
+                label: 'Available',
+                count: lockerStats?.vacant ?? 0,
+                dotColor: 'bg-emerald-500',
+              },
+              {
+                key: 'OCCUPIED',
+                label: 'Occupied',
+                count: lockerStats?.occupied ?? 0,
+                dotColor: 'bg-slate-600',
+              },
+              {
+                key: 'RESERVED',
+                label: 'Reserved',
+                count: lockerStats?.reserved ?? 0,
+                dotColor: 'bg-amber-500',
+              },
+              {
+                key: 'MAINTENANCE',
+                label: 'Under Maintenance',
+                count: lockerStats?.maintenance ?? 0,
+                dotColor: 'bg-rose-500',
+              },
+            ].map((item) => {
+              const isSelected = (statusParam || 'ALL') === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() =>
+                    updateFilters({
+                      status: item.key === 'ALL' ? undefined : item.key,
+                      page: 1,
+                    })
+                  }
+                  className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.dotColor}`} />
+                  <span>{item.label}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[11px] font-bold tabular-nums ${
+                      isSelected
+                        ? 'bg-slate-100 text-slate-800'
+                        : 'bg-slate-200/60 text-slate-500'
+                    }`}
+                  >
+                    {item.count.toLocaleString('en-IN')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* View Switcher docked on the right of the same tier */}
+          <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 shrink-0 self-start lg:self-auto">
+            <button
+              type="button"
+              onClick={() => setView('cards')}
+              className={`h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
+                viewMode === 'cards'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Card Grid View"
+            >
+              <LayoutGrid className="h-3.5 w-3.5 text-emerald-700" />
+              <span>Cards</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setView('table')}
+              className={`h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
+                viewMode === 'table'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Table View"
+            >
+              <List className="h-3.5 w-3.5 text-emerald-700" />
+              <span>Table</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setView('by_rack')}
+              className={`h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
+                viewMode === 'by_rack'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Rack Vault Matrix"
+            >
+              <Layers className="h-3.5 w-3.5 text-emerald-700" />
+              <span>Racks</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Lower Tier: Search, Size, Rack, Sort Filters + Page indicator */}
+        <div className="border-t border-slate-100 bg-slate-50/50 p-2.5 sm:px-3 sm:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+          {/* Left: Result Summary */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium">
+              {viewMode === 'by_rack' ? (
+                <>
+                  Showing all <strong className="text-slate-900 font-semibold">{lockers.length.toLocaleString('en-IN')}</strong> lockers in vault matrix
+                </>
+              ) : (
+                <>
+                  Showing <strong className="text-slate-900 font-semibold">{startIndex}–{endIndex}</strong> of{' '}
+                  <strong className="text-slate-900 font-semibold">{totalLockers.toLocaleString('en-IN')}</strong> lockers
+                </>
+              )}
+            </span>
+          </div>
+
+          {/* Right: Filters & Quick Pagination */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Locker Size Filter */}
+            <div className="relative flex items-center min-w-[130px] bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-2.5 transition focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-600 shadow-2xs">
+              <Maximize2 className="h-3.5 w-3.5 text-slate-400 shrink-0 pointer-events-none mr-1.5" />
+              <select
+                value={size || 'ALL'}
+                onChange={(e) =>
+                  updateFilters({
+                    size: e.target.value === 'ALL' ? undefined : e.target.value,
+                    page: 1,
+                  })
+                }
+                className="w-full h-8 text-xs font-semibold text-slate-700 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer appearance-none pr-5"
+              >
+                <option value="ALL">Size: All</option>
+                {LOCKER_SIZES.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    Size {s.code} ({s.label.replace(/^Size [A-Z0-9]+ /, '')})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
+            </div>
+
+            {/* Cabinet Rack Filter */}
+            <div className="relative flex items-center w-36 bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-2.5 transition focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-600 shadow-2xs">
+              <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0 pointer-events-none mr-1.5" />
+              <input
+                type="text"
+                placeholder="Rack (e.g. R-01)"
+                value={rackNumber}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(e) =>
+                  updateFilters({
+                    rackNumber: e.target.value || undefined,
+                    page: 1,
+                  })
+                }
+                className="w-full h-8 text-xs font-semibold text-slate-700 bg-transparent border-none outline-none focus:outline-none focus:ring-0 shadow-none ring-0 placeholder:font-normal placeholder:text-slate-400"
+                style={{ border: 'none', outline: 'none', textDecoration: 'none', boxShadow: 'none' }}
+              />
+              {rackNumber && (
+                <button
+                  type="button"
+                  onClick={() => updateFilters({ rackNumber: undefined, page: 1 })}
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer ml-1"
+                  title="Clear rack"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Sort By Dropdown */}
+            <div className="relative flex items-center min-w-[160px] bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-2.5 transition focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-600 shadow-2xs">
+              <ArrowUpDown className="h-3.5 w-3.5 text-emerald-700 shrink-0 pointer-events-none mr-1.5" />
+              <select
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [sb, so] = e.target.value.split('-');
+                  updateFilters({ sortBy: sb, sortOrder: so, page: 1 });
+                }}
+                className="w-full h-8 text-xs font-semibold text-slate-700 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer appearance-none pr-5"
+              >
+                <option value="lockerNumber-asc">Sort: Number (1 → 9)</option>
+                <option value="lockerNumber-desc">Sort: Number (9 → 1)</option>
+                <option value="rackNumber-asc">Sort: Rack (A → Z)</option>
+                <option value="rackNumber-desc">Sort: Rack (Z → A)</option>
+                <option value="status-asc">Sort: Status</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
+            </div>
+
+            {/* Reset Filters Button */}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="h-8 rounded-xl border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-2.5 gap-1 cursor-pointer transition shadow-2xs"
+                title="Reset all active filters"
+              >
+                <RotateCcw className="h-3 w-3 text-rose-600" />
+                <span>Reset</span>
+              </Button>
+            )}
+
+            {/* Mini Pagination Controls */}
+            {viewMode !== 'by_rack' && totalPages > 1 && (
+              <div className="flex items-center gap-1 pl-1 border-l border-slate-200 ml-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1 || isFetching}
+                  onClick={() => updateFilters({ page: page - 1 })}
+                  className="h-8 w-8 p-0 rounded-lg border-slate-200 bg-white hover:bg-slate-100 text-slate-700 cursor-pointer disabled:opacity-30 shadow-2xs"
+                  title="Previous page"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span className="text-xs font-bold px-1.5 text-slate-700 tabular-nums">
+                  {page}/{totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages || isFetching}
+                  onClick={() => updateFilters({ page: page + 1 })}
+                  className="h-8 w-8 p-0 rounded-lg border-slate-200 bg-white hover:bg-slate-100 text-slate-700 cursor-pointer disabled:opacity-30 shadow-2xs"
+                  title="Next page"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Active Filter Chips Bar */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-2 px-1 text-xs -mt-2">
+          <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
+            Filters Active:
+          </span>
+
+          {statusParam && statusParam !== 'ALL' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 text-white font-semibold text-xs shadow-2xs">
+              <span>Status: {statusParam}</span>
+              <button
+                type="button"
+                onClick={() => updateFilters({ status: undefined, page: 1 })}
+                className="hover:text-rose-300 cursor-pointer ml-0.5"
+                title="Remove status filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+
+          {search && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200">
+              <span>Search: "{search}"</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalSearch('');
+                  updateFilters({ search: undefined, page: 1 });
+                }}
+                className="hover:text-rose-600 cursor-pointer ml-0.5"
+                title="Remove search filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+
+          {size && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-900 font-semibold border border-blue-200">
+              <span>Size: {size}</span>
+              <button
+                type="button"
+                onClick={() => updateFilters({ size: undefined, page: 1 })}
+                className="hover:text-rose-600 cursor-pointer ml-0.5"
+                title="Remove size filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+
+          {rackNumber && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-semibold border border-amber-200">
+              <span>Rack: {rackNumber}</span>
+              <button
+                type="button"
+                onClick={() => updateFilters({ rackNumber: undefined, page: 1 })}
+                className="hover:text-rose-600 cursor-pointer ml-0.5"
+                title="Remove rack filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer ml-1"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* Main Content Area */}
       {isListError ? (
-        <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center"><AlertTriangle className="mx-auto h-7 w-7 text-rose-600" /><p className="mt-3 text-sm font-bold text-rose-900">Locker registry could not be loaded</p><p className="mt-1 text-xs text-rose-700">{listError instanceof Error ? listError.message : 'Check the connection and try again.'}</p><Button variant="outline" onClick={() => refetchList()} className="mt-4">Try again</Button></div>
-      ) : segmentedTab === 'by_rack' ? (
+        <div
+          role="alert"
+          className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center"
+        >
+          <AlertTriangle className="mx-auto h-8 w-8 text-rose-600" />
+          <p className="mt-3 text-base font-bold text-rose-900">
+            Locker records could not be loaded
+          </p>
+          <p className="mt-1 text-xs text-rose-700">
+            {listError instanceof Error ? listError.message : 'Please check connection and retry.'}
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => refetchList()}
+            className="mt-4 rounded-xl cursor-pointer"
+          >
+            Try again
+          </Button>
+        </div>
+      ) : isListLoading ? (
+        /* Skeletons */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-48 rounded-3xl bg-slate-100 animate-pulse border border-slate-200/80 p-5"
+            />
+          ))}
+        </div>
+      ) : viewMode === 'cards' ? (
+        /* Modern Locker Cards Grid matching Screenshot 2 */
+        lockers.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-12 text-center shadow-xs">
+            <Inbox className="h-10 w-10 text-slate-300 mx-auto" />
+            <h3 className="mt-3 text-lg font-bold text-slate-800">No Lockers Found</h3>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
+              No lockers matched your query. Try clearing or adjusting search filters.
+            </p>
+            {(search || statusParam !== 'ALL') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLocalSearch('');
+                  updateFilters({ search: undefined, status: undefined, page: 1 });
+                }}
+                className="mt-4 rounded-xl cursor-pointer"
+              >
+                Reset Filters
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {lockers.map((locker) => (
+              <LockerModernCard
+                key={locker._id}
+                locker={locker}
+                onView={handleViewLocker}
+                onAllocate={handleAllocate}
+                canAllocate={canCreate}
+              />
+            ))}
+          </div>
+        )
+      ) : viewMode === 'by_rack' ? (
         <LockerVaultGrid
           lockers={lockers}
           isLoading={isListLoading}
@@ -443,64 +778,79 @@ export function LockersPage() {
           pagination={pagination}
           isLoading={isListLoading}
           filters={queryFilters}
-          onSortChange={handleSortChange}
+          onSortChange={(newSort) => updateFilters({ sortBy: newSort, page: 1 })}
           onPageChange={(p) => updateFilters({ page: p })}
           onLimitChange={(l) => updateFilters({ limit: l, page: 1 })}
           onView={handleViewLocker}
-          onEdit={handleEditLocker}
+          onAllocate={handleAllocate}
+          canAllocate={canCreate}
+          onEdit={(l) => {
+            setEditingLocker(l);
+            setFormModalOpen(true);
+          }}
           onDeactivate={(l) => setDeactivatingLocker(l)}
         />
       )}
 
-      {/* Create / Edit Locker Modal */}
-      {formModalOpen && (
-        <Suspense fallback={null}>
-        <LockerFormModal
-          locker={editingLocker}
-          onClose={() => {
-            setFormModalOpen(false);
-            setEditingLocker(null);
-          }}
-          onSubmit={handleFormSubmit}
-          isSubmitting={createMutation.isPending || updateMutation.isPending}
-        />
-        </Suspense>
-      )}
+      {/* Clean Pagination Bar matching Screenshot 2 */}
+      {totalLockers > 0 && viewMode === 'cards' && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200/80">
+          <p className="text-xs sm:text-sm font-semibold text-slate-500">
+            Showing {startIndex} to {endIndex} of {totalLockers} lockers
+          </p>
 
-      {/* Bulk CSV Import Modal */}
-      {importModalOpen && (
-        <Suspense fallback={null}>
-        <LockerImportModal
-          onClose={() => setImportModalOpen(false)}
-          onSuccess={() => {
-            setImportModalOpen(false);
-            queryClient.invalidateQueries({ queryKey: ['lockers'] });
-            queryClient.invalidateQueries({ queryKey: ['locker-stats'] });
-          }}
-        />
-        </Suspense>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || isFetching}
+                onClick={() => updateFilters({ page: page - 1 })}
+                className="h-8.5 rounded-xl border-slate-300 text-slate-700 text-xs gap-1 px-3 cursor-pointer disabled:opacity-40"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span>Prev</span>
+              </Button>
+
+              <span className="px-3 text-xs font-bold text-slate-700">
+                {page} / {totalPages}
+              </span>
+
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages || isFetching}
+                onClick={() => updateFilters({ page: page + 1 })}
+                className="h-8.5 rounded-xl border-slate-300 text-slate-700 text-xs gap-1 px-3 cursor-pointer disabled:opacity-40"
+              >
+                <span>Next</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Locker Inspection Detail Modal */}
       {viewingLocker && (
         <Suspense fallback={null}>
-        <LockerDetailModal
-          locker={viewingLocker}
-          onClose={() => setViewingLocker(null)}
-          onEdit={(l) => {
-            setViewingLocker(null);
-            setEditingLocker(l);
-            setFormModalOpen(true);
-          }}
-          onAllocate={(l) => {
-            setViewingLocker(null);
-            setAllocatingLocker(l);
-          }}
-        />
+          <LockerDetailModal
+            locker={viewingLocker}
+            onClose={() => setViewingLocker(null)}
+            onEdit={(l) => {
+              setViewingLocker(null);
+              setEditingLocker(l);
+              setFormModalOpen(true);
+            }}
+            onAllocate={(l) => {
+              setViewingLocker(null);
+              setAllocatingLocker(l);
+            }}
+          />
         </Suspense>
       )}
 
-      {/* Allocation Wizard Modal when allocating directly from Locker Detail */}
+      {/* Allocation Wizard Modal */}
       {allocatingLocker && (
         <Suspense fallback={null}>
           <AllocationWizardModal
@@ -511,6 +861,35 @@ export function LockersPage() {
               await allocateMutation.mutateAsync(data);
             }}
             isSubmitting={allocateMutation.isPending}
+          />
+        </Suspense>
+      )}
+
+      {/* Locker Form Modal (Add / Edit) */}
+      {formModalOpen && (
+        <Suspense fallback={null}>
+          <LockerFormModal
+            locker={editingLocker}
+            onClose={() => {
+              setFormModalOpen(false);
+              setEditingLocker(null);
+            }}
+            onSubmit={handleFormSubmit}
+            isSubmitting={createMutation.isPending || updateMutation.isPending}
+          />
+        </Suspense>
+      )}
+
+      {/* Bulk CSV Import Modal */}
+      {importModalOpen && (
+        <Suspense fallback={null}>
+          <LockerImportModal
+            onClose={() => setImportModalOpen(false)}
+            onSuccess={() => {
+              setImportModalOpen(false);
+              queryClient.invalidateQueries({ queryKey: ['lockers'] });
+              queryClient.invalidateQueries({ queryKey: ['locker-stats'] });
+            }}
           />
         </Suspense>
       )}
@@ -531,12 +910,19 @@ export function LockersPage() {
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
-                  <h3 id="deactivate-locker-title" className="text-base font-semibold text-slate-900 tracking-tight">
+                  <h3
+                    id="deactivate-locker-title"
+                    className="text-base font-semibold text-slate-900 tracking-tight"
+                  >
                     Deactivate Locker #{deactivatingLocker.lockerNumber}?
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed font-normal">
                     This will soft-deactivate physical locker{' '}
-                    <strong className="font-semibold text-slate-700">#{deactivatingLocker.lockerNumber}</strong> (Size {deactivatingLocker.size}, {deactivatingLocker.rackNumber}). It will no longer be available for customer allocations while historical records are preserved.
+                    <strong className="font-semibold text-slate-700">
+                      #{deactivatingLocker.lockerNumber}
+                    </strong>{' '}
+                    (Size {deactivatingLocker.size}, {deactivatingLocker.rackNumber}). Historical
+                    records are preserved.
                   </p>
                 </div>
               </div>
@@ -575,21 +961,16 @@ export function LockersPage() {
           document.body
         )}
 
-      {canCreate && (
-        <button type="button" onClick={() => { setEditingLocker(null); setFormModalOpen(true); }} className="fixed bottom-[4.6rem] right-4 z-30 flex min-h-[48px] items-center gap-2 rounded-full bg-emerald-800 hover:bg-emerald-900 px-5 text-sm font-medium text-white shadow-xl shadow-emerald-950/25 active:bg-emerald-950 sm:hidden cursor-pointer">
-          <Plus className="h-5 w-5" /> Add Locker
-        </button>
-      )}
-
+      {/* Floating Go To Top */}
       {showGoToTop && (
         <button
           type="button"
           onClick={scrollToTop}
-          aria-label="Go to the top of the locker register"
-          className={`fixed right-4 z-30 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 text-xs font-medium text-white shadow-xl shadow-slate-950/25 transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 cursor-pointer ${canCreate ? 'bottom-[8.5rem] sm:bottom-6 sm:right-6' : 'bottom-6 sm:right-6'}`}
+          aria-label="Go to the top"
+          className="fixed bottom-6 right-6 z-30 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-3.5 text-xs font-semibold text-white shadow-xl hover:bg-slate-800 cursor-pointer"
         >
-          <ArrowUp className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Go to top</span>
+          <ArrowUp className="h-4 w-4" />
+          <span className="hidden sm:inline">Top</span>
         </button>
       )}
     </div>

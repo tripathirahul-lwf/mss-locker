@@ -52,12 +52,36 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      {
+        path: 'dashboard',
+        element: (
+          <ProtectedRoute requiredPermission="dashboard.view">
+            <DashboardPage />
+          </ProtectedRoute>
+        ),
+      },
       // Locker Master Routes
       {
         path: 'lockers',
         element: (
           <ProtectedRoute requiredPermission="lockers.view">
             <LockersPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'closed-lockers',
+        element: (
+          <ProtectedRoute requiredPermission="closures.view">
+            <ClosuresPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'renewal-lockers',
+        element: (
+          <ProtectedRoute requiredPermission="renewals.view">
+            <RenewalsPage />
           </ProtectedRoute>
         ),
       },

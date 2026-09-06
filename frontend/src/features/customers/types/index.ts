@@ -39,6 +39,11 @@ export interface Customer {
   notes?: string;
   status: CustomerStatus;
   isActive: boolean;
+  assignedLockers?: Array<{
+    lockerNumber: string;
+    size: string;
+    rackNumber?: string;
+  }>;
   createdBy?: {
     _id: string;
     name: string;

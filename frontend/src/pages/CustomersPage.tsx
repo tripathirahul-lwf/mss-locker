@@ -1,6 +1,6 @@
-import React, { lazy, Suspense, useCallback, useState, useMemo } from 'react';
+import React, { lazy, Suspense, useCallback, useState, useMemo, useEffect } from 'react';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Users,
   UserPlus,
@@ -31,6 +31,7 @@ const allowedSortFields = new Set(['customerCode', 'fullName', 'phone', 'status'
 export function CustomersPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const canCreate = usePermission('customers.create');
@@ -41,6 +42,18 @@ export function CustomersPage() {
   const [previewCustomer, setPreviewCustomer] = useState<Customer | null>(null);
   const [kycCustomerId, setKycCustomerId] = useState<string | null>(null);
   const [archiveCustomer, setArchiveCustomer] = useState<Customer | null>(null);
+
+  // Restore saved query params from sessionStorage if landed on bare /customers
+  useEffect(() => {
+    if (!location.search) {
+      const saved = sessionStorage.getItem('customer_list_params');
+      if (saved) {
+        navigate(`/customers?${saved}`, { replace: true });
+      }
+    } else {
+      sessionStorage.setItem('customer_list_params', location.search.replace(/^\?/, ''));
+    }
+  }, [location.search, navigate]);
 
   // Extract query filters from URL
   const filters: CustomerQueryParams = useMemo(() => {
@@ -73,11 +86,16 @@ export function CustomersPage() {
       }
     });
 
-    setSearchParams(params);
+    const queryStr = params.toString();
+    if (queryStr) {
+      sessionStorage.setItem('customer_list_params', queryStr);
+    }
+    setSearchParams(params, { replace: true });
   }, [filters, setSearchParams]);
 
   const clearFilters = () => {
-    setSearchParams(new URLSearchParams());
+    sessionStorage.removeItem('customer_list_params');
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   // Queries
@@ -246,7 +264,11 @@ export function CustomersPage() {
         }}
         onPageChange={(page) => updateFilters({ page })}
         onLimitChange={(limit) => updateFilters({ limit, page: 1 })}
-        onView={(customer) => setPreviewCustomer(customer)}
+        onView={(customer) =>
+          navigate(`/customers/${customer._id}`, {
+            state: { from: location.pathname + location.search },
+          })
+        }
         onEdit={async (customer) => {
           const fullCustomer = await queryClient.fetchQuery({ queryKey: ['customer', customer._id], queryFn: ({ signal }) => customerApi.getCustomerById(customer._id, signal), staleTime: 30_000 });
           setEditingCustomer(fullCustomer);
@@ -287,19 +309,24 @@ export function CustomersPage() {
 
       {/* KYC Document Upload / Verification Modal */}
       <Suspense fallback={null}>
-        {kycCustomerId && (
-          <KycDocumentModal
-            customerId={kycCustomerId}
-            onClose={() => setKycCustomerId(null)}
-            onSubmit={async (data) => {
-              await customerApi.addKycDocument(kycCustomerId, data as any);
-              setKycCustomerId(null);
-              queryClient.invalidateQueries({ queryKey: ['customers'] });
-              queryClient.invalidateQueries({ queryKey: ['customer-stats'] });
-            }}
-            isSubmitting={false}
-          />
-        )}
+        {kycCustomerId && (() => {
+          const selectedCustomer = customerData?.customers?.find((c) => c._id === kycCustomerId);
+          return (
+            <KycDocumentModal
+              customerId={kycCustomerId}
+              customerName={selectedCustomer?.fullName}
+              customerCode={selectedCustomer?.customerCode}
+              onClose={() => setKycCustomerId(null)}
+              onSubmit={async (data) => {
+                await customerApi.addKycDocument(kycCustomerId, data as any);
+                setKycCustomerId(null);
+                queryClient.invalidateQueries({ queryKey: ['customers'] });
+                queryClient.invalidateQueries({ queryKey: ['customer-stats'] });
+              }}
+              isSubmitting={false}
+            />
+          );
+        })()}
       </Suspense>
 
       {archiveCustomer && (

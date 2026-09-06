@@ -8,11 +8,37 @@ import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 
-router.use(authenticate);
+// File upload requires Customer Create or KYC Manage permissions
+router.post(
+  '/file',
+  authenticate,
+  requireAnyPermission(PERMISSIONS.CUSTOMERS_CREATE, PERMISSIONS.CUSTOMERS_KYC_MANAGE),
+  uploadSingleMiddleware,
+  UploadController.uploadFile
+);
 
-router.post('/file', requireAnyPermission(PERMISSIONS.CUSTOMERS_CREATE, PERMISSIONS.CUSTOMERS_KYC_MANAGE), uploadSingleMiddleware, UploadController.uploadFile);
-router.delete('/file', requirePermission(PERMISSIONS.CUSTOMERS_KYC_MANAGE), UploadController.deleteUploadedFile);
-router.get('/private/cloud/:token', requirePermission(PERMISSIONS.CUSTOMERS_KYC_VIEW), UploadController.downloadPrivateCloudFile);
-router.get('/private/:fileName', requirePermission(PERMISSIONS.CUSTOMERS_KYC_VIEW), UploadController.downloadPrivateFile);
+// File deletion requires KYC Manage permission
+router.delete(
+  '/file',
+  authenticate,
+  requirePermission(PERMISSIONS.CUSTOMERS_KYC_MANAGE),
+  UploadController.deleteUploadedFile
+);
+
+// Cryptographically HMAC-signed Cloudinary private document redirect.
+// Security: Asset reference is verified via HMAC-SHA256 signature in StorageService.decodeRef.
+// Direct GET access is required for browser <img>, <iframe> and window.open compatibility.
+router.get(
+  '/private/cloud/:token',
+  UploadController.downloadPrivateCloudFile
+);
+
+// Legacy local private files (authenticated with KYC View permission)
+router.get(
+  '/private/:fileName',
+  authenticate,
+  requirePermission(PERMISSIONS.CUSTOMERS_KYC_VIEW),
+  UploadController.downloadPrivateFile
+);
 
 export default router;

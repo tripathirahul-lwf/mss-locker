@@ -2,38 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
-  User,
   KeyRound,
-  ShieldCheck,
-  Search,
-  CheckCircle2,
   AlertCircle,
-  AlertTriangle,
-  Clock,
-  Layers,
-  ChevronRight,
-  ChevronLeft,
   Loader2,
-  FileCheck,
-  Sparkles,
-  Phone,
-  MapPin,
+  CheckCircle2,
+  User,
+  ChevronDown,
   Calendar,
-  IndianRupee,
-  ShieldAlert,
-  Building,
+  Layers,
+  Receipt,
+  Search,
   Check,
+  Building2,
+  ShieldCheck,
+  Mail,
 } from 'lucide-react';
 import { customerApi } from '../../customers/api/customerApi';
 import { lockerApi } from '../../lockers/api/lockerApi';
 import { Customer } from '../../customers/types';
 import { Locker } from '../../lockers/types';
-import { CreateAllocationInput, ReserveLockerInput, BillingCycle, AllocationType } from '../types';
-import { BILLING_CYCLES, ALLOCATION_TYPES } from '../constants';
-import { Button } from '../../../components/ui/button';
-import { Input } from '../../../components/ui/input';
-import { KycStatusBadge } from '../../customers/components/KycStatusBadge';
-import { formatPhone } from '../../customers/utils/phoneFormatter';
+import { CreateAllocationInput, ReserveLockerInput, BillingCycle } from '../types';
 import { LOCKER_SIZES } from '../../lockers/constants';
 
 interface AllocationWizardModalProps {
@@ -51,45 +39,93 @@ export function AllocationWizardModal({
   onSubmit,
   isSubmitting,
 }: AllocationWizardModalProps) {
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  // Locker details
+  const [lockerNumber, setLockerNumber] = useState(preSelectedLocker?.lockerNumber || '');
+  const [size, setSize] = useState(preSelectedLocker?.size || 'A');
+  const [keyNumber, setKeyNumber] = useState(preSelectedLocker?.masterKeyReference || '');
+  const [rackNumber, setRackNumber] = useState(preSelectedLocker?.rackNumber || '');
+  const [rentAmount, setRentAmount] = useState<number>(preSelectedLocker?.annualRent || 1180);
+  const [gstAmount, setGstAmount] = useState<number>(
+    Math.round((preSelectedLocker?.annualRent || 1180) * 0.18)
+  );
+  const [securityDeposit, setSecurityDeposit] = useState<number>(
+    preSelectedLocker?.securityDeposit || 2000
+  );
 
-  // Step 1: Customer Search State
-  const [customerQuery, setCustomerQuery] = useState('');
-  const [customerList, setCustomerList] = useState<Customer[]>([]);
-  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-
-  // Step 2: Available Locker State
-  const [availableLockers, setAvailableLockers] = useState<Locker[]>([]);
-  const [isLoadingLockers, setIsLoadingLockers] = useState(false);
-  const [selectedLocker, setSelectedLocker] = useState<Locker | null>(preSelectedLocker);
-  const [sizeFilter, setSizeFilter] = useState('');
-  const [rackFilter, setRackFilter] = useState('');
-
-  // Step 3: Terms State
+  // Plan & Dates & Allocation Type
+  const [rentalPlan, setRentalPlan] = useState<'1 Year' | '6 Months' | '3 Months' | '1 Month'>(
+    '1 Year'
+  );
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('ANNUAL');
-  const [annualRent, setAnnualRent] = useState<number>(preSelectedLocker?.annualRent ?? 3000);
-  const [securityDeposit, setSecurityDeposit] = useState<number>(preSelectedLocker?.securityDeposit ?? 10000);
-  const [allocationType, setAllocationType] = useState<AllocationType>('NEW');
-  const [remarks, setRemarks] = useState('');
-  const [reservationDays, setReservationDays] = useState<number>(7);
+  const [allocationType, setAllocationType] = useState<'NEW' | 'RESERVED'>(
+    mode === 'reserve' ? 'RESERVED' : 'NEW'
+  );
+
+  // Customer Details
+  const [customerName, setCustomerName] = useState('');
+  const [customerMobile, setCustomerMobile] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
+
+  // Search / Lookup dropdown state
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
+  // Available Lockers lookup state
+  const [availableLockers, setAvailableLockers] = useState<Locker[]>([]);
+  const [selectedLocker, setSelectedLocker] = useState<Locker | null>(preSelectedLocker);
+  const [showLockerDropdown, setShowLockerDropdown] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
-  // Search Customers
+  // Auto-sync tariffs when size changes (if no locker explicitly selected yet)
+  const handleSizeChange = (newSize: string) => {
+    setSize(newSize);
+    const sizeDef = LOCKER_SIZES.find((s) => s.code === newSize);
+    if (sizeDef) {
+      setRentAmount(sizeDef.defaultRent);
+      setGstAmount(Math.round(sizeDef.defaultRent * 0.18));
+      setSecurityDeposit(sizeDef.defaultDeposit);
+    }
+  };
+
+  // Sync GST automatically when rent amount is modified
+  const handleRentChange = (amount: number) => {
+    setRentAmount(amount);
+    setGstAmount(Math.round(amount * 0.18));
+  };
+
+  // Pre-load available lockers list for quick selection
   useEffect(() => {
+    let isMounted = true;
+    lockerApi
+      .getAvailableLockers({ limit: 100 } as any)
+      .then((lockers) => {
+        if (isMounted) setAvailableLockers(lockers);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Quick Customer search when user types in Customer Name or Mobile
+  useEffect(() => {
+    const query = customerQuery.trim();
+    if (!query) {
+      setCustomerResults([]);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       setIsSearchingCustomer(true);
       try {
-        const result = await customerApi.getCustomers({
-          search: customerQuery.trim() || undefined,
-          status: 'ACTIVE',
-          limit: 12,
-        });
-        setCustomerList(result.customers);
+        const res = await customerApi.getCustomers({ search: query, limit: 6, status: 'ACTIVE' });
+        setCustomerResults(res.customers);
       } catch {
-        // Handled silently
+        // silent
       } finally {
         setIsSearchingCustomer(false);
       }
@@ -98,882 +134,847 @@ export function AllocationWizardModal({
     return () => clearTimeout(timer);
   }, [customerQuery]);
 
-  // Fetch Available Lockers
+  // Select customer from lookup
+  const handleSelectCustomer = (cust: Customer) => {
+    setMatchedCustomer(cust);
+    setCustomerName(cust.fullName);
+    setCustomerMobile(cust.phone);
+    setCustomerEmail(cust.email || '');
+    setShowCustomerDropdown(false);
+    setCustomerQuery('');
+  };
+
+  // Select locker from lookup
+  const handleSelectLocker = (l: Locker) => {
+    setSelectedLocker(l);
+    setLockerNumber(l.lockerNumber);
+    setSize(l.size);
+    setRackNumber(l.rackNumber);
+    setKeyNumber(l.masterKeyReference || '');
+    setRentAmount(l.annualRent || 1180);
+    setGstAmount(Math.round((l.annualRent || 1180) * 0.18));
+    setSecurityDeposit(l.securityDeposit || 2000);
+    setShowLockerDropdown(false);
+  };
+
+  // Escape key close
   useEffect(() => {
-    if (currentStep === 2) {
-      const fetchAvailable = async () => {
-        setIsLoadingLockers(true);
-        try {
-          const lockers = await lockerApi.getAvailableLockers({
-            size: sizeFilter || undefined,
-            rackNumber: rackFilter || undefined,
-          });
-          setAvailableLockers(lockers);
-        } catch {
-          // Handled silently
-        } finally {
-          setIsLoadingLockers(false);
-        }
-      };
-      fetchAvailable();
-    }
-  }, [currentStep, sizeFilter, rackFilter]);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting) onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isSubmitting, onClose]);
 
-  // Sync tariffs when locker is selected
-  const handleSelectLocker = (locker: Locker) => {
-    setSelectedLocker(locker);
-    setAnnualRent(locker.annualRent || 0);
-    setSecurityDeposit(locker.securityDeposit || 0);
-  };
-
-  const canNavigateToStep = (targetStep: 1 | 2 | 3 | 4): boolean => {
-    if (targetStep === 1) return true;
-    if (targetStep === 2) return Boolean(selectedCustomer);
-    if (targetStep === 3) return Boolean(selectedCustomer && selectedLocker);
-    if (targetStep === 4) return Boolean(selectedCustomer && selectedLocker && startDate);
-    return false;
-  };
-
-  const handleStepClick = (targetStep: 1 | 2 | 3 | 4) => {
-    if (canNavigateToStep(targetStep)) {
-      setError(null);
-      setCurrentStep(targetStep);
-    }
-  };
-
-  const handleNextStep = () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    if (currentStep === 1) {
-      if (!selectedCustomer) {
-        setError('Please select a verified customer to proceed.');
-        return;
-      }
-      // If a locker was already pre-selected from Locker details, move straight to Terms (Step 3)
-      if (selectedLocker) {
-        setCurrentStep(3);
-      } else {
-        setCurrentStep(2);
-      }
-    } else if (currentStep === 2) {
-      if (!selectedLocker) {
-        setError('Please select an available physical locker unit.');
-        return;
-      }
-      setCurrentStep(3);
-    } else if (currentStep === 3) {
-      if (!startDate) {
-        setError('Tenancy start date is required.');
-        return;
-      }
-      if (annualRent < 0 || securityDeposit < 0) {
-        setError('Rent and security deposit cannot be negative numbers.');
-        return;
-      }
-      setCurrentStep(4);
-    }
-  };
 
-  const handleFinalSubmit = async () => {
-    if (!selectedCustomer || !selectedLocker) return;
-    setError(null);
+    if (!lockerNumber.trim()) {
+      setError('Please provide or select a Locker Number.');
+      return;
+    }
+    if (!rackNumber.trim()) {
+      setError('Please provide a Rack Number.');
+      return;
+    }
 
     try {
-      if (mode === 'reserve') {
-        const expiresAt = new Date(
-          Date.now() + reservationDays * 24 * 60 * 60 * 1000
-        ).toISOString();
+      // Step 1: Ensure Locker exists or obtain ID
+      let finalLockerId = selectedLocker?._id;
 
+      if (!finalLockerId) {
+        // Check if locker with this number already exists
+        const searchRes = await lockerApi.getLockers({ search: lockerNumber.trim(), limit: 1 });
+        const existing = searchRes.lockers.find(
+          (l) => l.lockerNumber.toLowerCase() === lockerNumber.trim().toLowerCase()
+        );
+
+        if (existing) {
+          finalLockerId = existing._id;
+        } else {
+          // Create the locker first if it's a completely new unit
+          const newLocker = await lockerApi.createLocker({
+            lockerNumber: lockerNumber.trim(),
+            size,
+            rackNumber: rackNumber.trim(),
+            masterKeyReference: keyNumber.trim() || undefined,
+            annualRent: Number(rentAmount),
+            securityDeposit: Number(securityDeposit),
+            status: 'VACANT',
+            operationalStatus: 'ACTIVE',
+          });
+          finalLockerId = newLocker._id;
+        }
+      }
+
+      // Step 2: Ensure Customer exists or create customer record
+      let finalCustomerId = matchedCustomer?._id;
+
+      if (!finalCustomerId) {
+        if (!customerName.trim()) {
+          setError('Customer Name is required for tenancy allocation.');
+          return;
+        }
+        if (!customerMobile.trim() || customerMobile.trim().length < 10) {
+          setError('Valid 10-digit Customer Mobile number is required.');
+          return;
+        }
+
+        // Check duplicate by phone
+        const custSearch = await customerApi.getCustomers({
+          search: customerMobile.trim(),
+          limit: 1,
+        });
+        const existingCust = custSearch.customers.find((c) =>
+          c.phone.includes(customerMobile.trim())
+        );
+
+        if (existingCust) {
+          finalCustomerId = existingCust._id;
+        } else {
+          // Quick create customer
+          const newCust = await customerApi.createCustomer({
+            fullName: customerName.trim(),
+            phone: customerMobile.trim(),
+            email: customerEmail.trim() || undefined,
+          });
+          finalCustomerId = newCust._id;
+        }
+      }
+
+      // Step 3: Map rental plan to BillingCycle enum
+      const billingCycleMap: Record<string, BillingCycle> = {
+        '1 Year': 'ANNUAL',
+        '6 Months': 'HALF_YEARLY',
+        '3 Months': 'QUARTERLY',
+        '1 Month': 'MONTHLY',
+      };
+
+      const cycle = billingCycleMap[rentalPlan] || 'ANNUAL';
+
+      // Step 4: Execute Allocation
+      if (allocationType === 'RESERVED') {
         await onSubmit({
-          customerId: selectedCustomer._id,
-          lockerId: selectedLocker._id,
+          customerId: finalCustomerId,
+          lockerId: finalLockerId,
           startDate: new Date(startDate).toISOString(),
-          reservationExpiresAt: expiresAt,
-          billingCycle,
-          annualRent: Number(annualRent),
+          billingCycle: cycle,
+          annualRent: Number(rentAmount),
           securityDeposit: Number(securityDeposit),
-          remarks: remarks.trim() || undefined,
+          remarks: keyNumber.trim() ? `Key: ${keyNumber.trim()}` : undefined,
         });
       } else {
         await onSubmit({
-          customerId: selectedCustomer._id,
-          lockerId: selectedLocker._id,
+          customerId: finalCustomerId,
+          lockerId: finalLockerId,
           startDate: new Date(startDate).toISOString(),
-          billingCycle,
-          annualRent: Number(annualRent),
+          billingCycle: cycle,
+          annualRent: Number(rentAmount),
           securityDeposit: Number(securityDeposit),
-          allocationType,
-          remarks: remarks.trim() || undefined,
+          allocationType: 'NEW',
+          remarks: keyNumber.trim() ? `Key: ${keyNumber.trim()}` : undefined,
         });
       }
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || err.message || 'Failed to complete allocation.'
-      );
+      setError(err.response?.data?.message || err.message || 'Failed to complete allocation.');
     }
   };
 
-  const isReserve = mode === 'reserve';
-
-  // Financial calculations
-  const parsedAnnualRent = Number(annualRent) || 0;
-  const parsedDeposit = Number(securityDeposit) || 0;
-  const totalInitialInflow = parsedAnnualRent + parsedDeposit;
-  const monthlyEquivalent = Math.round(parsedAnnualRent / 12);
-
-  const cycleInstallmentRent =
-    billingCycle === 'MONTHLY'
-      ? Math.round(parsedAnnualRent / 12)
-      : billingCycle === 'QUARTERLY'
-      ? Math.round(parsedAnnualRent / 4)
-      : billingCycle === 'HALF_YEARLY'
-      ? Math.round(parsedAnnualRent / 2)
-      : parsedAnnualRent;
-
-  const cycleFirstDue = cycleInstallmentRent + parsedDeposit;
-
-  // Calculate calculated end date for 1 cycle preview
-  const previewEndDate = new Date(new Date(startDate).setFullYear(new Date(startDate).getFullYear() + 1))
-    .toISOString()
-    .slice(0, 10);
+  const totalRentWithGst = (Number(rentAmount) || 0) + (Number(gstAmount) || 0);
+  const totalInitialPayable = totalRentWithGst + (Number(securityDeposit) || 0);
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150">
+    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/60 backdrop-blur-xs select-none animate-in fade-in-0 duration-150 font-sans">
       <div
-        className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200/90"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="allotment-wizard-title"
+        className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 animate-in zoom-in-95 duration-150 max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-4.5 sm:p-6 pb-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
-          <div className="flex items-center gap-3">
-            <div
-              className={`p-2.5 rounded-xl border shadow-2xs ${
-                isReserve
-                  ? 'bg-amber-50 border-amber-200/80 text-amber-800'
-                  : 'bg-emerald-50 border-emerald-200/80 text-emerald-800'
-              }`}
-            >
-              {isReserve ? <Clock className="w-5 h-5" /> : <KeyRound className="w-5 h-5" />}
+        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-200 bg-slate-50/70 shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div className="h-10.5 w-10.5 rounded-xl bg-[#164e43] text-white flex items-center justify-center shadow-sm shrink-0">
+              <KeyRound className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight font-sans">
-                {isReserve ? 'Reserve Safe-Deposit Locker' : 'New Locker Tenancy Allocation'}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2
+                  id="allotment-wizard-title"
+                  className="text-base sm:text-lg font-bold tracking-tight text-slate-900"
+                >
+                  {selectedLocker || preSelectedLocker
+                    ? `Allot Locker #${lockerNumber}`
+                    : 'New Locker Allotment'}
+                </h2>
+                {(selectedLocker || preSelectedLocker) && (
+                  <span className="text-[11px] font-semibold text-[#164e43] bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <Check className="h-3 w-3" />
+                    Unit #{lockerNumber} Verified
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500 font-normal mt-0.5">
-                Step {currentStep} of 4 &bull;{' '}
-                {currentStep === 1
-                  ? 'Identify and select verified customer'
-                  : currentStep === 2
-                  ? 'Choose vacant physical safe-deposit unit'
-                  : currentStep === 3
-                  ? 'Set billing cycle & financial snapshot tariffs'
-                  : 'Review terms and generate legal tenancy agreement'}
+                Assign customer tenancy, configure rental plan, and record initial security deposit
               </p>
             </div>
           </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
-            aria-label="Close dialog"
+            className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer"
+            aria-label="Close modal"
           >
-            <X className="w-5 h-5" />
+            <X className="h-4.5 w-4.5" />
           </button>
         </div>
 
-        {/* Interactive Step Indicator Tabs */}
-        <div className="grid grid-cols-4 border-b border-slate-200/90 text-center text-xs bg-slate-50/60 font-sans select-none">
-          {[
-            { step: 1 as const, num: '1', label: 'Customer' },
-            { step: 2 as const, num: '2', label: 'Locker Unit' },
-            { step: 3 as const, num: '3', label: 'Terms & Tariffs' },
-            { step: 4 as const, num: '4', label: 'Confirmation' },
-          ].map((tab) => {
-            const isClickable = canNavigateToStep(tab.step);
-            const isCurrent = currentStep === tab.step;
-            const isCompleted = currentStep > tab.step;
-
-            return (
-              <button
-                key={tab.step}
-                type="button"
-                onClick={() => handleStepClick(tab.step)}
-                disabled={!isClickable && !isCurrent}
-                className={`py-3 px-2 flex items-center justify-center gap-1.5 transition-all text-xs outline-none ${
-                  isCurrent
-                    ? 'border-b-2 border-emerald-800 text-emerald-950 bg-emerald-50/80 font-bold cursor-default'
-                    : isCompleted
-                    ? 'text-emerald-800 font-semibold bg-slate-50/30 hover:bg-emerald-50/40 cursor-pointer'
-                    : isClickable
-                    ? 'text-slate-600 font-medium hover:bg-slate-100/60 cursor-pointer'
-                    : 'text-slate-400 font-normal cursor-not-allowed opacity-60'
-                }`}
-              >
-                <span
-                  className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center shrink-0 tabular-nums ${
-                    isCurrent
-                      ? 'bg-emerald-800 text-white font-bold'
-                      : isCompleted
-                      ? 'bg-emerald-100 text-emerald-800 font-bold'
-                      : 'bg-slate-200 text-slate-500'
-                  }`}
-                >
-                  {isCompleted ? '✓' : tab.num}
-                </span>
-                <span className="truncate">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Step Body */}
-        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs font-normal">
+        {/* Modal Form Content */}
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="p-6 sm:p-8 space-y-6 overflow-y-auto flex-1 text-xs"
+        >
           {error && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-              <span className="font-semibold text-xs leading-relaxed">{error}</span>
+            <div
+              role="alert"
+              className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 text-xs font-semibold"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-600" />
+              <span>{error}</span>
             </div>
           )}
 
-          {/* STEP 1: Select Customer */}
-          {currentStep === 1 && (
-            <div className="space-y-4">
-              {/* Pre-Selected Locker Notice Banner */}
-              {selectedLocker && (
-                <div className="p-3 sm:p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 text-emerald-950 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="h-8 w-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 shrink-0 shadow-2xs">
-                      <KeyRound className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900 text-xs">
-                          Locker #{selectedLocker.lockerNumber}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-white text-slate-700 font-semibold text-[10.5px] border border-slate-200 shadow-2xs">
-                          Size {selectedLocker.size}
-                        </span>
-                        <span className="text-[11px] text-emerald-800 font-medium">
-                          {selectedLocker.rackNumber} &bull; {selectedLocker.section || 'Main Vault'}
-                        </span>
-                      </div>
-                      <p className="text-[10.5px] text-slate-500 font-normal mt-0.5">
-                        Unit pre-selected. Pick a verified customer to complete tenancy agreement.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0 pl-10.5 sm:pl-0">
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Base Rent</span>
-                      <strong className="text-slate-900 text-xs font-bold tabular-nums">
-                        ₹{selectedLocker.annualRent?.toLocaleString('en-IN')}/yr
-                      </strong>
-                    </div>
-                  </div>
+          {/* Module 1: Vault Unit & Specification Card */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center shadow-xs">
+                  <Layers className="w-3.5 h-3.5 text-[#164e43]" />
                 </div>
-              )}
+                <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">
+                  1. Vault Unit & Physical Specification
+                </h3>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Vault compartment & key details
+              </span>
+            </div>
 
-              {/* Search Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Locker Number */}
               <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={customerQuery}
-                  onChange={(e) => setCustomerQuery(e.target.value)}
-                  placeholder="Search verified customer by name, mobile phone number, or code (e.g. CUS-000371)..."
-                  className="w-full h-10 pl-10 pr-9 bg-slate-50/80 border border-slate-300 rounded-xl font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 text-xs shadow-2xs font-sans"
-                />
-                {customerQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setCustomerQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                <label
+                  htmlFor="alloc-locker-number"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Locker Number <span className="text-emerald-700">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none pointer-events-none">
+                    #
+                  </span>
+                  <input
+                    id="alloc-locker-number"
+                    type="text"
+                    value={lockerNumber}
+                    onChange={(e) => {
+                      setLockerNumber(e.target.value);
+                      setSelectedLocker(null);
+                      setShowLockerDropdown(true);
+                    }}
+                    onFocus={() => setShowLockerDropdown(true)}
+                    placeholder="e.g. 42 or LOC-042"
+                    className="w-full h-11 pl-8 pr-10 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 transition shadow-sm"
+                    required
+                  />
+                  {availableLockers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowLockerDropdown(!showLockerDropdown)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                      title="Browse available lockers"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Available Lockers Autocomplete Dropdown */}
+                {showLockerDropdown && availableLockers.length > 0 && !selectedLocker && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white rounded-xl border border-slate-200 shadow-xl max-h-48 overflow-y-auto p-1.5 text-xs">
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 mb-1">
+                      <span>Available Free Units</span>
+                      <span className="font-semibold text-emerald-800">
+                        {availableLockers.length} Free
+                      </span>
+                    </div>
+                    {availableLockers
+                      .filter((l) =>
+                        l.lockerNumber.toLowerCase().includes(lockerNumber.trim().toLowerCase())
+                      )
+                      .slice(0, 8)
+                      .map((l) => (
+                        <div
+                          key={l._id}
+                          onClick={() => handleSelectLocker(l)}
+                          className="px-3 py-2 hover:bg-emerald-50 rounded-lg cursor-pointer flex items-center justify-between text-slate-800 transition"
+                        >
+                          <span className="font-bold text-slate-900">#{l.lockerNumber}</span>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            Size {l.size} &bull; {l.rackNumber}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
                 )}
               </div>
 
-              {isSearchingCustomer && (
-                <div className="p-8 text-center text-slate-400 font-normal flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-800" />
-                  <span>Searching registered customers...</span>
-                </div>
-              )}
-
-              {!isSearchingCustomer && customerList.length === 0 && (
-                <div className="p-8 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-200">
-                  <User className="w-8 h-8 mx-auto text-slate-300" />
-                  <p className="font-bold text-slate-700 text-xs">No active customer found</p>
-                  <p className="text-xs max-w-sm mx-auto font-normal text-slate-500">
-                    Verify customer name/mobile number or register customer in the Customers module first.
-                  </p>
-                </div>
-              )}
-
-              {/* Customer Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
-                {customerList.map((cust) => {
-                  const isSelected = selectedCustomer?._id === cust._id;
-
-                  return (
-                    <div
-                      key={cust._id}
-                      onClick={() => setSelectedCustomer(cust)}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
-                        isSelected
-                          ? 'border-emerald-800 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-800/30'
-                          : 'border-slate-200/90 hover:border-emerald-400 bg-white hover:bg-emerald-50/20'
-                      }`}
-                    >
-                      {/* Top Row: Avatar, Name & KYC Badge */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          {cust.photoUrl ? (
-                            <img
-                              src={cust.photoUrl}
-                              alt={cust.fullName}
-                              className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-bold font-sans text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                              {cust.fullName.slice(0, 2).toUpperCase()}
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-bold text-slate-900 text-xs truncate font-sans">
-                              {cust.fullName}
-                            </h4>
-                            <span className="text-[11px] text-slate-500 block font-normal font-sans tabular-nums truncate">
-                              {cust.customerCode}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="shrink-0 ml-1">
-                          <KycStatusBadge status={cust.kycStatus} />
-                        </div>
-                      </div>
-
-                      {/* Bottom Row: Phone & Selection State */}
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-normal">
-                        <div className="flex items-center gap-1.5 text-slate-900 min-w-0">
-                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span className="font-sans font-medium text-slate-900 text-xs tabular-nums tracking-tight truncate">
-                            {formatPhone(cust.phone)}
-                          </span>
-                        </div>
-
-                        {isSelected ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-800 font-bold text-[11px] shrink-0 ml-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>Selected</span>
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 font-normal">Click to select</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Selected Customer Floating Banner */}
-              {selectedCustomer && (
-                <div
-                  className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 overflow-hidden ${
-                    selectedCustomer.kycStatus === 'VERIFIED'
-                      ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950 shadow-2xs'
-                      : 'bg-amber-50/90 border-amber-200 text-amber-950 shadow-2xs'
-                  }`}
+              {/* Size & Dimensions */}
+              <div>
+                <label
+                  htmlFor="alloc-size"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {selectedCustomer.kycStatus === 'VERIFIED' ? (
-                      <CheckCircle2 className="w-4.5 h-4.5 text-emerald-700 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-4.5 h-4.5 text-amber-700 shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-bold text-xs font-sans truncate">
-                        Selected: {selectedCustomer.fullName} ({selectedCustomer.customerCode})
-                      </p>
-                      <p className="text-[11px] text-slate-600 font-normal">
-                        {selectedCustomer.kycStatus === 'VERIFIED'
-                          ? 'KYC Verified customer. Ready for agreement.'
-                          : `KYC is ${selectedCustomer.kycStatus}. Ensure verification documents are completed.`}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-sans font-semibold text-xs tabular-nums text-slate-900 shrink-0 pl-7 sm:pl-0">
-                    {formatPhone(selectedCustomer.phone)}
+                  <span>Size & Physical Dimensions</span>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    Height × Width × Depth
                   </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* STEP 2: Select Available Locker */}
-          {currentStep === 2 && (
-            <div className="space-y-4">
-              {/* If pre-selected unit is active, show hero banner */}
-              {selectedLocker && (
-                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 shrink-0">
-                      <Check className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-slate-900">
-                          Selected: Locker #{selectedLocker.lockerNumber}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10.5px] font-bold text-slate-700">
-                          Size {selectedLocker.size}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
-                        {selectedLocker.rackNumber} &bull; {selectedLocker.section || 'Main Vault'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 pl-11.5 sm:pl-0">
-                    <span className="text-xs font-bold text-slate-900 tabular-nums">
-                      ₹{selectedLocker.annualRent?.toLocaleString('en-IN')}/yr
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleNextStep}
-                      className="bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl h-8 px-3 cursor-pointer shadow-2xs"
-                    >
-                      Use This Locker &rarr;
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Filter Toolbar */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">Filter by Locker Size</label>
+                </label>
+                <div className="relative">
                   <select
-                    value={sizeFilter}
-                    onChange={(e) => setSizeFilter(e.target.value)}
-                    className="w-full h-10 px-3 bg-slate-50/80 border border-slate-300 rounded-xl font-medium text-xs text-slate-900 cursor-pointer focus:border-emerald-700 focus:bg-white"
+                    id="alloc-size"
+                    value={size}
+                    onChange={(e) => handleSizeChange(e.target.value)}
+                    className="w-full h-11 pl-4 pr-10 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 cursor-pointer appearance-none transition shadow-sm"
                   >
-                    <option value="">All Sizes (A to G2)</option>
                     {LOCKER_SIZES.map((s) => (
                       <option key={s.code} value={s.code}>
-                        Size {s.code} ({s.dimensions})
+                        {s.label} &bull; {s.dimensions}
                       </option>
                     ))}
                   </select>
+                  <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 h-4 w-4" />
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">Filter by Physical Rack</label>
-                  <Input
+              {/* Row 2: Master Key Reference */}
+              <div>
+                <label
+                  htmlFor="alloc-key-number"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Master Key Reference <span className="text-emerald-700">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 select-none pointer-events-none">
+                    <KeyRound className="h-4 w-4" />
+                  </span>
+                  <input
+                    id="alloc-key-number"
                     type="text"
-                    value={rackFilter}
-                    onChange={(e) => setRackFilter(e.target.value)}
-                    placeholder="e.g. Rack 20 or Rack-01"
-                    className="h-10 text-xs bg-slate-50/80 border-slate-300 rounded-xl font-normal focus:border-emerald-700 focus:bg-white"
+                    value={keyNumber}
+                    onChange={(e) => setKeyNumber(e.target.value)}
+                    placeholder="e.g. KEY-042 or K-1092"
+                    className="w-full h-11 pl-11 pr-4 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 transition shadow-sm font-mono"
+                    required
                   />
                 </div>
               </div>
 
-              {isLoadingLockers && (
-                <div className="p-8 text-center text-slate-400 font-normal flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-800" />
-                  <span>Querying vacant safe-deposit lockers...</span>
+              {/* Row 2: Vault Rack Number */}
+              <div>
+                <label
+                  htmlFor="alloc-rack-number"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Vault Rack Number <span className="text-emerald-700">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 select-none pointer-events-none">
+                    <Building2 className="h-4 w-4" />
+                  </span>
+                  <input
+                    id="alloc-rack-number"
+                    type="text"
+                    value={rackNumber}
+                    onChange={(e) => setRackNumber(e.target.value)}
+                    placeholder="e.g. Rack 493 or Bay-02"
+                    className="w-full h-11 pl-11 pr-4 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 transition shadow-sm"
+                    required
+                  />
                 </div>
-              )}
-
-              {!isLoadingLockers && availableLockers.length === 0 && (
-                <div className="p-8 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-200">
-                  <KeyRound className="w-8 h-8 mx-auto text-slate-300" />
-                  <p className="font-bold text-slate-700 text-xs">No vacant lockers found</p>
-                  <p className="text-xs max-w-sm mx-auto font-normal text-slate-500">
-                    All units matching your criteria are currently occupied or reserved.
-                  </p>
-                </div>
-              )}
-
-              {/* Available Lockers Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto pr-1">
-                {availableLockers.map((locker) => {
-                  const isSelected = selectedLocker?._id === locker._id;
-
-                  return (
-                    <div
-                      key={locker._id}
-                      onClick={() => handleSelectLocker(locker)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
-                        isSelected
-                          ? 'border-emerald-800 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-800/30'
-                          : 'border-slate-200/90 hover:border-emerald-400 bg-white hover:bg-emerald-50/20'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs font-sans">
-                            <KeyRound className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
-                            <span>Locker #{locker.lockerNumber}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                            {locker.rackNumber} &bull; {locker.section || 'Main Vault'}
-                          </p>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold font-sans text-[10.5px] shrink-0">
-                          {locker.size}
-                        </span>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-normal">
-                        <div>
-                          <span className="text-slate-400 block text-[9.5px] font-sans uppercase font-medium">
-                            Rent
-                          </span>
-                          <strong className="text-slate-900 text-xs font-sans font-bold tabular-nums">
-                            ₹{locker.annualRent?.toLocaleString('en-IN')}/yr
-                          </strong>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-slate-400 block text-[9.5px] font-sans uppercase font-medium">
-                            Deposit
-                          </span>
-                          <strong className="text-slate-700 text-xs font-sans font-semibold tabular-nums">
-                            ₹{locker.securityDeposit?.toLocaleString('en-IN')}
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* STEP 3: Pricing & Terms */}
-          {currentStep === 3 && (
-            <div className="space-y-4">
-              {/* Unit & Customer Header Pill */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-slate-500" />
-                  <span className="font-bold text-slate-900">{selectedCustomer?.fullName}</span>
-                  <span className="text-slate-500 font-normal">({selectedCustomer?.customerCode})</span>
+          {/* Module 2: Rental Plan & Commercial Tariffs Card */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center shadow-xs">
+                  <Receipt className="w-3.5 h-3.5 text-[#164e43]" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-emerald-800" />
-                  <span className="font-bold text-slate-900">Locker #{selectedLocker?.lockerNumber}</span>
-                  <span className="px-1.5 py-0.2 rounded bg-white border border-slate-200 font-semibold text-[10.5px]">
-                    Size {selectedLocker?.size}
-                  </span>
+                <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">
+                  2. Rental Plan & Commercial Tariffs
+                </h3>
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Applicable GST: <span className="font-bold text-slate-700">18%</span>
+              </span>
+            </div>
+
+            {/* Balanced 3-column Grid for Tariffs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Row 1, Col 1: Billing Cycle */}
+              <div>
+                <label
+                  htmlFor="alloc-rental-plan"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Billing Cycle
+                </label>
+                <div className="relative">
+                  <select
+                    id="alloc-rental-plan"
+                    value={rentalPlan}
+                    onChange={(e) => setRentalPlan(e.target.value as any)}
+                    className="w-full h-11 pl-4 pr-10 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 cursor-pointer appearance-none transition shadow-sm"
+                  >
+                    <option value="1 Year">1 Year (Annual)</option>
+                    <option value="6 Months">6 Months (Half-Yearly)</option>
+                    <option value="3 Months">3 Months (Quarterly)</option>
+                    <option value="1 Month">1 Month</option>
+                  </select>
+                  <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 h-4 w-4" />
                 </div>
               </div>
 
-              {/* Date and Billing Cycle Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">Tenancy Start Date *</label>
-                  <Input
+              {/* Row 1, Col 2: Allotment Start Date */}
+              <div>
+                <label
+                  htmlFor="alloc-start-date"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Allotment Start Date <span className="text-emerald-700">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="alloc-start-date"
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full h-11 px-4 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 cursor-pointer transition shadow-sm"
                     required
-                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-medium rounded-xl focus:border-emerald-700 focus:bg-white"
                   />
-                  <span className="text-[10.5px] text-slate-500 block font-normal">
-                    1-Year Expiry: <strong className="font-semibold text-slate-700 tabular-nums">{previewEndDate}</strong>
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">Billing Cycle *</label>
-                  <select
-                    value={billingCycle}
-                    onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}
-                    className="w-full h-10 px-3 bg-slate-50/80 border border-slate-300 rounded-xl font-medium text-xs text-slate-900 cursor-pointer focus:border-emerald-700 focus:bg-white"
-                  >
-                    {BILLING_CYCLES.map((bc) => (
-                      <option key={bc.value} value={bc.value}>
-                        {bc.label}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
-              {/* Tariff Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">
-                    Annual Rent Tariff (₹) *
-                  </label>
-                  <Input
+              {/* Row 1, Col 3: Annual Rent (Excl. GST) */}
+              <div>
+                <label
+                  htmlFor="alloc-rent-amount"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Annual Rent (Excl. GST) <span className="text-emerald-700">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none pointer-events-none">
+                    ₹
+                  </span>
+                  <input
+                    id="alloc-rent-amount"
                     type="number"
                     min="0"
                     step="50"
-                    value={annualRent}
-                    onChange={(e) => setAnnualRent(Number(e.target.value))}
+                    value={rentAmount}
+                    onChange={(e) => handleRentChange(Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full h-11 pl-10 pr-4 text-sm font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 tabular-nums transition shadow-sm"
                     required
-                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-bold text-slate-900 rounded-xl tabular-nums focus:border-emerald-700 focus:bg-white"
                   />
-                  <p className="text-[10.5px] text-slate-500 font-normal">
-                    Equivalent to ~₹{monthlyEquivalent.toLocaleString('en-IN')}/month.
-                  </p>
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">
-                    Caution Deposit (₹) *
-                  </label>
-                  <Input
+              {/* Row 2, Col 1: GST (18%) */}
+              <div>
+                <label
+                  htmlFor="alloc-gst-amount"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between"
+                >
+                  <span>GST (18%)</span>
+                  <span className="text-[10.5px] text-slate-400 font-normal">Auto-computed</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none pointer-events-none">
+                    ₹
+                  </span>
+                  <input
+                    id="alloc-gst-amount"
+                    type="number"
+                    value={gstAmount}
+                    onChange={(e) => setGstAmount(Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full h-11 pl-10 pr-4 text-sm font-bold text-slate-800 bg-slate-100/80 border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 tabular-nums transition shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2, Col 2: Security Deposit */}
+              <div>
+                <label
+                  htmlFor="alloc-security-deposit"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between"
+                >
+                  <span>Security Deposit</span>
+                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Refundable
+                  </span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none pointer-events-none">
+                    ₹
+                  </span>
+                  <input
+                    id="alloc-security-deposit"
                     type="number"
                     min="0"
                     step="100"
                     value={securityDeposit}
                     onChange={(e) => setSecurityDeposit(Number(e.target.value))}
-                    required
-                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-bold text-slate-900 rounded-xl tabular-nums focus:border-emerald-700 focus:bg-white"
+                    placeholder="0"
+                    className="w-full h-11 pl-10 pr-4 text-sm font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 tabular-nums transition shadow-sm"
                   />
-                  <p className="text-[10.5px] text-slate-500 font-normal">
-                    100% refundable upon key return at surrender.
-                  </p>
                 </div>
               </div>
 
-              {/* Dynamic Financial Inflow Breakdown Card */}
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/90 space-y-2">
-                <span className="text-[10.5px] font-bold text-emerald-950 uppercase tracking-wider block">
-                  Booking Inflow &amp; Payment Schedule Breakdown
-                </span>
-                <div className="grid grid-cols-3 gap-2.5 text-center">
-                  <div className="p-2.5 bg-white rounded-xl border border-emerald-200/80 shadow-2xs">
-                    <span className="text-[10px] text-slate-500 block uppercase font-medium">Annual Rent</span>
-                    <strong className="text-slate-900 text-xs font-bold tabular-nums">
-                      ₹{parsedAnnualRent.toLocaleString('en-IN')}
-                    </strong>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-emerald-200/80 shadow-2xs">
-                    <span className="text-[10px] text-slate-500 block uppercase font-medium">Caution Deposit</span>
-                    <strong className="text-slate-900 text-xs font-bold tabular-nums">
-                      ₹{parsedDeposit.toLocaleString('en-IN')}
-                    </strong>
-                  </div>
-                  <div className="p-2.5 bg-emerald-100/90 rounded-xl border border-emerald-300 shadow-2xs">
-                    <span className="text-[10px] text-emerald-950 block uppercase font-bold">Total Initial Inflow</span>
-                    <strong className="text-emerald-950 text-xs font-bold tabular-nums">
-                      ₹{totalInitialInflow.toLocaleString('en-IN')}
-                    </strong>
-                  </div>
+              {/* Row 2, Col 3: Gross Rent Summary Pill */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  1st Year Rent (Gross)
+                </label>
+                <div className="h-11 px-4 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-xs">
+                  <span className="text-xs text-slate-500 font-medium">Rent + 18% GST</span>
+                  <span className="text-sm font-bold text-[#164e43] tabular-nums">
+                    ₹ {totalRentWithGst.toLocaleString('en-IN')}
+                  </span>
                 </div>
+              </div>
+            </div>
 
-                {billingCycle !== 'ANNUAL' && (
-                  <p className="text-[11px] text-emerald-900 font-medium pt-1">
-                    &bull; {billingCycle} Cycle: First installment of <strong>₹{cycleInstallmentRent.toLocaleString('en-IN')}</strong> + Deposit <strong>₹{parsedDeposit.toLocaleString('en-IN')}</strong> = <strong>₹{cycleFirstDue.toLocaleString('en-IN')}</strong> due at check-in.
-                  </p>
-                )}
+            {/* Clear Financial Settlement Card */}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-slate-600">
+                <div className="space-y-0.5">
+                  <span className="text-[10.5px] uppercase tracking-wider text-slate-500 font-bold block">
+                    Base Rent
+                  </span>
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
+                    ₹ {Number(rentAmount || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="text-slate-300 font-light text-base select-none">+</div>
+                <div className="space-y-0.5">
+                  <span className="text-[10.5px] uppercase tracking-wider text-slate-500 font-bold block">
+                    GST (18%)
+                  </span>
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
+                    ₹ {Number(gstAmount || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="text-slate-300 font-light text-base select-none">=</div>
+                <div className="space-y-0.5">
+                  <span className="text-[10.5px] uppercase tracking-wider text-[#164e43] font-bold block">
+                    1st Year Rent
+                  </span>
+                  <span className="text-sm font-bold text-[#164e43] tabular-nums">
+                    ₹ {totalRentWithGst.toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="text-slate-300 font-light text-base select-none">+</div>
+                <div className="space-y-0.5">
+                  <span className="text-[10.5px] uppercase tracking-wider text-slate-500 font-bold block">
+                    Security Deposit
+                  </span>
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
+                    ₹ {Number(securityDeposit || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
               </div>
 
-              {isReserve ? (
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">Hold / Reservation Duration (Days)</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={reservationDays}
-                    onChange={(e) => setReservationDays(Number(e.target.value))}
-                    className="h-10 text-xs bg-slate-50/80 border-slate-300 font-medium rounded-xl tabular-nums focus:border-emerald-700 focus:bg-white"
-                  />
+              {/* Total Due Callout */}
+              <div className="flex items-center gap-3.5 bg-white px-5 py-3 rounded-xl border border-emerald-300 shadow-xs md:ml-auto shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-[#164e43] shrink-0" />
+                <div className="text-right">
+                  <span className="text-[10.5px] uppercase tracking-wider text-slate-500 font-bold block">
+                    Total Due at Allotment
+                  </span>
+                  <span className="text-base sm:text-lg font-extrabold text-[#164e43] tabular-nums">
+                    ₹ {totalInitialPayable.toLocaleString('en-IN')}
+                  </span>
                 </div>
-              ) : (
-                <div className="space-y-1">
-                  <label className="font-semibold text-xs text-slate-700">Agreement Classification</label>
-                  <select
-                    value={allocationType}
-                    onChange={(e) => setAllocationType(e.target.value as AllocationType)}
-                    className="w-full h-10 px-3 bg-slate-50/80 border border-slate-300 rounded-xl font-medium text-xs text-slate-900 cursor-pointer focus:border-emerald-700 focus:bg-white"
+              </div>
+            </div>
+          </div>
+
+          {/* Module 3: Customer Tenancy & Lease Agreement Card */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center shadow-xs">
+                  <User className="w-3.5 h-3.5 text-[#164e43]" />
+                </div>
+                <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">
+                  3. Customer Tenancy Agreement
+                </h3>
+              </div>
+
+              {/* Allocation Type Toggle */}
+              <div className="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-xl text-xs font-semibold shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setAllocationType('NEW')}
+                  className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                    allocationType === 'NEW'
+                      ? 'bg-[#164e43] text-white shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Active Allotment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllocationType('RESERVED')}
+                  className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                    allocationType === 'RESERVED'
+                      ? 'bg-amber-700 text-white shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Advance Reservation
+                </button>
+              </div>
+            </div>
+
+            {/* If Customer is Verified & Matched */}
+            {matchedCustomer ? (
+              <div className="p-5 rounded-2xl bg-white border border-emerald-300 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="h-11 w-11 rounded-full bg-[#164e43] text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
+                    {matchedCustomer.fullName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-900">
+                        {matchedCustomer.fullName}
+                      </span>
+                      <span className="text-[10.5px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1 border border-emerald-200">
+                        <ShieldCheck className="h-3 w-3 text-emerald-700" />
+                        KYC {matchedCustomer.kycStatus}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 font-medium mt-0.5">
+                      {matchedCustomer.phone} &bull; Code: {matchedCustomer.customerCode}
+                      {matchedCustomer.email && ` • ${matchedCustomer.email}`}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMatchedCustomer(null);
+                    setCustomerName('');
+                    setCustomerMobile('');
+                    setCustomerEmail('');
+                  }}
+                  className="px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition cursor-pointer self-start sm:self-auto shadow-xs"
+                >
+                  Change Customer
+                </button>
+              </div>
+            ) : (
+              /* If Entering or Searching Customer */
+              <div className="space-y-4">
+                {/* Customer Name Search */}
+                <div className="relative">
+                  <label
+                    htmlFor="alloc-customer-name"
+                    className="block text-xs font-semibold text-slate-700 mb-1.5"
                   >
-                    {ALLOCATION_TYPES.map((at) => (
-                      <option key={at.value} value={at.value}>
-                        {at.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                    Customer Name <span className="text-emerald-700">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="alloc-customer-name"
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        setCustomerQuery(e.target.value);
+                        setMatchedCustomer(null);
+                        setShowCustomerDropdown(true);
+                      }}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      placeholder="Search existing customer or enter new applicant name..."
+                      className="w-full h-11 pl-4 pr-11 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 transition shadow-sm"
+                      required
+                    />
+                    {customerQuery ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerName('');
+                          setCustomerQuery('');
+                          setMatchedCustomer(null);
+                        }}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4 pointer-events-none" />
+                    )}
+                  </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-xs text-slate-700">Operational Remarks / Key Handover Notes</label>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Optional notes regarding key handover, authorized joint operator, or special instructions"
-                  rows={2}
-                  className="w-full p-2.5 text-xs bg-slate-50/80 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 font-normal"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* STEP 4: Review & Final Confirmation */}
-          {currentStep === 4 && (
-            <div className="space-y-3.5 font-normal">
-              <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 flex items-center gap-2.5 shadow-2xs">
-                <FileCheck className="w-5 h-5 text-emerald-800 shrink-0" />
-                <div>
-                  <h4 className="font-bold text-emerald-950 text-xs">
-                    Please Review Tenancy Agreement Details
-                  </h4>
-                  <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
-                    Confirming will assign <strong>Locker #{selectedLocker?.lockerNumber}</strong> to <strong>{selectedCustomer?.fullName}</strong> and transition unit status to {isReserve ? 'RESERVED' : 'OCCUPIED'}.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Customer Card */}
-                <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 space-y-2 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Verified Tenant Customer
-                  </span>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-bold flex items-center justify-center shrink-0 shadow-2xs text-xs">
-                      {selectedCustomer?.fullName.slice(0, 2).toUpperCase()}
+                  {/* Customer Autocomplete Dropdown */}
+                  {showCustomerDropdown && (isSearchingCustomer || customerResults.length > 0) && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white rounded-xl border border-slate-200 shadow-xl max-h-48 overflow-y-auto p-1.5 text-xs">
+                      {isSearchingCustomer && (
+                        <div className="p-3 text-center text-slate-400 flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-[#164e43]" />
+                          <span>Searching customer directory...</span>
+                        </div>
+                      )}
+                      {customerResults.map((cust) => (
+                        <div
+                          key={cust._id}
+                          onClick={() => handleSelectCustomer(cust)}
+                          className="px-3 py-2 hover:bg-emerald-50 rounded-lg cursor-pointer flex items-center justify-between text-slate-800 transition"
+                        >
+                          <div>
+                            <p className="font-bold text-xs text-slate-900">{cust.fullName}</p>
+                            <p className="text-[10.5px] text-slate-500 font-medium">
+                              {cust.phone} &bull; Code: {cust.customerCode}
+                            </p>
+                          </div>
+                          <span className="text-[10.5px] font-semibold text-[#164e43] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            KYC {cust.kycStatus}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-900 text-xs truncate font-sans">
-                        {selectedCustomer?.fullName}
-                      </p>
-                      <p className="text-[11px] text-slate-500 font-sans tabular-nums">
-                        {selectedCustomer?.customerCode} &bull; {selectedCustomer?.phone}
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                {/* Locker Card */}
-                <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 space-y-2 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Safe-Deposit Compartment
-                  </span>
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
-                      <KeyRound className="w-5 h-5" />
+                {/* Mobile & Email - Balanced 2 Columns */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="alloc-customer-mobile"
+                      className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    >
+                      Customer Mobile Number <span className="text-emerald-700">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none tracking-wide pointer-events-none">
+                        +91
+                      </span>
+                      <input
+                        id="alloc-customer-mobile"
+                        type="tel"
+                        value={customerMobile}
+                        onChange={(e) => {
+                          setCustomerMobile(e.target.value);
+                          setCustomerQuery(e.target.value);
+                          setMatchedCustomer(null);
+                          setShowCustomerDropdown(true);
+                        }}
+                        placeholder="9876543210"
+                        maxLength={10}
+                        className="w-full h-11 pl-14 pr-4 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 tabular-nums transition shadow-sm"
+                        required
+                      />
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-900 text-xs truncate font-sans">
-                        Locker #{selectedLocker?.lockerNumber} (Size {selectedLocker?.size})
-                      </p>
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        {selectedLocker?.rackNumber} &bull; {selectedLocker?.section || 'Main Vault'}
-                      </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="alloc-customer-email"
+                      className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    >
+                      Customer Email Address
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 select-none pointer-events-none">
+                        <Mail className="h-4 w-4" />
+                      </span>
+                      <input
+                        id="alloc-customer-email"
+                        type="email"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        placeholder="customer@example.com"
+                        className="w-full h-11 pl-11 pr-4 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 transition shadow-sm"
+                      />
                     </div>
                   </div>
                 </div>
               </div>
-
-              {/* Financial Snapshot Card */}
-              <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Agreed Financial Pricing (Immutable Snapshot)
-                </span>
-                <div className="grid grid-cols-3 gap-2.5 text-center">
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                    <span className="text-[9.5px] font-sans text-slate-500 block uppercase font-medium">START DATE</span>
-                    <strong className="text-slate-900 text-xs font-sans font-bold tabular-nums">{startDate}</strong>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                    <span className="text-[9.5px] font-sans text-slate-500 block uppercase font-medium">ANNUAL RENT</span>
-                    <strong className="text-emerald-800 text-xs font-sans font-bold tabular-nums">
-                      ₹{parsedAnnualRent.toLocaleString('en-IN')}
-                    </strong>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                    <span className="text-[9.5px] font-sans text-slate-500 block uppercase font-medium">CAUTION DEPOSIT</span>
-                    <strong className="text-slate-800 text-xs font-sans font-bold tabular-nums">
-                      ₹{parsedDeposit.toLocaleString('en-IN')}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="p-3.5 sm:px-6 sm:py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
-          <div>
-            {currentStep > 1 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setError(null);
-                  // If preSelectedLocker is present and we're at Step 3, going back goes to Step 1 directly
-                  if (currentStep === 3 && preSelectedLocker && selectedLocker?._id === preSelectedLocker._id) {
-                    setCurrentStep(1);
-                  } else {
-                    setCurrentStep((prev) => (prev - 1) as any);
-                  }
-                }}
-                disabled={isSubmitting}
-                className="rounded-xl border-slate-300 font-semibold text-slate-700 text-xs h-8.5 px-3.5 flex items-center gap-1 cursor-pointer hover:bg-slate-100"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Previous</span>
-              </Button>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="rounded-xl border-slate-300 text-slate-700 font-semibold text-xs h-8.5 px-3.5 hover:bg-slate-100 cursor-pointer"
-            >
-              Cancel
-            </Button>
+          {/* Modal Footer */}
+          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
+            <div className="text-xs text-slate-500 font-medium">
+              <span className="text-emerald-700 font-bold">*</span> Mandatory fields for bank locker
+              allotment register
+            </div>
 
-            {currentStep < 4 ? (
-              <Button
+            <div className="flex items-center justify-end gap-3">
+              <button
                 type="button"
-                size="sm"
-                onClick={handleNextStep}
-                className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold shadow-xs rounded-xl h-8.5 px-4 flex items-center gap-1 text-xs cursor-pointer"
-              >
-                <span>Continue</span>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleFinalSubmit}
+                onClick={onClose}
                 disabled={isSubmitting}
-                className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold shadow-xs min-w-[170px] rounded-xl h-8.5 px-4 text-xs cursor-pointer"
+                className="px-5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 rounded-xl font-semibold text-xs sm:text-sm text-white bg-[#164e43] hover:bg-[#0f3b33] transition shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Allocating Unit...</span>
-                  </span>
-                ) : isReserve ? (
-                  'Confirm Reservation'
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Processing Allotment...</span>
+                  </>
+                ) : allocationType === 'RESERVED' ? (
+                  <>
+                    <Calendar className="h-4 w-4" />
+                    <span>Reserve Locker</span>
+                  </>
                 ) : (
-                  'Confirm & Allocate Locker'
+                  <>
+                    <KeyRound className="h-4 w-4" />
+                    <span>
+                      Confirm Allotment &bull; ₹ {totalInitialPayable.toLocaleString('en-IN')}
+                    </span>
+                  </>
                 )}
-              </Button>
-            )}
+              </button>
+            </div>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

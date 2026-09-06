@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import React, { useState, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -16,8 +16,11 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle,
+  CheckCircle2,
   Building,
   Receipt,
+  CreditCard,
+  Printer,
 } from 'lucide-react';
 import { customerApi } from '../features/customers/api/customerApi';
 import {
@@ -32,6 +35,7 @@ import { KycDocumentList } from '../features/customers/components/KycDocumentLis
 import { KycDocumentModal } from '../features/customers/components/KycDocumentModal';
 import { CustomerFormModal } from '../features/customers/components/CustomerFormModal';
 import { formatPhone } from '../features/customers/utils/phoneFormatter';
+import { formatINR } from '../features/lockers/utils/formatters';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
@@ -45,15 +49,43 @@ import { PaymentStatusBadge, DueStatusBadge } from '../features/renewals/compone
 import { paymentApi } from '../features/payments/api/paymentApi';
 import { PaymentMethodBadge } from '../features/payments/components/PaymentMethodBadge';
 import { PaymentReceiptModal } from '../features/payments/components/PaymentReceiptModal';
+import { RecordPaymentModal } from '../features/payments/components/RecordPaymentModal';
+import { RecordPaymentInput } from '../features/payments/types';
 
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
+  const handleBackToCustomers = () => {
+    // 1. If state has the return URL (with page, search, filters)
+    if (location.state?.from && typeof location.state.from === 'string') {
+      navigate(location.state.from);
+      return;
+    }
+
+    // 2. If saved in sessionStorage
+    const saved = sessionStorage.getItem('customer_list_params');
+    if (saved) {
+      navigate(`/customers?${saved}`);
+      return;
+    }
+
+    // 3. Fallback to browser history back
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    // 4. Default fallback
+    navigate('/customers');
+  };
+
   const canUpdate = usePermission('customers.update');
   const canDelete = usePermission('customers.delete');
+  const canAllocate = usePermission('allocations.create');
 
   const activeTab = searchParams.get('tab') || 'kyc';
   const tabIds = ['kyc', 'profile', 'lockers', 'billing', 'payments'];
@@ -81,6 +113,7 @@ export function CustomerDetailPage() {
   const [editingKycDoc, setEditingKycDoc] = useState<CustomerKycDocument | null>(
     null
   );
+  const [recordPaymentInvoiceId, setRecordPaymentInvoiceId] = useState<string | null>(null);
 
   // Fetch Customer
   const {
@@ -123,7 +156,42 @@ export function CustomerDetailPage() {
 
   const [viewingReceipt, setViewingReceipt] = useState<any | null>(null);
 
+  // Computed Invoice & Dues Summary
+  const invoiceMetrics = useMemo(() => {
+    if (!customerInvoices || customerInvoices.length === 0) {
+      return { totalInvoiced: 0, totalSettled: 0, totalBalance: 0, unpaidCount: 0 };
+    }
+    return customerInvoices.reduce(
+      (acc: any, inv: any) => {
+        const total = Number(inv.totalAmount) || 0;
+        const balance = Number(inv.balanceAmount) || 0;
+        const paid = Number(inv.paidAmount) || (total - balance);
+        acc.totalInvoiced += total;
+        acc.totalBalance += balance;
+        acc.totalSettled += paid;
+        if (inv.paymentStatus !== 'PAID') {
+          acc.unpaidCount += 1;
+        }
+        return acc;
+      },
+      { totalInvoiced: 0, totalSettled: 0, totalBalance: 0, unpaidCount: 0 }
+    );
+  }, [customerInvoices]);
+
   // Mutations
+  const recordPaymentMutation = useMutation({
+    mutationFn: ({ data, idempotencyKey }: { data: RecordPaymentInput; idempotencyKey?: string }) =>
+      paymentApi.recordPayment(data, idempotencyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-invoices', id] });
+      queryClient.invalidateQueries({ queryKey: ['customer-payments', id] });
+      queryClient.invalidateQueries({ queryKey: ['customer-allocations', id] });
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['renewal-stats'] });
+    },
+  });
+
   const updateCustomerMutation = useMutation({
     mutationFn: (data: any) => customerApi.updateCustomer(id!, data),
     onSuccess: () => {
@@ -230,11 +298,9 @@ export function CustomerDetailPage() {
         <p className="text-xs text-slate-500">
           The requested customer does not exist or has been removed from the registry.
         </p>
-        <Link to="/customers">
-          <Button variant="outline" size="sm">
-            Back to Customers Directory
-          </Button>
-        </Link>
+        <Button variant="outline" size="sm" onClick={handleBackToCustomers} className="cursor-pointer">
+          Back to Customers Directory
+        </Button>
       </div>
     );
   }
@@ -245,7 +311,7 @@ export function CustomerDetailPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <button
           type="button"
-          onClick={() => navigate('/customers')}
+          onClick={handleBackToCustomers}
           className="h-9 inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-emerald-800 transition-colors rounded-xl px-2 -ml-2 hover:bg-slate-100/80 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -253,6 +319,18 @@ export function CustomerDetailPage() {
         </button>
 
         <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+          {canAllocate && !customerAllocations?.activeAllocation && (
+            <Button
+              size="sm"
+              onClick={() => navigate('/allocations')}
+              className="h-9 px-3.5 flex items-center justify-center gap-1.5 text-xs font-semibold bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl cursor-pointer shadow-xs"
+              title="Allocate Locker to Customer"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Allocate Locker</span>
+            </Button>
+          )}
+
           {canUpdate && (
             <Button
               variant="outline"
@@ -290,7 +368,7 @@ export function CustomerDetailPage() {
                 className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white shadow-xs shrink-0"
               />
             ) : (
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-semibold text-xl sm:text-2xl shrink-0 border border-emerald-200/80 font-sans tracking-wide shadow-2xs">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white flex items-center justify-center font-semibold text-xl sm:text-2xl shrink-0 shadow-xs ring-1 ring-slate-900/10 font-sans tracking-wide">
                 {customer.fullName.slice(0, 2).toUpperCase()}
               </div>
             )}
@@ -311,11 +389,33 @@ export function CustomerDetailPage() {
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
                 <CustomerStatusBadge status={customer.status} />
                 <KycStatusBadge status={customer.kycStatus} />
-                {customer.city && (
-                  <span className="text-xs text-slate-500 font-normal flex items-center gap-1">
+
+                {/* Vault Locker Credential Asset Badge */}
+                {customerAllocations?.activeAllocation ? (
+                  <button
+                    type="button"
+                    onClick={() => setTab('lockers')}
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-xl text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 transition-all cursor-pointer shadow-2xs group"
+                    title="Click to view locker agreement details"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-emerald-400 group-hover:rotate-12 transition-transform shrink-0" />
+                    <span>Locker #{customerAllocations.activeAllocation.lockerId?.lockerNumber}</span>
+                    <span className="text-slate-500 font-normal">&bull;</span>
+                    <span className="text-slate-300 font-mono text-[11px]">Size {customerAllocations.activeAllocation.lockerId?.size}</span>
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium bg-slate-100 border border-slate-200 text-slate-500">
+                    <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                    <span>No Active Locker</span>
+                  </span>
+                )}
+
+                {/* Residential City */}
+                {customer.city && !/vault|rack|floor|operational|facility/i.test(customer.city) && (
+                  <span className="text-xs text-slate-500 font-normal flex items-center gap-1 ml-0.5">
                     <MapPin className="w-3.5 h-3.5 text-slate-400" />
                     <span>
-                      {customer.city}, {customer.state || 'India'}
+                      {customer.city}{customer.state && !/operational|active/i.test(customer.state) ? `, ${customer.state}` : ''}
                     </span>
                   </span>
                 )}
@@ -363,8 +463,12 @@ export function CustomerDetailPage() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div role="tablist" aria-label="Customer record sections" className="flex items-center gap-1.5 border-t border-slate-100 mt-5 pt-3.5 text-xs font-medium overflow-x-auto pb-1">
+        {/* Sleek Underline Tab Navigation */}
+        <div
+          role="tablist"
+          aria-label="Customer record sections"
+          className="flex items-center gap-6 sm:gap-8 border-t border-slate-100 mt-5 pt-1 text-xs font-medium overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           <button
             id="customer-tab-kyc"
             role="tab"
@@ -374,14 +478,23 @@ export function CustomerDetailPage() {
             type="button"
             onClick={() => setTab('kyc')}
             onKeyDown={handleTabKeyDown}
-            className={`h-9 px-3.5 rounded-xl flex items-center gap-2 transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 cursor-pointer ${
+            className={`flex items-center gap-2 py-3 border-b-2 transition-all whitespace-nowrap cursor-pointer -mb-px text-xs ${
               activeTab === 'kyc'
-                ? 'bg-emerald-800 text-white shadow-xs font-medium'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-normal'
+                ? 'border-emerald-700 text-emerald-800 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 font-medium'
             }`}
           >
-            <ShieldCheck className="w-4 h-4" />
-            <span>KYC Documents ({kycDocs?.length || 0})</span>
+            <ShieldCheck className={`w-4 h-4 ${activeTab === 'kyc' ? 'text-emerald-700' : 'text-slate-400'}`} />
+            <span>KYC Documents</span>
+            <span
+              className={`text-[10.5px] px-1.5 py-0.5 rounded-full font-mono tabular-nums ${
+                activeTab === 'kyc'
+                  ? 'bg-emerald-100 text-emerald-800 font-semibold'
+                  : 'bg-slate-100 text-slate-500 font-normal'
+              }`}
+            >
+              {kycDocs?.length || 0}
+            </span>
           </button>
 
           <button
@@ -393,14 +506,14 @@ export function CustomerDetailPage() {
             type="button"
             onClick={() => setTab('profile')}
             onKeyDown={handleTabKeyDown}
-            className={`h-9 px-3.5 rounded-xl flex items-center gap-2 transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 cursor-pointer ${
+            className={`flex items-center gap-2 py-3 border-b-2 transition-all whitespace-nowrap cursor-pointer -mb-px text-xs ${
               activeTab === 'profile'
-                ? 'bg-emerald-800 text-white shadow-xs font-medium'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-normal'
+                ? 'border-emerald-700 text-emerald-800 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 font-medium'
             }`}
           >
-            <User className="w-4 h-4" />
-            <span>Personal Profile & Address</span>
+            <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-emerald-700' : 'text-slate-400'}`} />
+            <span>Personal Profile &amp; Address</span>
           </button>
 
           <button
@@ -412,14 +525,23 @@ export function CustomerDetailPage() {
             type="button"
             onClick={() => setTab('lockers')}
             onKeyDown={handleTabKeyDown}
-            className={`h-9 px-3.5 rounded-xl flex items-center gap-2 transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 cursor-pointer ${
+            className={`flex items-center gap-2 py-3 border-b-2 transition-all whitespace-nowrap cursor-pointer -mb-px text-xs ${
               activeTab === 'lockers'
-                ? 'bg-emerald-800 text-white shadow-xs font-medium'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-normal'
+                ? 'border-emerald-700 text-emerald-800 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 font-medium'
             }`}
           >
-            <KeyRound className="w-4 h-4" />
-            <span>Locker History</span>
+            <KeyRound className={`w-4 h-4 ${activeTab === 'lockers' ? 'text-emerald-700' : 'text-slate-400'}`} />
+            <span>Locker Tenancy</span>
+            <span
+              className={`text-[10.5px] px-1.5 py-0.5 rounded-full font-mono tabular-nums ${
+                activeTab === 'lockers'
+                  ? 'bg-emerald-100 text-emerald-800 font-semibold'
+                  : 'bg-slate-100 text-slate-500 font-normal'
+              }`}
+            >
+              {customerAllocations?.activeAllocation ? '1 Active' : '0'}
+            </span>
           </button>
 
           <button
@@ -431,14 +553,23 @@ export function CustomerDetailPage() {
             type="button"
             onClick={() => setTab('billing')}
             onKeyDown={handleTabKeyDown}
-            className={`h-9 px-3.5 rounded-xl flex items-center gap-2 transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 cursor-pointer ${
+            className={`flex items-center gap-2 py-3 border-b-2 transition-all whitespace-nowrap cursor-pointer -mb-px text-xs ${
               activeTab === 'billing'
-                ? 'bg-emerald-800 text-white shadow-xs font-medium'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-normal'
+                ? 'border-emerald-700 text-emerald-800 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 font-medium'
             }`}
           >
-            <FileText className="w-4 h-4" />
-            <span>Billing Statements ({customerInvoices?.length || 0})</span>
+            <FileText className={`w-4 h-4 ${activeTab === 'billing' ? 'text-emerald-700' : 'text-slate-400'}`} />
+            <span>Billing Statements</span>
+            <span
+              className={`text-[10.5px] px-1.5 py-0.5 rounded-full font-mono tabular-nums ${
+                activeTab === 'billing'
+                  ? 'bg-emerald-100 text-emerald-800 font-semibold'
+                  : 'bg-slate-100 text-slate-500 font-normal'
+              }`}
+            >
+              {customerInvoices?.length || 0}
+            </span>
           </button>
 
           <button
@@ -450,25 +581,37 @@ export function CustomerDetailPage() {
             type="button"
             onClick={() => setTab('payments')}
             onKeyDown={handleTabKeyDown}
-            className={`h-9 px-3.5 rounded-xl flex items-center gap-2 transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 cursor-pointer ${
+            className={`flex items-center gap-2 py-3 border-b-2 transition-all whitespace-nowrap cursor-pointer -mb-px text-xs ${
               activeTab === 'payments'
-                ? 'bg-emerald-800 text-white shadow-xs font-medium'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-normal'
+                ? 'border-emerald-700 text-emerald-800 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 font-medium'
             }`}
           >
-            <Receipt className="w-4 h-4" />
-            <span>Payments & Receipts ({customerPayments?.length || 0})</span>
+            <Receipt className={`w-4 h-4 ${activeTab === 'payments' ? 'text-emerald-700' : 'text-slate-400'}`} />
+            <span>Payments &amp; Receipts</span>
+            <span
+              className={`text-[10.5px] px-1.5 py-0.5 rounded-full font-mono tabular-nums ${
+                activeTab === 'payments'
+                  ? 'bg-emerald-100 text-emerald-800 font-semibold'
+                  : 'bg-slate-100 text-slate-500 font-normal'
+              }`}
+            >
+              {customerPayments?.length || 0}
+            </span>
           </button>
         </div>
       </div>
 
       {/* Tab 1: KYC Documents */}
       {activeTab === 'kyc' && (
-        <Card id="customer-panel-kyc" role="tabpanel" aria-labelledby="customer-tab-kyc" tabIndex={0} className="border-slate-200 shadow-2xs focus:outline-none">
+        <Card id="customer-panel-kyc" role="tabpanel" aria-labelledby="customer-tab-kyc" tabIndex={0} className="border-slate-200/90 shadow-2xs focus:outline-none rounded-2xl">
           <CardContent className="p-4 sm:p-6">
             <KycDocumentList
               documents={kycDocs || []}
               isLoading={isKycLoading}
+              customerKycStatus={customer.kycStatus}
+              customerName={customer.fullName}
+              customerCode={customer.customerCode}
               onAddDocument={() => {
                 setEditingKycDoc(null);
                 setIsKycModalOpen(true);
@@ -649,10 +792,10 @@ export function CustomerDetailPage() {
                       Agreed Annual Rent
                     </span>
                     <strong className="text-sm text-emerald-800 font-sans font-semibold tabular-nums">
-                      ₹{(customerAllocations.activeAllocation.rentSnapshot ?? customerAllocations.activeAllocation.annualRent).toLocaleString('en-IN')}
+                      {formatINR(customerAllocations.activeAllocation.rentSnapshot ?? customerAllocations.activeAllocation.annualRent)}
                     </strong>
                     <p className="text-[10px] text-slate-500 tabular-nums">
-                      Deposit: ₹{(customerAllocations.activeAllocation.depositSnapshot ?? customerAllocations.activeAllocation.securityDeposit).toLocaleString('en-IN')}
+                      Deposit: {formatINR(customerAllocations.activeAllocation.depositSnapshot ?? customerAllocations.activeAllocation.securityDeposit)}
                     </p>
                   </div>
                 </div>
@@ -708,9 +851,15 @@ export function CustomerDetailPage() {
                           #{hist.lockerId?.lockerNumber} (Size {hist.lockerId?.size})
                         </td>
                         <td className="p-3.5 font-sans tabular-nums text-slate-600">
-                          {new Date(hist.startDate).toLocaleDateString('en-IN')}
+                          {new Date(hist.startDate).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
                         </td>
-                        <td className="p-3.5 font-sans font-medium text-slate-900 tabular-nums">₹{(hist.rentSnapshot ?? hist.annualRent).toLocaleString('en-IN')}</td>
+                        <td className="p-3.5 font-sans font-medium text-slate-900 tabular-nums">
+                          {formatINR(hist.rentSnapshot ?? hist.annualRent)}
+                        </td>
                         <td className="p-3.5">
                           <AllocationStatusBadge status={hist.status} />
                         </td>
@@ -727,6 +876,82 @@ export function CustomerDetailPage() {
       {/* Tab 4: Billing & Renewals History */}
       {activeTab === 'billing' && (
         <div id="customer-panel-billing" role="tabpanel" aria-labelledby="customer-tab-billing" tabIndex={0} className="space-y-4 focus:outline-none">
+          {/* Executive Financial Summary Ribbon */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <Card className="border-slate-200/90 rounded-2xl shadow-2xs bg-white p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                  Total Invoiced
+                </span>
+                <div className="h-7 w-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                  <FileText className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-xl font-bold font-sans text-slate-900 tabular-nums">
+                  {formatINR(invoiceMetrics.totalInvoiced)}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-normal mt-0.5">
+                {customerInvoices?.length || 0} invoice{customerInvoices?.length === 1 ? '' : 's'} generated
+              </p>
+            </Card>
+
+            <Card className="border-emerald-200/80 rounded-2xl shadow-2xs bg-emerald-50/40 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">
+                  Total Settled
+                </span>
+                <div className="h-7 w-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-xl font-bold font-sans text-emerald-800 tabular-nums">
+                  {formatINR(invoiceMetrics.totalSettled)}
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-700 font-normal mt-0.5">
+                Collections credited
+              </p>
+            </Card>
+
+            <Card className={`rounded-2xl shadow-2xs p-4 ${
+              invoiceMetrics.totalBalance > 0
+                ? 'border-amber-200 bg-amber-50/40'
+                : 'border-slate-200/90 bg-white'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                  invoiceMetrics.totalBalance > 0 ? 'text-amber-800' : 'text-slate-500'
+                }`}>
+                  Outstanding Balance
+                </span>
+                <div className={`h-7 w-7 rounded-lg flex items-center justify-center ${
+                  invoiceMetrics.totalBalance > 0
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-slate-100 text-slate-600'
+                }`}>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className={`text-xl font-bold font-sans tabular-nums ${
+                  invoiceMetrics.totalBalance > 0 ? 'text-rose-600' : 'text-slate-900'
+                }`}>
+                  {formatINR(invoiceMetrics.totalBalance)}
+                </span>
+              </div>
+              <p className={`text-[11px] font-normal mt-0.5 ${
+                invoiceMetrics.totalBalance > 0 ? 'text-amber-800' : 'text-slate-400'
+              }`}>
+                {invoiceMetrics.unpaidCount > 0
+                  ? `${invoiceMetrics.unpaidCount} invoice${invoiceMetrics.unpaidCount === 1 ? '' : 's'} pending payment`
+                  : 'All dues settled'}
+              </p>
+            </Card>
+          </div>
+
           {isInvoicesLoading ? (
             <div className="p-8 text-center text-slate-400 font-normal animate-pulse bg-white rounded-2xl border border-slate-200">
               Loading Billing Invoices...
@@ -761,43 +986,90 @@ export function CustomerDetailPage() {
                       <th className="p-3.5">Invoice Number</th>
                       <th className="p-3.5">Locker</th>
                       <th className="p-3.5">Due Date</th>
-                      <th className="p-3.5">Period</th>
+                      <th className="p-3.5">Billing Period</th>
                       <th className="p-3.5 text-right">Amount</th>
                       <th className="p-3.5 text-right">Balance</th>
                       <th className="p-3.5 text-center">Status</th>
+                      <th className="p-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-normal text-slate-700">
                     {customerInvoices.map((inv: any) => (
                       <tr key={inv._id} className="hover:bg-emerald-50/30 transition-colors">
                         <td className="p-3.5 font-sans font-medium text-slate-900">
-                          {inv.invoiceNumber}
+                          <span className="font-semibold block">{inv.invoiceNumber}</span>
                           {inv.legacyReference && (
                             <span className="text-[10.5px] text-slate-400 block font-normal">
-                              {inv.legacyReference}
+                              Ref: {inv.legacyReference}
                             </span>
                           )}
                         </td>
-                        <td className="p-3.5 font-sans font-medium text-slate-800">
-                          #{inv.lockerId?.lockerNumber} (Size {inv.lockerId?.size})
+                        <td className="p-3.5 font-sans">
+                          <strong className="font-medium text-slate-800">
+                            #{inv.lockerId?.lockerNumber}
+                          </strong>
+                          <span className="ml-1 text-[11px] text-slate-500">
+                            (Size {inv.lockerId?.size})
+                          </span>
                         </td>
                         <td className="p-3.5 font-sans tabular-nums text-slate-600">
-                          {new Date(inv.dueDate).toLocaleDateString('en-IN')}
+                          {new Date(inv.dueDate).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
                         </td>
                         <td className="p-3.5 text-[11px] font-sans tabular-nums text-slate-500">
-                          {new Date(inv.billingPeriodStart).toLocaleDateString('en-IN')} –{' '}
-                          {new Date(inv.billingPeriodEnd).toLocaleDateString('en-IN')}
+                          {new Date(inv.billingPeriodStart).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })} –{' '}
+                          {new Date(inv.billingPeriodEnd).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
                         </td>
                         <td className="p-3.5 text-right font-semibold font-sans tabular-nums text-slate-900">
-                          ₹{inv.totalAmount.toLocaleString('en-IN')}
+                          {formatINR(inv.totalAmount)}
                         </td>
                         <td className="p-3.5 text-right font-semibold font-sans tabular-nums">
                           <span className={inv.balanceAmount > 0 ? 'text-rose-600' : 'text-slate-500'}>
-                            ₹{inv.balanceAmount.toLocaleString('en-IN')}
+                            {formatINR(inv.balanceAmount)}
                           </span>
                         </td>
                         <td className="p-3.5 text-center">
                           <PaymentStatusBadge status={inv.paymentStatus} />
+                        </td>
+                        <td className="p-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {inv.balanceAmount > 0 && inv.status !== 'CANCELLED' && (
+                              <Button
+                                size="sm"
+                                onClick={() => setRecordPaymentInvoiceId(inv._id)}
+                                className="h-7 px-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-medium cursor-pointer shadow-2xs inline-flex items-center gap-1"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Collect</span>
+                              </Button>
+                            )}
+                            {inv.balanceAmount <= 0 && (
+                              <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                                <span>Settled</span>
+                              </span>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => renewalApi.printInvoicePdf(inv._id, inv.invoiceNumber)}
+                              className="h-7 px-2 rounded-lg text-xs text-slate-600 border-slate-300 hover:bg-slate-50 cursor-pointer shadow-2xs inline-flex items-center gap-1"
+                              title="Print Invoice"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -860,7 +1132,11 @@ export function CustomerDetailPage() {
                           <span className="text-[10.5px] text-slate-400 font-normal">{p.paymentNumber}</span>
                         </td>
                         <td className="p-3.5 font-sans tabular-nums text-slate-700">
-                          {new Date(p.paymentDate).toLocaleDateString('en-IN')}
+                          {new Date(p.paymentDate).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
                         </td>
                         <td className="p-3.5 font-sans">
                           <strong className="text-slate-800 font-medium">
@@ -874,7 +1150,7 @@ export function CustomerDetailPage() {
                           <PaymentMethodBadge method={p.paymentMethod} />
                         </td>
                         <td className="p-3.5 text-right font-sans font-semibold text-emerald-800 text-sm tabular-nums">
-                          ₹{p.amount.toLocaleString('en-IN')}
+                          {formatINR(p.amount)}
                         </td>
                         <td className="p-3.5 text-center">
                           <span className="font-medium text-[11px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
@@ -901,6 +1177,21 @@ export function CustomerDetailPage() {
         </div>
       )}
 
+      {/* Direct Record Payment Modal */}
+      {recordPaymentInvoiceId && (
+        <RecordPaymentModal
+          initialInvoiceId={recordPaymentInvoiceId}
+          onClose={() => setRecordPaymentInvoiceId(null)}
+          onSubmit={async (data, idempotencyKey) => {
+            return await recordPaymentMutation.mutateAsync({ data, idempotencyKey });
+          }}
+          onSuccessViewReceipt={(payment) => {
+            setRecordPaymentInvoiceId(null);
+            setViewingReceipt(payment);
+          }}
+        />
+      )}
+
       {/* Printable Receipt Modal */}
       {viewingReceipt && (
         <PaymentReceiptModal
@@ -925,6 +1216,8 @@ export function CustomerDetailPage() {
       {isKycModalOpen && (
         <KycDocumentModal
           customerId={customer._id}
+          customerName={customer.fullName}
+          customerCode={customer.customerCode}
           document={editingKycDoc}
           onClose={() => {
             setIsKycModalOpen(false);

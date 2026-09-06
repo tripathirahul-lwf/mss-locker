@@ -284,6 +284,7 @@ export class BillingService {
   async getLockerInvoices(lockerId: string) {
     return LockerInvoice.find({ lockerId: new Types.ObjectId(lockerId) })
       .populate('customerId', 'fullName customerCode phone')
+      .populate('lockerId', 'lockerNumber size rackNumber section floor')
       .populate('allocationId', 'allocationCode')
       .sort({ dueDate: -1 })
       .lean();

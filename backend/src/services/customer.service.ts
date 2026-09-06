@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { Customer, ICustomer } from '../models/Customer';
+import { LockerAllocation } from '../models/LockerAllocation';
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
@@ -149,14 +150,45 @@ export class CustomerService {
       Customer.countDocuments(filter),
     ]);
 
+    // Fetch active locker allocations for the customers on this page
+    const customerIds = customers.map((c) => c._id);
+    const activeAllocations = await LockerAllocation.find({
+      customerId: { $in: customerIds },
+      status: 'ACTIVE',
+    })
+      .populate('lockerId', 'lockerNumber size rackNumber section floor status')
+      .lean();
+
+    const allocationMap = new Map<string, Array<{ lockerNumber: string; size: string; rackNumber?: string }>>();
+    for (const alloc of activeAllocations) {
+      const cid = String(alloc.customerId);
+      const locker = alloc.lockerId as any;
+      if (locker && locker.lockerNumber) {
+        const list = allocationMap.get(cid) || [];
+        list.push({
+          lockerNumber: locker.lockerNumber,
+          size: locker.size,
+          rackNumber: locker.rackNumber,
+        });
+        allocationMap.set(cid, list);
+      }
+    }
+
     return {
       customers: customers.map((customer) => {
-        if (canViewSensitive) return customer as unknown as Partial<ICustomer>;
+        const assignedLockers = allocationMap.get(String(customer._id)) || [];
+        if (canViewSensitive) {
+          return {
+            ...customer,
+            assignedLockers,
+          } as unknown as Partial<ICustomer>;
+        }
         const digits = String(customer.phone || '').replace(/\D/g, '');
         const email = customer.email || '';
         const [name, domain] = email.split('@');
         return {
           ...customer,
+          assignedLockers,
           phone: digits.length >= 4 ? `••••••${digits.slice(-4)}` : 'Restricted',
           email: name && domain ? `${name.slice(0, 2)}•••@${domain}` : undefined,
         } as unknown as Partial<ICustomer>;

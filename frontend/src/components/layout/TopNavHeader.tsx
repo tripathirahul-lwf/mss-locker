@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronDown,
   KeyRound,
@@ -10,6 +10,12 @@ import {
   SlidersHorizontal,
   ChevronRight,
   BarChart3,
+  LayoutGrid,
+  Archive,
+  X,
+  RotateCcw,
+  Users,
+  Menu,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -26,6 +32,24 @@ export function TopNavHeader({ onOpenCommandPalette }: TopNavHeaderProps) {
   const { user, logout, hasPermission } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Auto close mobile drawer on route navigation
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const initials = (user?.name || 'SA').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
@@ -96,25 +120,77 @@ export function TopNavHeader({ onOpenCommandPalette }: TopNavHeaderProps) {
             </a>
           </div>
 
-          {/* Center: Global Search & Command Palette */}
-          <div className="min-w-0 flex-1 px-1 sm:px-4 lg:px-8">
+          {/* Center: Primary Quick Navigation Pills matching reference */}
+          <div className="hidden md:flex items-center gap-2.5">
             <button
               type="button"
-              onClick={onOpenCommandPalette}
-              className="mx-auto flex h-10 w-full max-w-xl items-center gap-2 sm:gap-3 rounded-xl border border-slate-200 bg-slate-50 px-2.5 sm:px-3 text-left text-xs text-slate-500 transition hover:border-emerald-300 hover:bg-white cursor-pointer shadow-2xs group"
-              aria-label="Search lockers, customers and agreements"
+              onClick={() => navigate('/lockers')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                location.pathname.startsWith('/lockers')
+                  ? 'bg-emerald-800 text-white border-emerald-800 shadow-sm'
+                  : 'bg-white text-emerald-800 border-emerald-700/60 hover:bg-emerald-50/80'
+              }`}
             >
-              <Search className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-emerald-700 transition-colors" />
-              <span className="truncate hidden sm:inline">Search lockers, customers, agreements...</span>
-              <span className="truncate inline sm:hidden">Search lockers...</span>
-              <kbd className="ml-auto hidden shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-500 md:inline">
-                {isMac ? '⌘K' : 'Ctrl K'}
-              </kbd>
+              <LayoutGrid className="h-4 w-4" />
+              <span>View Lockers</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/customers')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                location.pathname.startsWith('/customers')
+                  ? 'bg-emerald-800 text-white border-emerald-800 shadow-sm'
+                  : 'bg-white text-emerald-800 border-emerald-700/60 hover:bg-emerald-50/80'
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              <span>Customers</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/closed-lockers')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                location.pathname.startsWith('/closed-lockers') || location.pathname.startsWith('/closures')
+                  ? 'bg-emerald-800 text-white border-emerald-800 shadow-sm'
+                  : 'bg-white text-emerald-800 border-emerald-700/60 hover:bg-emerald-50/80'
+              }`}
+            >
+              <Archive className="h-4 w-4" />
+              <span>Closed Lockers</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/renewal-lockers')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                location.pathname.startsWith('/renewal-lockers') || location.pathname.startsWith('/renewals')
+                  ? 'bg-emerald-800 text-white border-emerald-800 shadow-sm'
+                  : 'bg-white text-emerald-800 border-emerald-700/60 hover:bg-emerald-50/80'
+              }`}
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span>Renewal Lockers</span>
             </button>
           </div>
 
-          {/* Right: Network Status & User Profile Menu */}
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+          {/* Right: Global Search & User Profile */}
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            {/* Spotlight Search Button */}
+            <button
+              type="button"
+              onClick={onOpenCommandPalette}
+              className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2.5 sm:px-3 text-left text-xs text-slate-500 transition hover:border-emerald-300 hover:bg-white cursor-pointer shadow-2xs group"
+              aria-label="Search lockers, customers and agreements"
+            >
+              <Search className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-emerald-700 transition-colors" />
+              <span className="truncate hidden lg:inline">Search...</span>
+              <kbd className="hidden sm:inline font-mono text-[10px] text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                {isMac ? '⌘K' : 'Ctrl K'}
+              </kbd>
+            </button>
+
             <NetworkStatusBadge className="hidden sm:inline-flex" showText={false} />
 
             {/* Clean, Non-Bloated User Profile & Management Dropdown */}
@@ -122,23 +198,24 @@ export function TopNavHeader({ onOpenCommandPalette }: TopNavHeaderProps) {
               <button
                 type="button"
                 onClick={() => setProfileOpen((open) => !open)}
-                className={`flex min-h-[40px] items-center gap-2 rounded-xl p-1 pr-1.5 cursor-pointer transition-all ${
+                className={`flex min-h-[38px] items-center gap-2 rounded-xl p-1 pr-1.5 cursor-pointer transition-all ${
                   profileOpen ? 'bg-slate-100 ring-2 ring-emerald-600/20' : 'hover:bg-slate-100'
                 }`}
                 aria-expanded={profileOpen}
                 aria-haspopup="menu"
+                title="User Profile & Settings"
               >
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white shadow-2xs">
                   {initials}
                 </span>
-                <span className="hidden max-w-[160px] text-left xl:block">
-                  <strong className="block truncate text-xs text-slate-900">{user?.name || 'Staff User'}</strong>
-                  <span className="block truncate text-[10px] font-semibold text-emerald-800">
+                <span className="hidden max-w-[130px] text-left xl:block">
+                  <strong className="block truncate text-xs text-slate-900 leading-tight">{user?.name || 'Staff User'}</strong>
+                  <span className="block truncate text-[10px] font-medium text-emerald-800">
                     {user?.role?.name || (user?.isSuperAdmin ? 'Super Administrator' : 'Staff')}
                   </span>
                 </span>
                 <ChevronDown
-                  className={`hidden h-4 w-4 text-slate-400 sm:block transition-transform duration-150 ${
+                  className={`hidden h-3.5 w-3.5 text-slate-400 sm:block transition-transform duration-150 ${
                     profileOpen ? 'rotate-180' : ''
                   }`}
                 />
@@ -291,8 +368,279 @@ export function TopNavHeader({ onOpenCommandPalette }: TopNavHeaderProps) {
                 </>
               )}
             </div>
+
+            {/* Mobile Menu Toggle Button: Horizontal Sibling in Right Header Controls */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 md:hidden cursor-pointer shadow-2xs shrink-0"
+              aria-label="Toggle navigation menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Drawer Backdrop & Sheet */}
+        {mobileMenuOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 top-16 bg-slate-950/50 backdrop-blur-xs z-30 md:hidden animate-in fade-in duration-150"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close navigation overlay"
+            />
+
+            {/* Mobile Sheet Container */}
+            <div className="fixed top-16 left-0 right-0 max-h-[calc(100dvh-4rem)] overflow-y-auto bg-white border-b border-slate-200 shadow-2xl z-40 md:hidden animate-in slide-in-from-top-2 duration-200 font-sans divide-y divide-slate-100">
+              {/* User Identity & Search Header */}
+              <div className="p-3.5 bg-gradient-to-r from-slate-50 to-emerald-50/40">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-800 text-xs font-bold text-white shadow-2xs shrink-0">
+                      {initials}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs text-slate-900 truncate">
+                        {user?.name || 'Staff User'}
+                      </div>
+                      <div className="text-[10px] text-emerald-800 font-medium truncate flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        {user?.role?.name || (user?.isSuperAdmin ? 'Super Administrator' : 'Staff')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Search Shortcut inside Drawer */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenCommandPalette();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-600 hover:text-emerald-700 hover:border-emerald-300 shadow-2xs shrink-0 cursor-pointer active:scale-95 transition"
+                  >
+                    <Search className="h-3.5 w-3.5 text-slate-400" />
+                    <span className="font-semibold text-[11px]">Search</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Core Custody Operations */}
+              <div className="p-3.5 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  Custody Operations
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* View Lockers */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/lockers');
+                    }}
+                    className={`flex flex-col p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      location.pathname.startsWith('/lockers')
+                        ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs'
+                        : 'bg-slate-50/80 border-slate-200 text-slate-800 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div
+                        className={`p-1.5 rounded-lg ${
+                          location.pathname.startsWith('/lockers')
+                            ? 'bg-emerald-800 text-white'
+                            : 'bg-white border border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <LayoutGrid className="h-4 w-4" />
+                      </div>
+                      {location.pathname.startsWith('/lockers') && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-800 text-white">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold leading-tight">View Lockers</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Matrix & Racks</span>
+                  </button>
+
+                  {/* Customers */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/customers');
+                    }}
+                    className={`flex flex-col p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      location.pathname.startsWith('/customers')
+                        ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs'
+                        : 'bg-slate-50/80 border-slate-200 text-slate-800 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div
+                        className={`p-1.5 rounded-lg ${
+                          location.pathname.startsWith('/customers')
+                            ? 'bg-emerald-800 text-white'
+                            : 'bg-white border border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <Users className="h-4 w-4" />
+                      </div>
+                      {location.pathname.startsWith('/customers') && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-800 text-white">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold leading-tight">Customers</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">KYC & Profiles</span>
+                  </button>
+
+                  {/* Closed Lockers */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/closed-lockers');
+                    }}
+                    className={`flex flex-col p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      location.pathname.startsWith('/closed-lockers') || location.pathname.startsWith('/closures')
+                        ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs'
+                        : 'bg-slate-50/80 border-slate-200 text-slate-800 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div
+                        className={`p-1.5 rounded-lg ${
+                          location.pathname.startsWith('/closed-lockers') || location.pathname.startsWith('/closures')
+                            ? 'bg-emerald-800 text-white'
+                            : 'bg-white border border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <Archive className="h-4 w-4" />
+                      </div>
+                      {(location.pathname.startsWith('/closed-lockers') || location.pathname.startsWith('/closures')) && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-800 text-white">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold leading-tight">Closed Lockers</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Surrender & Release</span>
+                  </button>
+
+                  {/* Renewals */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/renewal-lockers');
+                    }}
+                    className={`flex flex-col p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      location.pathname.startsWith('/renewal-lockers') || location.pathname.startsWith('/renewals')
+                        ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs'
+                        : 'bg-slate-50/80 border-slate-200 text-slate-800 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div
+                        className={`p-1.5 rounded-lg ${
+                          location.pathname.startsWith('/renewal-lockers') || location.pathname.startsWith('/renewals')
+                            ? 'bg-emerald-800 text-white'
+                            : 'bg-white border border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </div>
+                      {(location.pathname.startsWith('/renewal-lockers') || location.pathname.startsWith('/renewals')) && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-800 text-white">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold leading-tight">Locker Renewals</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Due Leases & Invoices</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Administration & Security */}
+              {managementLinks.length > 0 && (
+                <div className="p-3.5 space-y-1.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                    Administration & Security
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {managementLinks.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = location.pathname.startsWith(item.path);
+                      return (
+                        <button
+                          key={item.path}
+                          type="button"
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                            navigate(item.path);
+                          }}
+                          className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                              : 'bg-slate-50/60 border-slate-200/80 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <div
+                            className={`p-1 rounded-lg shrink-0 ${
+                              isActive
+                                ? 'bg-emerald-800 text-white'
+                                : 'bg-white text-slate-600 border border-slate-200'
+                            }`}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-bold truncate leading-tight">
+                              {item.label}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Account & Session Controls */}
+              <div className="p-3 bg-slate-50/80 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setChangePasswordOpen(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                >
+                  <KeyRound className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Password</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                >
+                  <LogOut className="h-3.5 w-3.5 text-rose-600" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </header>
 
       {/* Change Password Modal */}

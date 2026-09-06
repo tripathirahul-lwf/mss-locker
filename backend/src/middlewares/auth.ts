@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
-import { verifyAccessToken } from '../utils/jwt';
+import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt';
 import { User, IUser } from '../models/User';
 import { Role, IRole } from '../models/Role';
 import { SYSTEM_ROLE_CODES, PermissionCode } from '../constants/permissions';
@@ -37,19 +37,50 @@ export const authenticate = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    let token: string | undefined;
+
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json(errorResponse('Authentication required. Missing Bearer token.'));
-      return;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (typeof req.query.token === 'string' && req.query.token) {
+      token = req.query.token;
+    } else if (typeof req.query.auth_token === 'string' && req.query.auth_token) {
+      token = req.query.auth_token;
     }
 
-    const token = authHeader.split(' ')[1];
-    let decoded;
-    try {
-      decoded = verifyAccessToken(token);
-    } catch (err) {
-      res.status(401).json(errorResponse('Invalid or expired token. Please log in again.'));
-      return;
+    let decoded: any;
+    if (token) {
+      try {
+        decoded = verifyAccessToken(token);
+      } catch (err) {
+        // If Bearer token is expired, try refresh cookie if available
+        const cookieToken = req.cookies?.vault_refresh_token || req.cookies?.['__Host-vault_refresh_token'];
+        if (cookieToken) {
+          try {
+            decoded = verifyRefreshToken(cookieToken);
+          } catch {
+            res.status(401).json(errorResponse('Invalid or expired token. Please log in again.'));
+            return;
+          }
+        } else {
+          res.status(401).json(errorResponse('Invalid or expired token. Please log in again.'));
+          return;
+        }
+      }
+    } else {
+      // Check for HttpOnly session cookie (enables browser <img>, <iframe>, window.open)
+      const cookieToken = req.cookies?.vault_refresh_token || req.cookies?.['__Host-vault_refresh_token'];
+      if (cookieToken) {
+        try {
+          decoded = verifyRefreshToken(cookieToken);
+        } catch {
+          res.status(401).json(errorResponse('Authentication required. Missing Bearer token.'));
+          return;
+        }
+      } else {
+        res.status(401).json(errorResponse('Authentication required. Missing Bearer token.'));
+        return;
+      }
     }
 
     const user = await User.findById(decoded.userId).populate<{ role: IRole }>('role');

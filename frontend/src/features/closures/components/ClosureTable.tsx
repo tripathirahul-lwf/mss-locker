@@ -77,7 +77,121 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
 
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Mobile Card View (<md) */}
+      <div className="block md:hidden divide-y divide-slate-100">
+        {closures.map((closure) => {
+          const customer = closure.customerId;
+          const locker = closure.lockerId;
+          const allocation = closure.allocationId;
+          const isRequester = currentUserId && String(closure.requestedBy?._id) === String(currentUserId);
+
+          return (
+            <div
+              key={closure._id}
+              className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors"
+            >
+              {/* Header row: Closure code + Status */}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-slate-900 text-xs">
+                      {closure.closureNumber}
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 capitalize">
+                      {closure.closureType.toLowerCase().replace('_', ' ')}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Req: {closure.requestedClosureDate
+                      ? new Date(closure.requestedClosureDate).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : 'N/A'}
+                  </p>
+                </div>
+                <ClosureStatusBadge status={closure.status} size="sm" />
+              </div>
+
+              {/* Customer & Locker info row */}
+              <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-lg border border-slate-200/60">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Customer</span>
+                  <div className="font-bold text-slate-900 truncate mt-0.5">{customer?.fullName || 'N/A'}</div>
+                  <div className="font-mono text-[10.5px] text-slate-500 truncate">{customer?.customerCode || 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Locker Unit</span>
+                  <div className="font-bold font-mono text-slate-900 mt-0.5">
+                    #{locker?.lockerNumber || 'N/A'}
+                  </div>
+                  <div className="text-[10.5px] text-slate-500">
+                    Size {locker?.size || 'STD'} • Rack {locker?.rackNumber || '—'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Toolbar */}
+              <div className="flex items-center justify-between gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onView(closure)}
+                  className="flex-1 min-h-[36px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 active:scale-[0.98] transition cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Dossier</span>
+                </button>
+
+                {canReview && ['PENDING_REVIEW', 'PENDING_SETTLEMENT'].includes(closure.status) && (
+                  <button
+                    type="button"
+                    onClick={() => onReview(closure)}
+                    className="flex-1 min-h-[36px] inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold rounded-lg active:scale-[0.98] transition cursor-pointer"
+                  >
+                    Review
+                  </button>
+                )}
+
+                {canApprove && ['READY_FOR_CLOSURE', 'PENDING_REVIEW'].includes(closure.status) && !isRequester && (
+                  <button
+                    type="button"
+                    onClick={() => onApprove(closure)}
+                    className="flex-1 min-h-[36px] inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-semibold rounded-lg active:scale-[0.98] transition cursor-pointer"
+                  >
+                    Approve
+                  </button>
+                )}
+
+                {canComplete && closure.status === 'APPROVED' && (
+                  <button
+                    type="button"
+                    onClick={() => onComplete(closure)}
+                    className="flex-1 min-h-[36px] inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-2xs active:scale-[0.98] transition cursor-pointer"
+                  >
+                    Complete
+                  </button>
+                )}
+
+                {canPrint && ['COMPLETED', 'APPROVED'].includes(closure.status) && (
+                  <button
+                    type="button"
+                    onClick={() => onPrint(closure)}
+                    title="Print Statement"
+                    aria-label="Print Statement"
+                    className="min-h-[36px] p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop View Table (md+) */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
           <caption className="sr-only">Locker closure requests and workflow status</caption>
           <thead>
