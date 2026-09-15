@@ -63,28 +63,19 @@ export function CustomerDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
-  const handleBackToCustomers = () => {
-    // 1. If state has the return URL (with page, search, filters)
-    if (location.state?.from && typeof location.state.from === 'string') {
-      navigate(location.state.from);
-      return;
+  const backUrl = useMemo(() => {
+    if (location.state?.from && typeof location.state.from === 'string' && location.state.from.startsWith('/customers')) {
+      return location.state.from;
     }
-
-    // 2. If saved in sessionStorage
     const saved = sessionStorage.getItem('customer_list_params');
     if (saved) {
-      navigate(`/customers?${saved}`);
-      return;
+      return `/customers?${saved}`;
     }
+    return '/customers';
+  }, [location.state]);
 
-    // 3. Fallback to browser history back
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    // 4. Default fallback
-    navigate('/customers');
+  const handleBackToCustomers = () => {
+    navigate(backUrl);
   };
 
   const canUpdate = usePermission('customers.update');
@@ -95,7 +86,7 @@ export function CustomerDetailPage() {
   const tabIds = ['kyc', 'profile', 'lockers', 'billing', 'payments'];
 
   const setTab = (tab: string) => {
-    setSearchParams({ tab });
+    setSearchParams({ tab }, { replace: true });
   };
 
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -335,25 +326,26 @@ export function CustomerDetailPage() {
         <p className="text-xs text-slate-500">
           The requested customer does not exist or has been removed from the registry.
         </p>
-        <Button variant="outline" size="sm" onClick={handleBackToCustomers} className="cursor-pointer">
-          Back to Customers Directory
-        </Button>
+        <Link to={backUrl}>
+          <Button variant="outline" size="sm" className="cursor-pointer">
+            Back to Customers Directory
+          </Button>
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 select-none">
+    <div className="space-y-5">
       {/* Top Breadcrumb & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={handleBackToCustomers}
+        <Link
+          to={backUrl}
           className="h-9 inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-emerald-800 transition-colors rounded-xl px-2 -ml-2 hover:bg-slate-100/80 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Customers Directory</span>
-        </button>
+        </Link>
 
         <div className="flex flex-wrap items-center gap-2">
           {invoiceMetrics.totalBalance > 0 && (
