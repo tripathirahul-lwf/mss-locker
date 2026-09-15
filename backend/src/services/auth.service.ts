@@ -1,8 +1,8 @@
 import { Types } from 'mongoose';
 import mongoose from 'mongoose';
-import { User, IUser } from '../models/User';
-import { Role, IRole } from '../models/Role';
-import { Session, ISession } from '../models/Session';
+import { User } from '../models/User';
+import { type IRole } from '../models/Role';
+import { Session } from '../models/Session';
 import { connectDatabase } from '../config/database';
 import { hashPassword, comparePassword } from '../utils/password';
 import {

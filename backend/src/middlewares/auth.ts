@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt';
-import { User, IUser } from '../models/User';
-import { Role, IRole } from '../models/Role';
+import { User } from '../models/User';
+import { type IRole } from '../models/Role';
 import { SYSTEM_ROLE_CODES, PermissionCode } from '../constants/permissions';
 import { errorResponse } from '../utils/apiResponse';
 

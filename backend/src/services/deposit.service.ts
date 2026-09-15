@@ -1,5 +1,5 @@
 import mongoose, { ClientSession, Types } from 'mongoose';
-import { DepositTransaction, IDepositTransaction } from '../models/DepositTransaction';
+import { DepositTransaction } from '../models/DepositTransaction';
 import { RefundRequest } from '../models/RefundRequest';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';

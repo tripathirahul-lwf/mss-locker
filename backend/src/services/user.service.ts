@@ -4,7 +4,7 @@ import { Role, IRole } from '../models/Role';
 import { Session } from '../models/Session';
 import { hashPassword } from '../utils/password';
 import { recordAuditLog } from '../utils/auditLogger';
-import { SYSTEM_ROLE_CODES, PermissionCode } from '../constants/permissions';
+import { SYSTEM_ROLE_CODES } from '../constants/permissions';
 
 export interface CreateUserParams {
   name: string;

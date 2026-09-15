@@ -1,5 +1,5 @@
 import mongoose, { Types } from 'mongoose';
-import { RefundRequest, IRefundRequest } from '../models/RefundRequest';
+import { RefundRequest } from '../models/RefundRequest';
 import { DepositTransaction } from '../models/DepositTransaction';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { Payment } from '../models/Payment';

@@ -1,6 +1,5 @@
 import { Types } from 'mongoose';
-import { LockerInvoice, ILockerInvoice } from '../models/LockerInvoice';
-import { LockerAllocation } from '../models/LockerAllocation';
+import { LockerInvoice } from '../models/LockerInvoice';
 import { Customer } from '../models/Customer';
 import { Locker } from '../models/Locker';
 import { AuditLog } from '../models/AuditLog';

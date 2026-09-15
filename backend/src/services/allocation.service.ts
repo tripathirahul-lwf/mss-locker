@@ -6,7 +6,6 @@ import { AuditLog } from '../models/AuditLog';
 import { Sequence } from '../models/Sequence';
 import {
   ALLOCATION_STATUS,
-  AllocationStatus,
   ALLOCATION_TYPE,
 } from '../constants/allocation.constants';
 import {

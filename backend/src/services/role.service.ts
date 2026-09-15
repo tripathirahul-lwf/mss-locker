@@ -1,4 +1,4 @@
-import { Role, IRole } from '../models/Role';
+import { Role } from '../models/Role';
 import { User } from '../models/User';
 import { recordAuditLog } from '../utils/auditLogger';
 import { PERMISSION_GROUPS, ALL_PERMISSIONS } from '../constants/permissions';

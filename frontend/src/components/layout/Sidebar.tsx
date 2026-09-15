@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, X, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { NAVIGATION_SECTIONS } from '../../constants/navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';

@@ -17,7 +17,6 @@ import {
   ClosureStatus,
   OPEN_CLOSURE_STATUSES,
   LOCKER_CONDITIONS,
-  VALID_CLOSURE_TRANSITIONS,
 } from '../constants/closure.constants';
 import { closureReadinessService } from './closure-readiness.service';
 import { depositService } from './deposit.service';

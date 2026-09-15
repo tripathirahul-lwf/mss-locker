@@ -8,7 +8,6 @@ import {
   Receipt,
   Lock,
   BarChart3,
-  FileSpreadsheet,
   ShieldCheck,
   UserCog,
   Settings,

@@ -2,8 +2,7 @@ import { Types } from 'mongoose';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { depositService } from './deposit.service';
-import { IPhysicalChecklist } from '../models/LockerClosure';
-import { closureChecklistConfig } from '../constants/closure.constants';
+import { type IPhysicalChecklist } from '../models/LockerClosure';
 
 export interface ClosureReadinessSummary {
   allocationId: string;
