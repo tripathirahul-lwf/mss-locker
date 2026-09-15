@@ -21,6 +21,9 @@ import {
   Receipt,
   CreditCard,
   Printer,
+  Copy,
+  Check,
+  ExternalLink,
 } from 'lucide-react';
 import { customerApi } from '../features/customers/api/customerApi';
 import {
@@ -119,6 +122,14 @@ export function CustomerDetailPage() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [deletingKycDoc, setDeletingKycDoc] = useState<CustomerKycDocument | null>(null);
   const [isDeletingKyc, setIsDeletingKyc] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopy = (text: string | null | undefined, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(label);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   // Fetch Customer
   const {
@@ -180,6 +191,12 @@ export function CustomerDetailPage() {
         return acc;
       },
       { totalInvoiced: 0, totalSettled: 0, totalBalance: 0, unpaidCount: 0 }
+    );
+  }, [customerInvoices]);
+
+  const firstUnpaidInvoice = useMemo(() => {
+    return customerInvoices?.find(
+      (inv: any) => inv.paymentStatus !== 'PAID' && (Number(inv.balanceAmount) > 0 || inv.balanceAmount > 0)
     );
   }, [customerInvoices]);
 
@@ -338,7 +355,38 @@ export function CustomerDetailPage() {
           <span>Back to Customers Directory</span>
         </button>
 
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {invoiceMetrics.totalBalance > 0 && (
+            <Button
+              size="sm"
+              onClick={() => {
+                if (firstUnpaidInvoice) {
+                  setRecordPaymentInvoiceId(firstUnpaidInvoice._id);
+                } else {
+                  setTab('billing');
+                }
+              }}
+              className="h-9 px-3.5 flex items-center justify-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-xl cursor-pointer shadow-xs"
+              title="Record payment against outstanding dues"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Collect Dues: {formatINR(invoiceMetrics.totalBalance)}</span>
+            </Button>
+          )}
+
+          {customerAllocations?.activeAllocation && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTab('lockers')}
+              className="h-9 px-3.5 flex items-center justify-center gap-1.5 text-xs font-medium border-emerald-200 text-emerald-900 bg-emerald-50/50 hover:bg-emerald-100/70 rounded-xl cursor-pointer shadow-2xs"
+              title="View locker agreement and tenancy record"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Locker #{customerAllocations.activeAllocation.lockerId?.lockerNumber}</span>
+            </Button>
+          )}
+
           {canAllocate && !customerAllocations?.activeAllocation && (
             <Button
               size="sm"
@@ -381,29 +429,46 @@ export function CustomerDetailPage() {
       <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-3.5 sm:gap-4 min-w-0">
-            {customer.photoUrl ? (
-              <img
-                src={customer.photoUrl}
-                alt={customer.fullName}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white shadow-xs shrink-0"
-              />
-            ) : (
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white flex items-center justify-center font-semibold text-xl sm:text-2xl shrink-0 shadow-xs ring-1 ring-slate-900/10 font-sans tracking-wide">
-                {customer.fullName.slice(0, 2).toUpperCase()}
-              </div>
-            )}
+            <div className="relative shrink-0">
+              {customer.photoUrl ? (
+                <img
+                  src={customer.photoUrl}
+                  alt={customer.fullName}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white shadow-xs"
+                />
+              ) : (
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white flex items-center justify-center font-semibold text-xl sm:text-2xl shadow-xs ring-1 ring-slate-900/10 font-sans tracking-wide">
+                  {customer.fullName.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              {customer.kycStatus === 'VERIFIED' && (
+                <div
+                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center ring-2 ring-white shadow-2xs"
+                  title="KYC Certified"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </div>
+              )}
+            </div>
 
             <div className="space-y-1.5 min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight font-sans">
                   {customer.fullName}
                 </h1>
-                <Badge
-                  variant="outline"
-                  className="font-sans text-xs font-medium bg-slate-100/80 border-slate-200 text-slate-600 px-2 py-0.5 rounded-md tabular-nums"
+                <button
+                  type="button"
+                  onClick={() => handleCopy(customer.customerCode, 'Customer Code')}
+                  className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-sans text-xs font-medium bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 hover:text-slate-900 transition-colors cursor-pointer tabular-nums"
+                  title="Click to copy customer code"
                 >
-                  {customer.customerCode}
-                </Badge>
+                  <span>{customer.customerCode}</span>
+                  {copiedField === 'Customer Code' ? (
+                    <Check className="w-3 h-3 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                  )}
+                </button>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
@@ -441,17 +506,48 @@ export function CustomerDetailPage() {
                 )}
               </div>
 
-              {/* Verified Contact Details */}
+              {/* Verified Contact Details with Click-to-Copy */}
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-1 font-normal">
-                <span className="flex items-center gap-1.5 font-sans text-slate-900 font-medium text-sm tabular-nums tracking-tight">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <button
+                  type="button"
+                  onClick={() => handleCopy(customer.phone, 'Phone number')}
+                  className="group flex items-center gap-1.5 font-sans text-slate-900 hover:text-emerald-800 font-medium text-sm tabular-nums tracking-tight transition-colors cursor-pointer"
+                  title="Click to copy phone number"
+                >
+                  <Phone className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-700" />
                   <span>{formatPhone(customer.phone)}</span>
-                </span>
+                  {copiedField === 'Phone number' ? (
+                    <span className="text-[10.5px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                      <Check className="w-3 h-3" /> Copied
+                    </span>
+                  ) : (
+                    <Copy className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
+                </button>
+
                 {customer.email && (
-                  <a href={`mailto:${customer.email}`} className="flex items-center gap-1.5 text-slate-600 hover:text-emerald-800 min-w-0 transition-colors">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="truncate">{customer.email}</span>
-                  </a>
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={`mailto:${customer.email}`}
+                      className="flex items-center gap-1.5 text-slate-600 hover:text-emerald-800 min-w-0 transition-colors"
+                      title="Send email"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="truncate">{customer.email}</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(customer.email, 'Email address')}
+                      className="p-1 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer rounded"
+                      title="Click to copy email address"
+                    >
+                      {copiedField === 'Email address' ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -619,6 +715,140 @@ export function CustomerDetailPage() {
               {customerPayments?.length || 0}
             </span>
           </button>
+        </div>
+      </div>
+
+      {/* Executive Customer KPI Summary Ribbon */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* KPI 1: Active Locker Tenancy */}
+        <div 
+          onClick={() => setTab('lockers')}
+          className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Active Tenancy
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center group-hover:scale-105 transition-transform border border-emerald-100">
+              <KeyRound className="w-4 h-4 text-emerald-700" />
+            </div>
+          </div>
+          <div className="mt-2.5">
+            {customerAllocations?.activeAllocation ? (
+              <>
+                <div className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
+                  Locker #{customerAllocations.activeAllocation.lockerId?.lockerNumber}
+                </div>
+                <div className="text-xs text-slate-500 font-normal mt-0.5 flex items-center gap-1.5">
+                  <span>Size {customerAllocations.activeAllocation.lockerId?.size}</span>
+                  <span>&bull;</span>
+                  <span>Rack {customerAllocations.activeAllocation.lockerId?.rackNumber || '01'}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm font-semibold text-slate-600">
+                  No Active Locker
+                </div>
+                <div className="text-xs text-slate-400 font-normal mt-0.5">
+                  Customer unallocated
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* KPI 2: Outstanding Balance */}
+        <div 
+          onClick={() => {
+            if (invoiceMetrics.totalBalance > 0 && firstUnpaidInvoice) {
+              setRecordPaymentInvoiceId(firstUnpaidInvoice._id);
+            } else {
+              setTab('billing');
+            }
+          }}
+          className={`bg-white p-4 rounded-2xl border shadow-2xs transition-all cursor-pointer group ${
+            invoiceMetrics.totalBalance > 0 
+              ? 'border-amber-200/90 hover:border-amber-400 hover:shadow-xs bg-gradient-to-br from-white via-white to-amber-50/20' 
+              : 'border-slate-200/90 hover:border-emerald-300 hover:shadow-xs'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Outstanding Dues
+            </span>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform border ${
+              invoiceMetrics.totalBalance > 0 
+                ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+            }`}>
+              <CreditCard className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2.5">
+            <div className={`text-base sm:text-lg font-bold font-sans tracking-tight ${
+              invoiceMetrics.totalBalance > 0 ? 'text-amber-700' : 'text-slate-900'
+            }`}>
+              {formatINR(invoiceMetrics.totalBalance)}
+            </div>
+            <div className="text-xs mt-0.5 flex items-center justify-between">
+              {invoiceMetrics.totalBalance > 0 ? (
+                <span className="text-amber-600 font-medium">
+                  {invoiceMetrics.unpaidCount} unpaid bill{invoiceMetrics.unpaidCount > 1 ? 's' : ''} &bull; Click to pay
+                </span>
+              ) : (
+                <span className="text-emerald-700 font-medium flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> All dues cleared
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 3: Security Caution Deposit */}
+        <div 
+          onClick={() => setTab('lockers')}
+          className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Security Deposit
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-700 flex items-center justify-center group-hover:scale-105 transition-transform border border-slate-200">
+              <ShieldCheck className="w-4 h-4 text-slate-600" />
+            </div>
+          </div>
+          <div className="mt-2.5">
+            <div className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
+              {formatINR(customerAllocations?.activeAllocation?.securityDeposit || 0)}
+            </div>
+            <div className="text-xs text-slate-500 font-normal mt-0.5">
+              Held in Custody Reserve
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 4: Total Billed */}
+        <div 
+          onClick={() => setTab('billing')}
+          className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Total Invoiced
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-700 flex items-center justify-center group-hover:scale-105 transition-transform border border-slate-200">
+              <FileText className="w-4 h-4 text-slate-600" />
+            </div>
+          </div>
+          <div className="mt-2.5">
+            <div className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
+              {formatINR(invoiceMetrics.totalInvoiced)}
+            </div>
+            <div className="text-xs text-slate-500 font-normal mt-0.5">
+              {customerInvoices?.length || 0} statement{customerInvoices?.length === 1 ? '' : 's'} issued
+            </div>
+          </div>
         </div>
       </div>
 
