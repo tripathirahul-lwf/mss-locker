@@ -374,19 +374,6 @@ export function CustomerDetailPage() {
             </Button>
           )}
 
-          {customerAllocations?.activeAllocation && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setTab('lockers')}
-              className="h-9 px-3.5 flex items-center justify-center gap-1.5 text-xs font-medium border-emerald-200 text-emerald-900 bg-emerald-50/50 hover:bg-emerald-100/70 rounded-xl cursor-pointer shadow-2xs"
-              title="View locker agreement and tenancy record"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Locker #{customerAllocations.activeAllocation.lockerId?.lockerNumber}</span>
-            </Button>
-          )}
-
           {canAllocate && !customerAllocations?.activeAllocation && (
             <Button
               size="sm"
@@ -742,7 +729,12 @@ export function CustomerDetailPage() {
                 <div className="text-xs text-slate-500 font-normal mt-0.5 flex items-center gap-1.5">
                   <span>Size {customerAllocations.activeAllocation.lockerId?.size}</span>
                   <span>&bull;</span>
-                  <span>Rack {customerAllocations.activeAllocation.lockerId?.rackNumber || '01'}</span>
+                  <span>
+                    {(() => {
+                      const rawRack = customerAllocations.activeAllocation.lockerId?.rackNumber || '01';
+                      return rawRack.toLowerCase().startsWith('rack') ? rawRack : `Rack ${rawRack}`;
+                    })()}
+                  </span>
                 </div>
               </>
             ) : (
