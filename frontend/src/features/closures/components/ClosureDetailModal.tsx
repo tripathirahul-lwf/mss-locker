@@ -19,6 +19,7 @@ import {
 import { LockerClosure, ClosureReadinessSummary } from '../types';
 import { ClosureStatusBadge } from './ClosureStatusBadge';
 import { closureApi } from '../api/closureApi';
+import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 
 interface ClosureDetailModalProps {
   closure: LockerClosure | null;
@@ -125,11 +126,18 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
     }
   };
 
-  const handleQuickSubmit = async () => {
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+
+  const handleQuickSubmit = () => {
+    setSubmitConfirmOpen(true);
+  };
+
+  const handleConfirmQuickSubmit = async () => {
     setActionLoading(true);
     setActionError(null);
     try {
       await closureApi.submitClosure(closure._id);
+      setSubmitConfirmOpen(false);
       onRefresh();
       onClose();
     } catch (err: any) {
@@ -585,6 +593,28 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Submit for Review Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={submitConfirmOpen}
+        onClose={() => !actionLoading && setSubmitConfirmOpen(false)}
+        onConfirm={handleConfirmQuickSubmit}
+        title="Submit Day-End Closure for Review?"
+        message={
+          <div className="space-y-1.5 text-xs text-slate-600 font-normal">
+            <p>
+              Submit closure request <strong className="font-semibold text-slate-900">{closure.closureNumber || 'Draft'}</strong> for locker <strong className="font-semibold text-slate-900">#{locker?.lockerNumber}</strong> for verification?
+            </p>
+            <p className="text-[11px] text-slate-500">
+              All physical custody checklist items and financial reconciliations will be forwarded for supervisor sign-off.
+            </p>
+          </div>
+        }
+        confirmLabel="Submit for Review"
+        cancelLabel="Keep Drafting"
+        variant="emerald"
+        isLoading={actionLoading}
+      />
     </div>,
     document.body
   );

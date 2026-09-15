@@ -19,6 +19,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { ChangePasswordModal } from '../common/ChangePasswordModal';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 
 export interface TopNavHeaderProps {
   onOpenCommandPalette?: () => void;
@@ -87,10 +88,24 @@ export function TopNavHeader({ onOpenCommandPalette }: TopNavHeaderProps) {
     (userDisplayName.toLowerCase().includes('admin') && roleDisplay.toLowerCase().includes('admin'));
   const userSubtext = isDuplicateRole ? 'Main Vault • Station 01' : roleDisplay;
 
-  const handleLogout = async () => {
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = () => {
     setProfileOpen(false);
-    await logout();
-    navigate('/login', { replace: true });
+    setMobileMenuOpen(false);
+    setLogoutConfirmOpen(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login', { replace: true });
+    } finally {
+      setIsLoggingOut(false);
+      setLogoutConfirmOpen(false);
+    }
   };
 
   // Only genuinely useful management pages: Staff & Operator Users and Audit Trail
@@ -612,6 +627,19 @@ export function TopNavHeader({ onOpenCommandPalette }: TopNavHeaderProps) {
 
       {/* Change Password Modal */}
       <ChangePasswordModal isOpen={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={logoutConfirmOpen}
+        onClose={() => !isLoggingOut && setLogoutConfirmOpen(false)}
+        onConfirm={handleConfirmLogout}
+        title="Confirm Sign Out"
+        message="Are you sure you want to end your active session? Any unsaved custody form entries will be lost."
+        confirmLabel="Sign Out Now"
+        cancelLabel="Stay Signed In"
+        variant="danger"
+        isLoading={isLoggingOut}
+      />
     </>
   );
 }

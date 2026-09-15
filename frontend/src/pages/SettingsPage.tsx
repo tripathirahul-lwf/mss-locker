@@ -28,6 +28,7 @@ import {
 import { settingService, SystemSettings, TariffPlan } from '../services/settingService';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { usePermission } from '../hooks/usePermission';
 
 const EMPTY: SystemSettings = {
@@ -178,6 +179,15 @@ export function SettingsPage() {
     setSuccessMessage('');
   };
 
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [pendingTariffRevision, setPendingTariffRevision] = useState<{
+    size: string;
+    annualRent: number;
+    securityDeposit: number;
+    effectiveFrom: string;
+    notes: string;
+  } | null>(null);
+
   const handleSettingsSubmit = (e: FormEvent) => {
     e.preventDefault();
     setSuccessMessage('');
@@ -196,7 +206,13 @@ export function SettingsPage() {
       return;
     }
 
-    updateMutation.mutate(form);
+    setConfirmSaveOpen(true);
+  };
+
+  const handleConfirmSave = () => {
+    updateMutation.mutate(form, {
+      onSettled: () => setConfirmSaveOpen(false),
+    });
   };
 
   const handleTariffSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -214,12 +230,19 @@ export function SettingsPage() {
       return;
     }
 
-    reviseMutation.mutate({
+    setPendingTariffRevision({
       size: editingTariff.size,
       annualRent,
       securityDeposit,
       effectiveFrom,
       notes,
+    });
+  };
+
+  const handleConfirmTariffRevision = () => {
+    if (!pendingTariffRevision) return;
+    reviseMutation.mutate(pendingTariffRevision, {
+      onSettled: () => setPendingTariffRevision(null),
     });
   };
 
@@ -856,6 +879,43 @@ export function SettingsPage() {
           close={() => setHistorySize(null)}
         />
       )}
+
+      {/* Save Settings Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmSaveOpen}
+        onClose={() => !updateMutation.isPending && setConfirmSaveOpen(false)}
+        onConfirm={handleConfirmSave}
+        title="Save System Settings Changes?"
+        message="Are you sure you want to save changes to business details, tax configurations, and operational parameters? These parameters take immediate effect for subsequent invoices and custody receipts."
+        confirmLabel="Save Configuration"
+        cancelLabel="Keep Editing"
+        variant="emerald"
+        isLoading={updateMutation.isPending}
+      />
+
+      {/* Revise Tariff Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(pendingTariffRevision)}
+        onClose={() => !reviseMutation.isPending && setPendingTariffRevision(null)}
+        onConfirm={handleConfirmTariffRevision}
+        title={`Activate Revised Tariff for Size ${pendingTariffRevision?.size || ''}?`}
+        message={
+          pendingTariffRevision ? (
+            <div className="space-y-1.5 text-xs text-slate-600 font-normal">
+              <p>
+                Activate new annual rent <strong className="font-semibold text-slate-900">₹{pendingTariffRevision.annualRent.toLocaleString('en-IN')}</strong> and security deposit <strong className="font-semibold text-slate-900">₹{pendingTariffRevision.securityDeposit.toLocaleString('en-IN')}</strong> for locker size <strong className="font-semibold text-slate-900">{pendingTariffRevision.size}</strong>?
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Active agreements will preserve their locked contract rates; new allocations and future renewals will apply these revised rates.
+              </p>
+            </div>
+          ) : undefined
+        }
+        confirmLabel="Activate Tariff Version"
+        cancelLabel="Cancel"
+        variant="warning"
+        isLoading={reviseMutation.isPending}
+      />
     </div>
   );
 }

@@ -39,6 +39,7 @@ import { LockerModernCard } from '../features/lockers/components/LockerModernCar
 import { LockerTable } from '../features/lockers/components/LockerTable';
 import { LockerVaultGrid } from '../features/lockers/components/LockerVaultGrid';
 import { Button } from '../components/ui/button';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { usePermission } from '../hooks/usePermission';
 import { LOCKER_SIZES } from '../features/lockers/constants';
 
@@ -895,71 +896,43 @@ export function LockersPage() {
       )}
 
       {/* Deactivate Confirmation Modal */}
-      {deactivatingLocker &&
-        createPortal(
-          <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150">
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="deactivate-locker-title"
-              className="w-full max-w-md bg-white rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start gap-3.5">
-                <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-700 shrink-0 border border-rose-200/80 flex items-center justify-center shadow-2xs">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div className="space-y-1">
-                  <h3
-                    id="deactivate-locker-title"
-                    className="text-base font-semibold text-slate-900 tracking-tight"
-                  >
-                    Deactivate Locker #{deactivatingLocker.lockerNumber}?
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed font-normal">
-                    This will soft-deactivate physical locker{' '}
-                    <strong className="font-semibold text-slate-700">
-                      #{deactivatingLocker.lockerNumber}
-                    </strong>{' '}
-                    (Size {deactivatingLocker.size}, {deactivatingLocker.rackNumber}). Historical
-                    records are preserved.
-                  </p>
-                </div>
-              </div>
-
+      <ConfirmationModal
+        isOpen={Boolean(deactivatingLocker)}
+        onClose={() => {
+          if (!deactivateMutation.isPending) {
+            setDeactivatingLocker(null);
+            setDeactivateError(null);
+          }
+        }}
+        onConfirm={async () => {
+          if (deactivatingLocker) {
+            await deactivateMutation.mutateAsync(deactivatingLocker._id);
+          }
+        }}
+        title={deactivatingLocker ? `Deactivate Locker #${deactivatingLocker.lockerNumber}?` : 'Deactivate Locker'}
+        message={
+          deactivatingLocker ? (
+            <div className="space-y-2 text-xs text-slate-600 font-normal">
+              <p>
+                This will soft-deactivate physical locker{' '}
+                <strong className="font-semibold text-slate-900">
+                  #{deactivatingLocker.lockerNumber}
+                </strong>{' '}
+                (Size {deactivatingLocker.size}, {deactivatingLocker.rackNumber}). Historical custody and billing records are permanently preserved.
+              </p>
               {deactivateError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-normal">
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium">
                   {deactivateError}
                 </div>
               )}
-
-              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setDeactivatingLocker(null);
-                    setDeactivateError(null);
-                  }}
-                  disabled={deactivateMutation.isPending}
-                  className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 cursor-pointer hover:bg-slate-50"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => deactivateMutation.mutate(deactivatingLocker._id)}
-                  disabled={deactivateMutation.isPending}
-                  className="rounded-xl font-medium text-xs h-9.5 px-4 cursor-pointer"
-                >
-                  {deactivateMutation.isPending ? 'Deactivating...' : 'Confirm Deactivate'}
-                </Button>
-              </div>
             </div>
-          </div>,
-          document.body
-        )}
+          ) : undefined
+        }
+        confirmLabel="Confirm Deactivate"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={deactivateMutation.isPending}
+      />
 
       {/* Floating Go To Top */}
       {showGoToTop && (

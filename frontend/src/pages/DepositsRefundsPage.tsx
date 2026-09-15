@@ -16,6 +16,7 @@ import { CreateRefundModal } from '../features/deposits/components/CreateRefundM
 import { RefundApprovalModal } from '../features/deposits/components/RefundApprovalModal';
 import { RefundPaymentModal } from '../features/deposits/components/RefundPaymentModal';
 import { DepositReceiptModal } from '../features/deposits/components/DepositReceiptModal';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import {
   ShieldCheck,
   ArrowUpRight,
@@ -206,15 +207,27 @@ export const DepositsRefundsPage: React.FC = () => {
     }
   };
 
+  const [submittingDraftRefund, setSubmittingDraftRefund] = useState<RefundRequest | null>(null);
+  const [isSubmittingRefund, setIsSubmittingRefund] = useState(false);
+
   // Submit draft refund
-  const handleSubmitDraft = async (refund: RefundRequest) => {
+  const handleSubmitDraft = (refund: RefundRequest) => {
+    setSubmittingDraftRefund(refund);
+  };
+
+  const handleConfirmSubmitDraft = async () => {
+    if (!submittingDraftRefund) return;
+    setIsSubmittingRefund(true);
     try {
-      await depositApi.submitRefund(refund._id);
-      setNotice(`Refund request ${refund.refundNumber} submitted for approval`);
+      await depositApi.submitRefund(submittingDraftRefund._id);
+      setNotice(`Refund request ${submittingDraftRefund.refundNumber} submitted for approval`);
+      setSubmittingDraftRefund(null);
       fetchRefunds();
       fetchStats();
     } catch (err: any) {
       setErrorNotice(err?.response?.data?.message || 'Failed to submit refund');
+    } finally {
+      setIsSubmittingRefund(false);
     }
   };
 
@@ -548,6 +561,30 @@ export const DepositsRefundsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Submit Draft Refund Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(submittingDraftRefund)}
+        onClose={() => !isSubmittingRefund && setSubmittingDraftRefund(null)}
+        onConfirm={handleConfirmSubmitDraft}
+        title="Submit Refund Request for Approval?"
+        message={
+          submittingDraftRefund ? (
+            <div className="space-y-1.5 text-xs text-slate-600 font-normal">
+              <p>
+                Submit refund request <strong className="font-semibold text-slate-900">{submittingDraftRefund.refundNumber}</strong> for <strong className="font-semibold text-slate-900">₹{submittingDraftRefund.requestedAmount.toLocaleString('en-IN')}</strong> for custody management review & approval?
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Once submitted, this request cannot be edited until an authorized officer reviews or returns it.
+              </p>
+            </div>
+          ) : undefined
+        }
+        confirmLabel="Submit for Approval"
+        cancelLabel="Keep as Draft"
+        variant="emerald"
+        isLoading={isSubmittingRefund}
+      />
     </div>
   );
 };
