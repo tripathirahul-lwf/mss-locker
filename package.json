@@ -6,6 +6,7 @@
   "scripts": {
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
+    "build": "cd frontend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm run build",
     "type-check": "cd backend && npm run type-check && cd ../frontend && npm run type-check",
