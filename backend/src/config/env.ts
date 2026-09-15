@@ -34,10 +34,6 @@ const envSchema = z.object({
   STORAGE_REFERENCE_SECRET: z.string().min(32).optional(),
   CLOUDINARY_KYC_FOLDER: z.string().regex(/^[a-zA-Z0-9/_-]+$/).default('vault-ledger/kyc'),
   CLOUDINARY_PHOTO_FOLDER: z.string().regex(/^[a-zA-Z0-9/_-]+$/).default('vault-ledger/photos'),
-  INITIAL_ADMIN_NAME: z.string().default('Super Administrator'),
-  INITIAL_ADMIN_EMAIL: z.string().email().default('admin@vaultledger.com'),
-  INITIAL_ADMIN_USERNAME: z.string().default('superadmin'),
-  INITIAL_ADMIN_PASSWORD: z.string().min(12).default('VaultAdmin@1234'),
 }).superRefine((value, ctx) => {
   const cloudinaryValues = [value.CLOUDINARY_CLOUD_NAME, value.CLOUDINARY_API_KEY, value.CLOUDINARY_API_SECRET];
   if (cloudinaryValues.some(Boolean) && !cloudinaryValues.every(Boolean)) {
@@ -61,13 +57,17 @@ const envSchema = z.object({
   if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_REFRESH_SECRET'], message: 'Access and refresh secrets must be different' });
   }
-  if (value.INITIAL_ADMIN_PASSWORD === 'VaultAdmin@1234') {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['INITIAL_ADMIN_PASSWORD'], message: 'Default administrator password is forbidden in production' });
-  }
   if (value.CLIENT_URL === '*' || !value.CLIENT_URL.startsWith('https://')) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CLIENT_URL'], message: 'Production CLIENT_URL must be one explicit HTTPS origin' });
   }
 });
+
+export const DEFAULT_ADMIN_CREDENTIALS = {
+  name: 'Super Administrator',
+  email: 'admin@vaultledger.com',
+  username: 'superadmin',
+  password: 'VaultAdmin@1234',
+} as const;
 
 export type EnvConfig = z.infer<typeof envSchema>;
 

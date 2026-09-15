@@ -1,5 +1,5 @@
 import { connectDatabase, disconnectDatabase } from '../config/database';
-import { env } from '../config/env';
+import { DEFAULT_ADMIN_CREDENTIALS } from '../config/env';
 import { Role } from '../models/Role';
 import { User } from '../models/User';
 import { Locker } from '../models/Locker';
@@ -76,19 +76,19 @@ export const seedDatabase = async (): Promise<void> => {
       throw new Error('Super Admin role could not be resolved during seeding');
     }
 
-    const normalizedAdminEmail = env.INITIAL_ADMIN_EMAIL.trim().toLowerCase();
-    const normalizedAdminUsername = env.INITIAL_ADMIN_USERNAME.trim().toLowerCase();
+    const normalizedAdminEmail = DEFAULT_ADMIN_CREDENTIALS.email.trim().toLowerCase();
+    const normalizedAdminUsername = DEFAULT_ADMIN_CREDENTIALS.username.trim().toLowerCase();
 
     const existingAdmin = await User.findOne({
       $or: [{ email: normalizedAdminEmail }, { username: normalizedAdminUsername }],
     });
 
+    const passwordHash = await hashPassword(DEFAULT_ADMIN_CREDENTIALS.password);
     let adminUser = existingAdmin;
 
     if (!existingAdmin) {
-      const passwordHash = await hashPassword(env.INITIAL_ADMIN_PASSWORD);
       adminUser = await User.create({
-        name: env.INITIAL_ADMIN_NAME.trim(),
+        name: DEFAULT_ADMIN_CREDENTIALS.name,
         email: normalizedAdminEmail,
         username: normalizedAdminUsername,
         phone: '+91 9876543210',
@@ -103,11 +103,9 @@ export const seedDatabase = async (): Promise<void> => {
       existingAdmin.status = 'ACTIVE';
       existingAdmin.failedLoginAttempts = 0;
       existingAdmin.lockedUntil = undefined as any;
-      if (env.INITIAL_ADMIN_PASSWORD) {
-        existingAdmin.passwordHash = await hashPassword(env.INITIAL_ADMIN_PASSWORD);
-      }
+      existingAdmin.passwordHash = passwordHash;
       await existingAdmin.save();
-      logger.info(`Super Admin account synchronized with env password (username='${existingAdmin.username}').`);
+      logger.info(`Super Admin account synchronized: username='${existingAdmin.username}', email='${existingAdmin.email}'.`);
     }
 
     // 3. Seed Sample Development Lockers (if database has 0 lockers)
