@@ -8,11 +8,15 @@ import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 
-// File upload requires Customer Create or KYC Manage permissions
+// File upload requires Customer Create, KYC Manage, or Payment Collect permissions
 router.post(
   '/file',
   authenticate,
-  requireAnyPermission(PERMISSIONS.CUSTOMERS_CREATE, PERMISSIONS.CUSTOMERS_KYC_MANAGE),
+  requireAnyPermission(
+    PERMISSIONS.CUSTOMERS_CREATE,
+    PERMISSIONS.CUSTOMERS_KYC_MANAGE,
+    PERMISSIONS.PAYMENTS_CREATE
+  ),
   uploadSingleMiddleware,
   UploadController.uploadFile
 );

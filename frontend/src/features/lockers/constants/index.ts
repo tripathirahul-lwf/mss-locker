@@ -29,10 +29,10 @@ export const LOCKER_STATUS_CONFIG: Record<
   },
   OCCUPIED: {
     label: 'Occupied',
-    bg: 'bg-sky-50',
-    text: 'text-sky-800',
-    border: 'border-sky-200',
-    dot: 'bg-sky-500',
+    bg: 'bg-rose-50',
+    text: 'text-rose-800',
+    border: 'border-rose-200',
+    dot: 'bg-rose-500',
     description: 'Active allotment held by customer',
   },
   RESERVED: {
@@ -45,10 +45,10 @@ export const LOCKER_STATUS_CONFIG: Record<
   },
   BLOCKED: {
     label: 'Blocked',
-    bg: 'bg-rose-50',
-    text: 'text-rose-800',
-    border: 'border-rose-200',
-    dot: 'bg-rose-500',
+    bg: 'bg-slate-100',
+    text: 'text-slate-800',
+    border: 'border-slate-300',
+    dot: 'bg-slate-500',
     description: 'Unavailable due to business or legal notice',
   },
 };

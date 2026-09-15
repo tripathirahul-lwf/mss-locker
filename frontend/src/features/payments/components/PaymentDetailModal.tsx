@@ -434,6 +434,51 @@ export function PaymentDetailModal({
             </div>
           )}
 
+          {/* Attached Payment Proof Card */}
+          {payment.proofUrl && (
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Attached Payment Proof / Voucher
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Proof Attached
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-800 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    {payment.proofDocumentName?.toLowerCase().endsWith('.pdf') ? (
+                      <FileText className="w-5 h-5" />
+                    ) : (
+                      <Receipt className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-900 text-xs truncate">
+                      {payment.proofDocumentName || 'Payment Transaction Proof'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                      Uploaded during cashier collection &bull; Available for Audit
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  href={payment.proofUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-2xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>View Proof</span>
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Cashier Notes */}
           {payment.notes && (
             <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200/80 text-xs">

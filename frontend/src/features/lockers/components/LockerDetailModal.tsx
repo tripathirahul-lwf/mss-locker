@@ -53,6 +53,7 @@ import { RefundRequest } from '../../deposits/types';
 import { LOCKER_SIZES } from '../constants';
 import { usePermission } from '../../../hooks/usePermission';
 import { Button } from '../../../components/ui/button';
+import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 import { RecordPaymentModal } from '../../payments/components/RecordPaymentModal';
 import { PaymentReceiptModal } from '../../payments/components/PaymentReceiptModal';
 import { GenerateRenewalModal } from '../../renewals/components/GenerateRenewalModal';
@@ -86,6 +87,15 @@ export function LockerDetailModal({
   const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Confirmation dialogs
+  const [confirmVacantOpen, setConfirmVacantOpen] = useState(false);
+  const [confirmRepairedOpen, setConfirmRepairedOpen] = useState(false);
+
+  // Quick Key Editing state
+  const [isEditingKey, setIsEditingKey] = useState(false);
+  const [keyInput, setKeyInput] = useState(locker.masterKeyReference || '');
+  const [isSavingKey, setIsSavingKey] = useState(false);
+
   const dialogRef = useRef<HTMLDivElement>(null);
   const sizeDefinition = LOCKER_SIZES.find((item) => item.code === locker.size);
 
@@ -104,8 +114,8 @@ export function LockerDetailModal({
 
   if (isOccupied) {
     statusBadgeLabel = 'Occupied';
-    statusBadgeStyle = 'bg-slate-100 text-slate-800 border-slate-300';
-    statusDotStyle = 'bg-slate-500';
+    statusBadgeStyle = 'bg-blue-50 text-blue-900 border-blue-200';
+    statusDotStyle = 'bg-blue-600';
   } else if (isAvailable) {
     statusBadgeLabel = 'Available';
     statusBadgeStyle = 'bg-emerald-50 text-emerald-800 border-emerald-200';
@@ -190,6 +200,48 @@ export function LockerDetailModal({
       setNotice(err.response?.data?.message || err.message || 'Failed to mark vacant.');
     },
   });
+
+  // Mark Repaired Mutation (For lockers under maintenance/damaged)
+  const markRepairedMutation = useMutation({
+    mutationFn: () =>
+      lockerApi.updateLocker(locker._id, {
+        status: 'VACANT',
+        operationalStatus: 'ACTIVE',
+        isActive: true,
+        remarks: undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lockers'] });
+      queryClient.invalidateQueries({ queryKey: ['locker', locker._id] });
+      queryClient.invalidateQueries({ queryKey: ['locker-stats'] });
+      setNotice('Maintenance resolved. Locker is now Active & Vacant.');
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    },
+    onError: (err: any) => {
+      setNotice(err.response?.data?.message || err.message || 'Failed to return locker to service.');
+    },
+  });
+
+  // Save Key Reference directly
+  const handleSaveKey = async () => {
+    setIsSavingKey(true);
+    try {
+      await lockerApi.updateLocker(locker._id, {
+        masterKeyReference: keyInput.trim() || undefined,
+      });
+      locker.masterKeyReference = keyInput.trim() || undefined;
+      queryClient.invalidateQueries({ queryKey: ['lockers'] });
+      queryClient.invalidateQueries({ queryKey: ['locker', locker._id] });
+      setIsEditingKey(false);
+      setNotice('Locker key reference saved successfully.');
+    } catch (err: any) {
+      setNotice(err.response?.data?.message || err.message || 'Failed to save key reference.');
+    } finally {
+      setIsSavingKey(false);
+    }
+  };
 
   // Keyboard accessibility and scroll lock
   useEffect(() => {
@@ -297,11 +349,23 @@ export function LockerDetailModal({
         {/* 1. Refined Bank Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-white border-b border-slate-200/90">
           <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center shrink-0 text-slate-700 shadow-2xs">
+            <div
+              className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs ${
+                isOccupied
+                  ? 'bg-blue-50 border-blue-200 text-blue-700'
+                  : isMaintenance
+                  ? 'bg-rose-50 border-rose-200 text-rose-600'
+                  : isReserved
+                  ? 'bg-amber-50 border-amber-200 text-amber-700'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              }`}
+            >
               {isOccupied ? (
-                <Lock className="w-5 h-5 text-slate-600" />
+                <Lock className="w-5 h-5 text-blue-700" />
               ) : isMaintenance ? (
                 <Wrench className="w-5 h-5 text-rose-600" />
+              ) : isReserved ? (
+                <Clock className="w-5 h-5 text-amber-700" />
               ) : (
                 <KeyRound className="w-5 h-5 text-emerald-700" />
               )}
@@ -469,20 +533,16 @@ export function LockerDetailModal({
                           Vacant & Ready for Customer Allotment
                         </h4>
                         <p className="text-xs text-emerald-800 font-normal mt-0.5">
-                          Compartment cleaned, key verified, and available for immediate customer lease.
+                          Compartment cleaned, master lock inspected, and open for immediate customer onboarding.
                         </p>
                       </div>
                     </div>
-                    {canAllocate && (
-                      <Button
-                        size="sm"
-                        onClick={handleAllocate}
-                        className="bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs h-8 px-3 rounded-xl shadow-2xs shrink-0 self-start sm:self-center cursor-pointer gap-1.5"
-                      >
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>Allocate Locker</span>
-                      </Button>
-                    )}
+                    <div className="shrink-0 self-start sm:self-center">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100/90 text-emerald-900 border border-emerald-300/60 shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        <span>Immediate Lease Ready</span>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Two-Column Structured Banking Cards */}
@@ -533,49 +593,96 @@ export function LockerDetailModal({
 
                           <div className="flex items-center justify-between py-1">
                             <span className="text-slate-500 font-medium">Key Reference</span>
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`font-mono text-xs ${
-                                  locker.masterKeyReference
-                                    ? 'font-bold text-slate-800'
-                                    : 'text-slate-400 font-normal'
-                                }`}
-                              >
-                                {sensitiveRevealed
-                                  ? locker.masterKeyReference || 'Not Assigned'
-                                  : locker.masterKeyReference
-                                  ? '••••••'
-                                  : 'Not Assigned'}
-                              </span>
-                              {locker.masterKeyReference && canViewSensitive && (
+                            {isEditingKey ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={keyInput}
+                                  onChange={(e) => setKeyInput(e.target.value)}
+                                  placeholder="e.g. K-104-A"
+                                  className="h-7 w-28 px-2 text-xs font-mono font-semibold border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 uppercase"
+                                  autoFocus
+                                />
                                 <button
                                   type="button"
-                                  onClick={() => setSensitiveRevealed(!sensitiveRevealed)}
-                                  className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                                  title={sensitiveRevealed ? 'Hide Key' : 'Reveal Key'}
+                                  onClick={handleSaveKey}
+                                  disabled={isSavingKey}
+                                  className="h-7 px-2 rounded-lg bg-emerald-800 text-white text-[11px] font-semibold hover:bg-emerald-900 transition cursor-pointer"
                                 >
-                                  {sensitiveRevealed ? (
-                                    <EyeOff className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <Eye className="h-3.5 w-3.5" />
-                                  )}
+                                  {isSavingKey ? '...' : 'Save'}
                                 </button>
-                              )}
-                              {locker.masterKeyReference && (
                                 <button
                                   type="button"
-                                  onClick={handleCopyKey}
-                                  className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                                  title="Copy Key Reference"
+                                  onClick={() => {
+                                    setIsEditingKey(false);
+                                    setKeyInput(locker.masterKeyReference || '');
+                                  }}
+                                  className="h-7 px-1.5 rounded-lg border border-slate-200 text-slate-500 text-[11px] hover:bg-slate-100 transition cursor-pointer"
                                 >
-                                  {copiedKey ? (
-                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                  ) : (
-                                    <Copy className="h-3.5 w-3.5" />
-                                  )}
+                                  Cancel
                                 </button>
-                              )}
-                            </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`font-mono text-xs ${
+                                    locker.masterKeyReference
+                                      ? 'font-bold text-slate-800'
+                                      : 'text-slate-400 font-normal'
+                                  }`}
+                                >
+                                  {sensitiveRevealed
+                                    ? locker.masterKeyReference || 'Not Assigned'
+                                    : locker.masterKeyReference
+                                    ? '••••••'
+                                    : 'Not Assigned'}
+                                </span>
+                                {locker.masterKeyReference && canViewSensitive && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSensitiveRevealed(!sensitiveRevealed)}
+                                    className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                    title={sensitiveRevealed ? 'Hide Key' : 'Reveal Key'}
+                                  >
+                                    {sensitiveRevealed ? (
+                                      <EyeOff className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <Eye className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                )}
+                                {locker.masterKeyReference && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCopyKey}
+                                    className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                    title="Copy Key Reference"
+                                  >
+                                    {copiedKey ? (
+                                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                )}
+                                {canUpdate && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setKeyInput(locker.masterKeyReference || '');
+                                      setIsEditingKey(true);
+                                    }}
+                                    className="text-slate-400 hover:text-emerald-700 p-0.5 cursor-pointer ml-0.5 inline-flex items-center gap-0.5 text-[11px]"
+                                    title={locker.masterKeyReference ? 'Edit Key' : 'Assign Key'}
+                                  >
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                    {!locker.masterKeyReference && (
+                                      <span className="text-emerald-700 font-medium">Assign</span>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -979,7 +1086,7 @@ export function LockerDetailModal({
                   </div>
                   <Button
                     size="sm"
-                    onClick={() => markVacantMutation.mutate()}
+                    onClick={() => setConfirmVacantOpen(true)}
                     disabled={markVacantMutation.isPending}
                     className="rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs h-8.5 px-3.5 shadow-2xs gap-1 cursor-pointer"
                   >
@@ -1107,12 +1214,58 @@ export function LockerDetailModal({
                       </div>
                     </div>
                   ) : !tenantId ? (
-                    <div className="py-10 text-center text-slate-400 space-y-2">
-                      <ShieldCheck className="h-10 w-10 mx-auto text-slate-300" />
-                      <p className="font-semibold text-slate-700 text-sm">No Customer Assigned</p>
-                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        This compartment is currently vacant. Customer identity and KYC verification will be required upon customer allocation.
-                      </p>
+                    <div className="p-5 rounded-2xl bg-slate-50/80 border border-slate-200 max-w-lg mx-auto text-left space-y-4 shadow-2xs">
+                      <div className="flex items-center gap-3 border-b border-slate-200/80 pb-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                          <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm">Mandatory KYC Guidelines for Allotment</h4>
+                          <p className="text-xs text-slate-500">Locker #{locker.lockerNumber} is vacant. Customer must satisfy compliance norms.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 space-y-1">
+                          <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Identity Proof (POI)</span>
+                          </span>
+                          <p className="text-[11px] text-slate-500">Aadhaar Card, Passport, or Voter ID with official photograph.</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 space-y-1">
+                          <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Address Proof (POA)</span>
+                          </span>
+                          <p className="text-[11px] text-slate-500">Utility bill, bank passbook, or registered agreement &lt; 3 months.</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 space-y-1">
+                          <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Specimen Card</span>
+                          </span>
+                          <p className="text-[11px] text-slate-500">Passport photos & ink specimen for vault master register.</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 space-y-1">
+                          <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Nomination Form</span>
+                          </span>
+                          <p className="text-[11px] text-slate-500">Statutory Form DA-1 safe deposit nominee declaration.</p>
+                        </div>
+                      </div>
+                      {canAllocate && (
+                        <div className="pt-2 border-t border-slate-200/80 flex justify-end">
+                          <Button
+                            size="sm"
+                            onClick={handleAllocate}
+                            className="bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs h-8 px-3 rounded-xl shadow-2xs gap-1.5 cursor-pointer"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                            <span>Begin Customer Onboarding</span>
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="p-6 rounded-2xl bg-amber-50/70 border border-amber-200/80 max-w-md mx-auto text-left space-y-2.5 shadow-2xs">
@@ -1199,7 +1352,7 @@ export function LockerDetailModal({
                   <div className="flex items-center gap-1.5">
                     <Shield className="w-4 h-4 text-emerald-700" />
                     <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900">
-                      Security Caution Deposit
+                      Security Caution Deposit Policy
                     </span>
                   </div>
                   <span className="text-2xl font-bold text-slate-900 mt-1 block font-mono">
@@ -1207,18 +1360,24 @@ export function LockerDetailModal({
                   </span>
                   <span className="text-xs text-emerald-800 font-medium">
                     {deposit > 0
-                      ? 'Held in Bank Escrow Account • 100% Refundable on Key Surrender'
+                      ? isOccupied
+                        ? 'Held in Bank Escrow Account • 100% Refundable on Key Surrender'
+                        : `Standard Escrow Mandate for Size ${locker.size} • Payable at Allotment`
                       : 'No Caution Deposit Required'}
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-white border border-emerald-200 text-xs text-slate-600 space-y-1">
+                <div className="p-3 rounded-xl bg-white border border-emerald-200 text-xs text-slate-600 space-y-1 min-w-[240px]">
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Escrow Status:</span>
-                    <span className="font-semibold text-emerald-800">Active Escrow</span>
+                    <span className={`font-semibold ${isOccupied ? 'text-emerald-800' : 'text-slate-600'}`}>
+                      {isOccupied ? 'Active Escrow' : 'Unallocated (Vacant)'}
+                    </span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Custody Holder:</span>
-                    <span className="font-medium text-slate-800">{tenant?.fullName || 'Active Allottee'}</span>
+                    <span className="font-medium text-slate-800">
+                      {isOccupied && tenant?.fullName ? tenant.fullName : 'Vault Reserve'}
+                    </span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Settlement:</span>
@@ -1280,7 +1439,7 @@ export function LockerDetailModal({
             {isClosed && (
               <Button
                 size="sm"
-                onClick={() => markVacantMutation.mutate()}
+                onClick={() => setConfirmVacantOpen(true)}
                 disabled={markVacantMutation.isPending}
                 className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 px-4 shadow-xs gap-1.5 cursor-pointer"
               >
@@ -1351,13 +1510,27 @@ export function LockerDetailModal({
               </>
             )}
 
+            {isMaintenance && canUpdate && (
+              <Button
+                size="sm"
+                onClick={() => setConfirmRepairedOpen(true)}
+                disabled={markRepairedMutation.isPending}
+                className="rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs h-9 px-4 shadow-xs gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>
+                  {markRepairedMutation.isPending ? 'Restoring Unit...' : 'Mark Repaired & Available'}
+                </span>
+              </Button>
+            )}
+
             {isAvailable && (
               <Button
                 size="sm"
                 onClick={handleAllocate}
-                className="rounded-xl bg-[#164e43] hover:bg-[#113e35] text-white font-bold text-xs h-9 px-4 shadow-xs gap-1.5 cursor-pointer"
+                className="rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs h-9 px-4 shadow-xs gap-1.5 cursor-pointer"
               >
-                <Plus className="h-4 w-4" />
+                <KeyRound className="h-4 w-4" />
                 <span>Allocate Locker</span>
               </Button>
             )}
@@ -1413,6 +1586,35 @@ export function LockerDetailModal({
           onClose={() => setViewingReceiptPayment(null)}
         />
       )}
+
+      {/* State Transition Confirmation Modals */}
+      <ConfirmationModal
+        isOpen={confirmVacantOpen}
+        onClose={() => setConfirmVacantOpen(false)}
+        onConfirm={() => {
+          markVacantMutation.mutate();
+          setConfirmVacantOpen(false);
+        }}
+        title="Mark Locker as Vacant?"
+        message={`Are you sure you want to mark Locker ${locker.lockerNumber} (${locker.lockerCode}) as VACANT? This will transition the locker to active vault inventory, making it immediately available for allotment.`}
+        confirmLabel="Mark Vacant"
+        variant="emerald"
+        isLoading={markVacantMutation.isPending}
+      />
+
+      <ConfirmationModal
+        isOpen={confirmRepairedOpen}
+        onClose={() => setConfirmRepairedOpen(false)}
+        onConfirm={() => {
+          markRepairedMutation.mutate();
+          setConfirmRepairedOpen(false);
+        }}
+        title="Restore Locker to Service?"
+        message={`Confirm that maintenance and inspection for Locker ${locker.lockerNumber} (${locker.lockerCode}) is complete. The locker will be returned to active inventory as VACANT.`}
+        confirmLabel="Restore to Service"
+        variant="emerald"
+        isLoading={markRepairedMutation.isPending}
+      />
     </div>
   );
 

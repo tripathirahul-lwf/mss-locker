@@ -12,7 +12,7 @@ type CloudAssetRef = { publicId: string; resourceType: 'image' | 'raw'; delivery
 
 export class StorageService {
   private static uploadBaseDir = path.resolve(process.cwd(), 'uploads');
-  private static allowedFolders = new Set(['photos', 'kyc', 'general']);
+  private static allowedFolders = new Set(['photos', 'kyc', 'general', 'payments']);
   private static imageMimes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
   static init(): void {

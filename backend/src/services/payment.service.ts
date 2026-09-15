@@ -24,6 +24,8 @@ export interface RecordPaymentInput {
   chequeNumber?: string;
   bankName?: string;
   chequeDate?: string;
+  proofUrl?: string;
+  proofDocumentName?: string;
   notes?: string;
   source?: PaymentSource;
 }
@@ -194,6 +196,8 @@ export class PaymentService {
       chequeNumber: input.chequeNumber?.trim() || undefined,
       bankName: input.bankName?.trim() || undefined,
       chequeDate: input.chequeDate ? new Date(input.chequeDate) : undefined,
+      proofUrl: input.proofUrl?.trim() || undefined,
+      proofDocumentName: input.proofDocumentName?.trim() || undefined,
       paymentDate,
       receivedAt: new Date(),
       source: 'MANUAL_ENTRY',
@@ -218,6 +222,8 @@ export class PaymentService {
         invoiceNumber: invoice.invoiceNumber,
         amount: payment.amount,
         paymentMethod: payment.paymentMethod,
+        hasProof: Boolean(payment.proofUrl),
+        proofDocumentName: payment.proofDocumentName,
         remainingBalance: updatedInvoice.balanceAmount,
       },
     }], { session });
@@ -851,6 +857,7 @@ export class PaymentService {
               ${payment.bankReference ? 'UTR: ' + payment.bankReference : ''}
               ${payment.transactionReference ? 'Txn: ' + payment.transactionReference : ''}
               ${payment.chequeNumber ? 'Cheque: #' + payment.chequeNumber : ''}
+              ${payment.proofUrl ? '<div style="font-size: 7.5pt; color: #047857; font-weight: 700; margin-top: 3px;">&#10003; Transaction Proof Attached (' + (payment.proofDocumentName || 'Verified Receipt') + ')</div>' : ''}
             </div>
           </td>
           <td style="text-align: right; font-weight: 800; font-family: monospace; font-size: 11pt;">

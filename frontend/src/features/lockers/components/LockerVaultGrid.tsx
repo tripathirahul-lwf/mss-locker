@@ -35,20 +35,35 @@ type RackGroup = {
 };
 
 // Fast status style lookup matching LockerModernCard banking aesthetic
-const getStatusTileStyle = (status: LockerStatus, opsStatus: string) => {
+const getStatusTileStyle = (status: LockerStatus, opsStatus: string, isRenewalDue: boolean = false) => {
   if (opsStatus === 'MAINTENANCE' || opsStatus === 'DAMAGED') {
     return {
-      cardClass: 'bg-rose-50/75 border-rose-200/90 hover:border-rose-300 hover:bg-rose-100/60 shadow-2xs hover:shadow-xs',
+      cardClass: 'bg-slate-100/90 border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-xs',
       icon: Wrench,
       statusLabel: 'Maintenance',
-      badgeClass: 'bg-rose-100 text-rose-800 border-rose-200',
-      dotClass: 'bg-rose-500',
-      sizeBadgeClass: 'bg-white/80 text-rose-900 border-rose-200/80',
-      rentColor: 'text-rose-950',
+      badgeClass: 'bg-slate-200 text-slate-800 border-slate-300',
+      dotClass: 'bg-slate-500',
+      sizeBadgeClass: 'bg-white text-slate-800 border-slate-300',
+      rentColor: 'text-slate-900',
       actionText: 'Inspect',
-      actionColor: 'text-rose-700',
-      subTextColor: 'text-rose-700/80',
-      footerBorder: 'border-rose-200/60',
+      actionColor: 'text-slate-700',
+      subTextColor: 'text-slate-500',
+      footerBorder: 'border-slate-200',
+    };
+  }
+  if (isRenewalDue) {
+    return {
+      cardClass: 'bg-amber-50/90 border-amber-300 hover:border-amber-400 hover:bg-amber-100/70 shadow-2xs hover:shadow-xs ring-1 ring-amber-300/60',
+      icon: Clock,
+      statusLabel: 'Renewal Due',
+      badgeClass: 'bg-amber-100 text-amber-950 border-amber-300 font-bold',
+      dotClass: 'bg-amber-600 animate-ping',
+      sizeBadgeClass: 'bg-white text-amber-950 border-amber-300',
+      rentColor: 'text-amber-950 font-bold',
+      actionText: 'Renew',
+      actionColor: 'text-amber-900 font-bold',
+      subTextColor: 'text-amber-800',
+      footerBorder: 'border-amber-200',
     };
   }
   switch (status) {
@@ -57,7 +72,7 @@ const getStatusTileStyle = (status: LockerStatus, opsStatus: string) => {
         cardClass: 'bg-emerald-50/75 border-emerald-200/90 hover:border-emerald-300 hover:bg-emerald-100/60 shadow-2xs hover:shadow-xs',
         icon: KeyRound,
         statusLabel: 'Available',
-        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200 font-bold',
         dotClass: 'bg-emerald-600 animate-pulse',
         sizeBadgeClass: 'bg-white/80 text-emerald-900 border-emerald-200/80',
         rentColor: 'text-emerald-950',
@@ -68,17 +83,17 @@ const getStatusTileStyle = (status: LockerStatus, opsStatus: string) => {
       };
     case 'OCCUPIED':
       return {
-        cardClass: 'bg-slate-50/90 border-slate-200/90 hover:border-slate-300 hover:bg-slate-100/80 shadow-2xs hover:shadow-xs',
+        cardClass: 'bg-rose-50/80 border-rose-200/90 hover:border-rose-300 hover:bg-rose-100/70 shadow-2xs hover:shadow-xs',
         icon: Lock,
         statusLabel: 'Occupied',
-        badgeClass: 'bg-slate-200/80 text-slate-700 border-slate-300',
-        dotClass: 'bg-slate-500',
-        sizeBadgeClass: 'bg-white text-slate-700 border-slate-200',
-        rentColor: 'text-slate-900',
+        badgeClass: 'bg-rose-100 text-rose-800 border-rose-200 font-bold',
+        dotClass: 'bg-rose-600',
+        sizeBadgeClass: 'bg-white text-rose-800 border-rose-200',
+        rentColor: 'text-rose-950',
         actionText: 'View Dossier',
-        actionColor: 'text-slate-700',
-        subTextColor: 'text-slate-500',
-        footerBorder: 'border-slate-200/70',
+        actionColor: 'text-rose-700 font-semibold',
+        subTextColor: 'text-rose-700/80',
+        footerBorder: 'border-rose-200/70',
       };
     case 'RESERVED':
       return {
@@ -135,8 +150,8 @@ const LockerTile = memo(function LockerTile({
   onSelect: (locker: Locker) => void;
   showRack?: boolean;
 }) {
-  const style = getStatusTileStyle(locker.status, locker.operationalStatus);
-  const isOccupied = locker.status === 'OCCUPIED';
+  const style = getStatusTileStyle(locker.status, locker.operationalStatus, Boolean(locker.isRenewalDue));
+  const isOccupied = locker.status === 'OCCUPIED' && !locker.isRenewalDue;
 
   // Subtitle: display rack if in continuous matrix, or section/position if available
   const subLocation = showRack

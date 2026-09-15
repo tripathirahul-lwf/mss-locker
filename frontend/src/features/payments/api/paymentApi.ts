@@ -124,5 +124,28 @@ export const paymentApi = {
     });
     return response.data;
   },
+
+  /**
+   * Upload payment proof/document (UPI screenshot, bank advice, cheque leaf, POS slip)
+   */
+  async uploadProof(
+    file: File,
+    onProgress?: (percentage: number) => void
+  ): Promise<{ fileUrl: string; fileKey: string; fileName: string; size: number }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', 'payments');
+
+    const response = await apiClient.post('/upload/file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 60_000,
+      onUploadProgress: (event) => {
+        if (event.total) onProgress?.(Math.min(99, Math.round((event.loaded * 100) / event.total)));
+      },
+    });
+    return response.data.data;
+  },
 };
 

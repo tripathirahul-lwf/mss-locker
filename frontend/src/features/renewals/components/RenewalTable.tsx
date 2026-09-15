@@ -16,6 +16,7 @@ import { PaymentStatusBadge, DueStatusBadge } from './RenewalStatusBadge';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
 import { formatPhone } from '../../customers/utils/phoneFormatter';
+import { formatDateSafe } from '../utils/dateFormatter';
 
 interface RenewalTableProps {
   invoices: LockerInvoice[];
@@ -168,11 +169,7 @@ export function RenewalTable({
                   <td className="py-3 px-4">
                     <div className="space-y-1">
                       <p className="font-medium text-slate-900 font-sans text-xs tabular-nums">
-                        {new Date(inv.dueDate).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
+                        {formatDateSafe(inv.dueDate)}
                       </p>
                       <DueStatusBadge status={inv.dueStatus} />
                     </div>
@@ -182,17 +179,7 @@ export function RenewalTable({
                   <td className="py-3 px-4">
                     <div className="space-y-0.5 text-xs text-slate-700 font-sans tabular-nums">
                       <span>
-                        {new Date(inv.billingPeriodStart).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}{' '}
-                        -{' '}
-                        {new Date(inv.billingPeriodEnd).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
+                        {formatDateSafe(inv.billingPeriodStart)} - {formatDateSafe(inv.billingPeriodEnd)}
                       </span>
                       <span className="text-[10px] text-slate-400 uppercase font-medium tracking-wider block font-sans">
                         {inv.billingCycle}

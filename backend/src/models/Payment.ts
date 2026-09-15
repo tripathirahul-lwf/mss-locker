@@ -30,6 +30,9 @@ export interface IPayment extends Document {
   bankName?: string;
   chequeDate?: Date;
 
+  proofUrl?: string;
+  proofDocumentName?: string;
+
   paymentDate: Date;
   receivedAt: Date;
 
@@ -139,6 +142,14 @@ const paymentSchema = new Schema<IPayment>(
     },
     chequeDate: {
       type: Date,
+    },
+    proofUrl: {
+      type: String,
+      trim: true,
+    },
+    proofDocumentName: {
+      type: String,
+      trim: true,
     },
     paymentDate: {
       type: Date,

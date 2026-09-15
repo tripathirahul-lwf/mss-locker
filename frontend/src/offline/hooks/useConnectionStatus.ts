@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../../services/apiClient';
 
 export type ConnectionState = 'ONLINE' | 'DEGRADED' | 'OFFLINE';
@@ -9,17 +9,31 @@ export function useConnectionStatus() {
   );
   const [serverReachable, setServerReachable] = useState<boolean>(true);
   const [lastChecked, setLastChecked] = useState<Date>(new Date());
+  const consecutiveFailuresRef = useRef<number>(0);
 
   const checkHealth = useCallback(async () => {
-    if (!navigator.onLine) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setBrowserOnline(false);
       setServerReachable(false);
       return;
     }
     try {
       const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
-      setServerReachable(res.ok);
+      // Any response under 500 (including 200, 304, 429) confirms server connectivity
+      if (res.ok || (res.status >= 200 && res.status < 500)) {
+        consecutiveFailuresRef.current = 0;
+        setServerReachable(true);
+      } else {
+        consecutiveFailuresRef.current += 1;
+        if (consecutiveFailuresRef.current >= 2) {
+          setServerReachable(false);
+        }
+      }
     } catch {
-      setServerReachable(false);
+      consecutiveFailuresRef.current += 1;
+      if (consecutiveFailuresRef.current >= 2) {
+        setServerReachable(false);
+      }
     } finally {
       setLastChecked(new Date());
     }

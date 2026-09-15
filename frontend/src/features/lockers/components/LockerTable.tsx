@@ -87,7 +87,7 @@ export function LockerTable({
                   >
                     {locker.lockerCode}
                   </Badge>
-                  <LockerStatusBadge status={locker.status} />
+                  <LockerStatusBadge status={locker.status} isRenewalDue={locker.isRenewalDue} />
                 </div>
                 <p className="mt-1.5 text-xs font-normal text-slate-600">
                   Size {locker.size} &bull; {locker.rackNumber} &bull; {locker.floor || 'Ground Floor'}
@@ -348,7 +348,7 @@ export function LockerTable({
 
                     {/* Occupancy Status */}
                     <td className="py-3.5 px-3">
-                      <LockerStatusBadge status={locker.status} />
+                      <LockerStatusBadge status={locker.status} isRenewalDue={locker.isRenewalDue} />
                     </td>
 
                     {/* Operational Status */}

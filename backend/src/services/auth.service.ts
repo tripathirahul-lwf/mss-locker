@@ -174,7 +174,7 @@ export class AuthService {
 
     // Create session in DB with hashed refresh token
     const refreshTokenHash = hashRefreshToken(refreshToken);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
     await Session.create({
       userId: user._id,
@@ -225,11 +225,29 @@ export class AuthService {
     }
 
     const refreshTokenHash = hashRefreshToken(refreshToken);
-    const session = await Session.findOne({
-      userId: new Types.ObjectId(decoded.userId),
+    const userIdObj = new Types.ObjectId(decoded.userId);
+
+    // Look for active session by current hash, or previous hash within a 60-second rotation grace window
+    const sixtySecondsAgo = new Date(Date.now() - 60 * 1000);
+    let session = await Session.findOne({
+      userId: userIdObj,
       refreshTokenHash,
       revokedAt: { $exists: false },
     });
+
+    let isGracePeriodRecovery = false;
+    if (!session) {
+      // Check if this token was just rotated in a concurrent burst (grace window)
+      session = await Session.findOne({
+        userId: userIdObj,
+        previousRefreshTokenHash: refreshTokenHash,
+        rotatedAt: { $gte: sixtySecondsAgo },
+        revokedAt: { $exists: false },
+      });
+      if (session) {
+        isGracePeriodRecovery = true;
+      }
+    }
 
     if (!session || session.expiresAt.getTime() < Date.now()) {
       throw new Error('Session expired or revoked');
@@ -240,7 +258,6 @@ export class AuthService {
       throw new Error('User inactive or not found');
     }
 
-    // Token rotation: Issue new access & refresh tokens
     const tokenPayload = {
       userId: user._id.toString(),
       username: user.username,
@@ -250,12 +267,21 @@ export class AuthService {
     const newAccessToken = generateAccessToken(tokenPayload);
     const newRefreshToken = generateRefreshToken(tokenPayload);
 
-    // Update session record
-    session.refreshTokenHash = hashRefreshToken(newRefreshToken);
-    session.lastUsedAt = new Date();
-    session.ipAddress = ipAddress || session.ipAddress;
-    session.userAgent = userAgent || session.userAgent;
-    await session.save();
+    if (!isGracePeriodRecovery) {
+      // Normal rotation: Move current hash to previous, store new hash, extend session
+      session.previousRefreshTokenHash = session.refreshTokenHash;
+      session.refreshTokenHash = hashRefreshToken(newRefreshToken);
+      session.rotatedAt = new Date();
+      session.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      session.lastUsedAt = new Date();
+      session.ipAddress = ipAddress || session.ipAddress;
+      session.userAgent = userAgent || session.userAgent;
+      await session.save();
+    } else {
+      // Grace period request: update lastUsedAt, don't break rotation chain
+      session.lastUsedAt = new Date();
+      await session.save();
+    }
 
     const rolePermissions = new Set<string>(user.role.permissions || []);
     user.permissionsOverride?.grant?.forEach((permission) => rolePermissions.add(permission));
@@ -277,7 +303,13 @@ export class AuthService {
     if (refreshToken) {
       const refreshTokenHash = hashRefreshToken(refreshToken);
       await Session.findOneAndUpdate(
-        { refreshTokenHash, revokedAt: { $exists: false } },
+        {
+          $or: [
+            { refreshTokenHash },
+            { previousRefreshTokenHash: refreshTokenHash },
+          ],
+          revokedAt: { $exists: false },
+        },
         { revokedAt: new Date() }
       );
     }

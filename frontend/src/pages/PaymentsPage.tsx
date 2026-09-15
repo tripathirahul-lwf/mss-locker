@@ -16,6 +16,7 @@ import { PaymentTable } from '../features/payments/components/PaymentTable';
 import { RecordPaymentModal } from '../features/payments/components/RecordPaymentModal';
 import { PaymentReceiptModal } from '../features/payments/components/PaymentReceiptModal';
 import { PaymentDetailModal } from '../features/payments/components/PaymentDetailModal';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { usePermission } from '../hooks/usePermission';
 
 export function PaymentsPage() {
@@ -88,6 +89,7 @@ export function PaymentsPage() {
   const [recordModalOpen, setRecordModalOpen] = useState(false);
   const [viewingPayment, setViewingPayment] = useState<Payment | null>(null);
   const [printingPayment, setPrintingPayment] = useState<Payment | null>(null);
+  const [cancellingPayment, setCancellingPayment] = useState<Payment | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Mutations
@@ -239,9 +241,7 @@ export function PaymentsPage() {
         onPageChange={(p) => updateFilters({ page: p })}
         onView={(p) => setViewingPayment(p)}
         onPrintReceipt={(p) => setPrintingPayment(p)}
-        onCancel={(p) =>
-          cancelMutation.mutate({ id: p._id, reason: 'Staff cancellation' })
-        }
+        onCancel={(p) => setCancellingPayment(p)}
         onRecordPayment={() => setRecordModalOpen(true)}
       />
 
@@ -278,6 +278,30 @@ export function PaymentsPage() {
           onClose={() => setPrintingPayment(null)}
         />
       )}
+
+      {/* Payment Cancellation Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(cancellingPayment)}
+        onClose={() => setCancellingPayment(null)}
+        onConfirm={() => {
+          if (cancellingPayment) {
+            cancelMutation.mutate({
+              id: cancellingPayment._id,
+              reason: 'Staff cancellation via payments ledger',
+            });
+            setCancellingPayment(null);
+          }
+        }}
+        title="Cancel Payment Transaction?"
+        message={
+          cancellingPayment
+            ? `Are you sure you want to cancel payment receipt ${cancellingPayment.receiptNumber || cancellingPayment.paymentNumber} for ₹${cancellingPayment.amount?.toLocaleString('en-IN')}? This will reverse the transaction and restore the outstanding balance.`
+            : ''
+        }
+        confirmLabel="Cancel Payment"
+        variant="danger"
+        isLoading={cancelMutation.isPending}
+      />
     </div>
   );
 }

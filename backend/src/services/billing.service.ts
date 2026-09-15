@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
 import { LockerInvoice, ILockerInvoice } from '../models/LockerInvoice';
 import { LockerAllocation } from '../models/LockerAllocation';
+import { Customer } from '../models/Customer';
+import { Locker } from '../models/Locker';
 import { AuditLog } from '../models/AuditLog';
 import {
   InvoiceType,
@@ -18,7 +20,7 @@ export interface InvoiceQueryParams {
   invoiceType?: InvoiceType;
   status?: InvoiceStatus;
   paymentStatus?: PaymentStatus;
-  dueStatus?: DueStatus;
+  dueStatus?: DueStatus | 'DUE_THIS_MONTH' | 'DUE_THIS_WEEK';
   billingCycle?: BillingCycle;
   customerId?: string;
   lockerId?: string;
@@ -27,6 +29,7 @@ export interface InvoiceQueryParams {
   dueDateTo?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  onlyOutstanding?: boolean | string;
 }
 
 export class BillingService {
@@ -40,17 +43,50 @@ export class BillingService {
 
     const query: any = {};
 
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const weekEnd = new Date(todayStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    weekEnd.setHours(23, 59, 59, 999);
+
     if (params.invoiceType) query.invoiceType = params.invoiceType;
     if (params.status) query.status = params.status;
     if (params.paymentStatus) query.paymentStatus = params.paymentStatus;
-    if (params.dueStatus) query.dueStatus = params.dueStatus;
     if (params.billingCycle) query.billingCycle = params.billingCycle;
     if (params.customerId) query.customerId = new Types.ObjectId(params.customerId);
     if (params.lockerId) query.lockerId = new Types.ObjectId(params.lockerId);
     if (params.allocationId) query.allocationId = new Types.ObjectId(params.allocationId);
 
+    // Outstanding invoices filter (balance > 0 and not cancelled)
+    if (params.onlyOutstanding === true || params.onlyOutstanding === 'true') {
+      query.balanceAmount = { $gt: 0 };
+      if (!query.status) query.status = { $ne: 'CANCELLED' };
+    }
+
+    // Dynamic Due Status filters matching stats logic
+    if (params.dueStatus === ('ACTIONABLE' as any)) {
+      query.balanceAmount = { $gt: 0 };
+      if (!query.status) query.status = { $ne: 'CANCELLED' };
+      query.dueDate = { $lte: monthEnd };
+    } else if (params.dueStatus === 'OVERDUE') {
+      query.balanceAmount = { $gt: 0 };
+      if (!query.status) query.status = { $ne: 'CANCELLED' };
+      query.dueDate = { $lt: todayStart };
+    } else if (params.dueStatus === 'DUE_THIS_MONTH' as any) {
+      query.balanceAmount = { $gt: 0 };
+      if (!query.status) query.status = { $ne: 'CANCELLED' };
+      query.dueDate = { $gte: todayStart, $lte: monthEnd };
+    } else if (params.dueStatus === 'DUE_THIS_WEEK' as any) {
+      query.balanceAmount = { $gt: 0 };
+      if (!query.status) query.status = { $ne: 'CANCELLED' };
+      query.dueDate = { $gte: todayStart, $lte: weekEnd };
+    } else if (params.dueStatus && params.dueStatus !== ('ALL' as any)) {
+      query.dueStatus = params.dueStatus;
+    }
+
     if (params.dueDateFrom || params.dueDateTo) {
-      query.dueDate = {};
+      query.dueDate = query.dueDate || {};
       if (params.dueDateFrom) query.dueDate.$gte = new Date(params.dueDateFrom);
       if (params.dueDateTo) {
         const toDate = new Date(params.dueDateTo);
@@ -59,13 +95,54 @@ export class BillingService {
       }
     }
 
+    // Comprehensive text search matching invoice number, legacy bill ref, customer, or locker number
     if (params.search && params.search.trim()) {
-      const searchRegex = new RegExp(params.search.trim(), 'i');
-      query.$or = [
+      const cleanSearch = params.search.trim();
+      const escaped = cleanSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escaped, 'i');
+      const cleanDigits = cleanSearch.replace(/\D/g, '');
+      const numberWithoutHash = cleanSearch.replace(/^#+/, '').trim();
+
+      const customerConditions: any[] = [
+        { fullName: searchRegex },
+        { customerCode: searchRegex },
+        { phone: searchRegex },
+      ];
+      if (cleanDigits.length >= 3) {
+        customerConditions.push({ phone: { $regex: cleanDigits, $options: 'i' } });
+      }
+
+      const lockerConditions: any[] = [
+        { lockerNumber: searchRegex },
+        { lockerCode: searchRegex },
+        { rackNumber: searchRegex },
+      ];
+      if (numberWithoutHash) {
+        lockerConditions.push({ lockerNumber: new RegExp(`^${numberWithoutHash}$`, 'i') });
+      }
+
+      const [matchingCustomers, matchingLockers] = await Promise.all([
+        Customer.find({ $or: customerConditions }).select('_id').lean(),
+        Locker.find({ $or: lockerConditions }).select('_id').lean(),
+      ]);
+
+      const customerIds = matchingCustomers.map((c) => c._id);
+      const lockerIds = matchingLockers.map((l) => l._id);
+
+      const orConditions: any[] = [
         { invoiceNumber: searchRegex },
         { legacyReference: searchRegex },
         { legacyInvoiceNumber: searchRegex },
       ];
+
+      if (customerIds.length > 0) {
+        orConditions.push({ customerId: { $in: customerIds } });
+      }
+      if (lockerIds.length > 0) {
+        orConditions.push({ lockerId: { $in: lockerIds } });
+      }
+
+      query.$or = orConditions;
     }
 
     // Default sort: OVERDUE and nearest due date first
@@ -85,11 +162,21 @@ export class BillingService {
       LockerInvoice.countDocuments(query),
     ]);
 
-    // Recalculate dynamic due status on the fly
-    const enriched = invoices.map((inv: any) => ({
-      ...inv,
-      dueStatus: determineDueStatus(new Date(inv.dueDate), inv.balanceAmount),
-    }));
+    // Recalculate dynamic due status on the fly and sanitize corrupted legacy years
+    const enriched = invoices.map((inv: any) => {
+      let d = new Date(inv.dueDate);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        if (y > 100 && y < 1000) {
+          d.setFullYear(2000 + (y % 100));
+        }
+      }
+      return {
+        ...inv,
+        dueDate: isNaN(d.getTime()) ? inv.dueDate : d.toISOString(),
+        dueStatus: determineDueStatus(d, inv.balanceAmount),
+      };
+    });
 
     return {
       invoices: enriched,

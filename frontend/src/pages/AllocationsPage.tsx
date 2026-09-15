@@ -18,6 +18,7 @@ import { AllocationFilterPills } from '../features/allocations/components/Alloca
 import { AllocationTable } from '../features/allocations/components/AllocationTable';
 import { AllocationWizardModal } from '../features/allocations/components/AllocationWizardModal';
 import { AllocationDetailModal } from '../features/allocations/components/AllocationDetailModal';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { usePermission } from '../hooks/usePermission';
 
 export function AllocationsPage() {
@@ -90,6 +91,8 @@ export function AllocationsPage() {
   const [preSelectedLocker, setPreSelectedLocker] = useState<Locker | null>(null);
   const [viewingAllocation, setViewingAllocation] = useState<LockerAllocation | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [confirmCancelAllocation, setConfirmCancelAllocation] = useState<LockerAllocation | null>(null);
+  const [confirmActivateAllocation, setConfirmActivateAllocation] = useState<LockerAllocation | null>(null);
 
   // Check for direct locker allocation query param
   const allocateLockerId = searchParams.get('allocateLocker');
@@ -238,8 +241,8 @@ export function AllocationsPage() {
           setIsEditMode(false);
           setViewingAllocation(a);
         }}
-        onActivate={(a) => activateMutation.mutate(a._id)}
-        onCancel={(a) => cancelMutation.mutate(a._id)}
+        onActivate={(a) => setConfirmActivateAllocation(a)}
+        onCancel={(a) => setConfirmCancelAllocation(a)}
         onEdit={(a) => {
           setIsEditMode(true);
           setViewingAllocation(a);
@@ -272,10 +275,54 @@ export function AllocationsPage() {
           allocation={viewingAllocation}
           initialEditMode={isEditMode}
           onClose={() => setViewingAllocation(null)}
-          onActivate={(a) => activateMutation.mutate(a._id)}
-          onCancel={(a) => cancelMutation.mutate(a._id)}
+          onActivate={(a) => setConfirmActivateAllocation(a)}
+          onCancel={(a) => setConfirmCancelAllocation(a)}
         />
       )}
+
+      {/* Confirmation Modals */}
+      <ConfirmationModal
+        isOpen={Boolean(confirmCancelAllocation)}
+        onClose={() => setConfirmCancelAllocation(null)}
+        onConfirm={() => {
+          if (confirmCancelAllocation) {
+            cancelMutation.mutate(confirmCancelAllocation._id);
+            setConfirmCancelAllocation(null);
+            if (viewingAllocation?._id === confirmCancelAllocation._id) {
+              setViewingAllocation(null);
+            }
+          }
+        }}
+        title="Cancel Tenancy Hold / Allocation?"
+        message={
+          confirmCancelAllocation
+            ? `Are you sure you want to cancel the allocation for Locker ${confirmCancelAllocation.lockerId?.lockerNumber || ''} held by ${confirmCancelAllocation.customerId?.fullName || 'the customer'}? The locker reservation will be released back to vacant inventory.`
+            : ''
+        }
+        confirmLabel="Cancel Allocation"
+        variant="danger"
+        isLoading={cancelMutation.isPending}
+      />
+
+      <ConfirmationModal
+        isOpen={Boolean(confirmActivateAllocation)}
+        onClose={() => setConfirmActivateAllocation(null)}
+        onConfirm={() => {
+          if (confirmActivateAllocation) {
+            activateMutation.mutate(confirmActivateAllocation._id);
+            setConfirmActivateAllocation(null);
+          }
+        }}
+        title="Activate Reserved Tenancy Agreement?"
+        message={
+          confirmActivateAllocation
+            ? `Are you sure you want to activate tenancy agreement #${confirmActivateAllocation.allocationCode} for Locker ${confirmActivateAllocation.lockerId?.lockerNumber || ''} assigned to ${confirmActivateAllocation.customerId?.fullName || 'the customer'}? The locker will be marked as occupied.`
+            : ''
+        }
+        confirmLabel="Activate Agreement"
+        variant="emerald"
+        isLoading={activateMutation.isPending}
+      />
     </div>
   );
 }

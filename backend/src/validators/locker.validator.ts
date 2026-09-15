@@ -55,7 +55,7 @@ export const lockerQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(2000).optional().default(25),
   search: z.string().trim().optional(),
   size: z.string().trim().optional(),
-  status: z.enum(['VACANT', 'RESERVED', 'OCCUPIED', 'BLOCKED', 'ALL']).optional(),
+  status: z.enum(['VACANT', 'RESERVED', 'OCCUPIED', 'BLOCKED', 'RENEWAL_DUE', 'ALL']).optional(),
   operationalStatus: z
     .enum(['ACTIVE', 'MAINTENANCE', 'DAMAGED', 'DECOMMISSIONED', 'ALL'])
     .optional(),

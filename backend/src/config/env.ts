@@ -25,8 +25,8 @@ const envSchema = z.object({
     .string()
     .min(16, { message: 'JWT_REFRESH_SECRET must be at least 16 characters' })
     .default('default_development_refresh_secret_key_32_chars!'),
-  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  JWT_ACCESS_EXPIRES_IN: z.string().default('24h'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   CLIENT_URL: z.string().default('http://localhost:5173'),
   CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
   CLOUDINARY_API_KEY: z.string().min(1).optional(),

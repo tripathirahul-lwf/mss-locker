@@ -24,6 +24,12 @@ export interface Locker {
   securityDeposit: number;
   status: LockerStatus;
   operationalStatus: OperationalStatus;
+  isRenewalDue?: boolean;
+  tenantName?: string;
+  tenantCode?: string;
+  tenantPhone?: string;
+  nextRenewalDueDate?: string;
+  renewalBalanceAmount?: number;
   remarks?: string;
   isActive: boolean;
   createdBy?: {
@@ -51,6 +57,7 @@ export interface LockerStats {
   damaged: number;
   decommissioned: number;
   availableForAllocation: number;
+  renewalDue?: number;
   sizeBreakdown: Record<
     string,
     {

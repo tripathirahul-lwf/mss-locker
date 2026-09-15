@@ -20,6 +20,7 @@ import { lockerApi } from '../features/lockers/api/lockerApi';
 import { LockerStatusBadge, OperationalStatusBadge } from '../features/lockers/components/LockerStatusBadge';
 import { formatINR, isLockerAvailable } from '../features/lockers/utils/formatters';
 import { LockerFormModal } from '../features/lockers/components/LockerFormModal';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -35,6 +36,7 @@ export function LockerDetailPage() {
   const canViewSensitive = usePermission('lockers.view_sensitive');
 
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [confirmDeactivateOpen, setConfirmDeactivateOpen] = useState(false);
 
   const {
     data: locker,
@@ -109,16 +111,9 @@ export function LockerDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Are you sure you want to deactivate locker ${locker.lockerNumber}?`
-                  )
-                ) {
-                  deactivateMutation.mutate();
-                }
-              }}
+              onClick={() => setConfirmDeactivateOpen(true)}
               className="text-rose-600 hover:bg-rose-50 border-rose-200 text-xs"
+              title="Deactivate Locker"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
@@ -319,6 +314,21 @@ export function LockerDetailPage() {
           isSubmitting={false}
         />
       )}
+
+      {/* Deactivate Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmDeactivateOpen}
+        onClose={() => setConfirmDeactivateOpen(false)}
+        onConfirm={() => {
+          deactivateMutation.mutate();
+          setConfirmDeactivateOpen(false);
+        }}
+        title="Deactivate Vault Locker?"
+        message={`Are you sure you want to deactivate Locker ${locker.lockerNumber} (${locker.lockerCode})? This unit will be marked as decommissioned and excluded from active allotment.`}
+        confirmLabel="Deactivate Locker"
+        variant="danger"
+        isLoading={deactivateMutation.isPending}
+      />
     </div>
   );
 }

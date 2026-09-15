@@ -1,5 +1,7 @@
 import { Types } from 'mongoose';
 import { Locker, ILocker } from '../models/Locker';
+import { LockerAllocation } from '../models/LockerAllocation';
+import { LockerInvoice } from '../models/LockerInvoice';
 import {
   CreateLockerInput,
   UpdateLockerInput,
@@ -28,6 +30,7 @@ export interface LockerStatsResult {
   damaged: number;
   decommissioned: number;
   availableForAllocation: number;
+  renewalDue?: number;
   sizeBreakdown: Record<
     string,
     {
@@ -47,7 +50,7 @@ export class LockerService {
     const filter: Record<string, unknown> = {};
     if (isActive !== undefined) filter.isActive = isActive;
     if (size) filter.size = size.toUpperCase();
-    if (status && status !== 'ALL') filter.status = status;
+    if (status && status !== 'ALL' && status !== 'RENEWAL_DUE') filter.status = status;
     if (operationalStatus && operationalStatus !== 'ALL') filter.operationalStatus = operationalStatus;
     if (rackNumber) filter.rackNumber = { $regex: rackNumber, $options: 'i' };
     if (section) filter.section = { $regex: section, $options: 'i' };
@@ -111,7 +114,7 @@ export class LockerService {
    */
   static async getLockers(
     params: LockerQueryParams,
-    canViewSensitive: boolean
+    canViewSensitive: boolean = false
   ): Promise<PaginatedLockersResult> {
     const {
       page = 1,
@@ -129,6 +132,32 @@ export class LockerService {
     } = params;
 
     const filter = this.buildLockerFilter({ search, size, status, operationalStatus, rackNumber, section, isActive });
+
+    // Handle RENEWAL_DUE virtual filter (synchronized with Actionable Dues: Overdue + Due This Month)
+    if (status === 'RENEWAL_DUE') {
+      const now = new Date();
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const [invoiceLockerIds, allocLockerIds] = await Promise.all([
+        LockerInvoice.find({
+          status: { $ne: 'CANCELLED' },
+          balanceAmount: { $gt: 0 },
+          $or: [
+            { dueStatus: 'OVERDUE' },
+            { dueDate: { $lte: monthEnd } },
+          ],
+        }).distinct('lockerId'),
+        LockerAllocation.find({
+          status: 'ACTIVE',
+          $or: [
+            { nextRenewalDueDate: { $lte: monthEnd } },
+            { paidThroughDate: { $lte: monthEnd } },
+          ],
+        }).distinct('lockerId'),
+      ]);
+      const combined = Array.from(new Set([...invoiceLockerIds, ...allocLockerIds].map(String)))
+        .map((id) => new Types.ObjectId(id));
+      filter._id = { $in: combined };
+    }
 
     const sortOptions: Record<string, 1 | -1> = {
       [sortBy]: sortOrder === 'desc' ? -1 : 1,
@@ -155,8 +184,72 @@ export class LockerService {
       ? lockers
       : (lockers as ILocker[]).map((l) => this.sanitizeLocker(l, canViewSensitive));
 
+    // Enrich lockers with active tenancy and renewal due status
+    const lockerIds = (sanitizedLockers as any[]).map((l) => l._id);
+    const [activeAllocations, pendingInvoices] = await Promise.all([
+      LockerAllocation.find({
+        lockerId: { $in: lockerIds },
+        status: 'ACTIVE',
+      })
+        .select('lockerId customerId startDate paidThroughDate nextRenewalDueDate')
+        .populate('customerId', 'fullName customerCode phone')
+        .lean(),
+      LockerInvoice.find({
+        lockerId: { $in: lockerIds },
+        status: { $ne: 'CANCELLED' },
+        balanceAmount: { $gt: 0 },
+      })
+        .select('lockerId dueDate balanceAmount paymentStatus dueStatus')
+        .lean(),
+    ]);
+
+    const allocMap = new Map<string, any>();
+    activeAllocations.forEach((a) => {
+      allocMap.set(String(a.lockerId), a);
+    });
+
+    const invoiceMap = new Map<string, any>();
+    pendingInvoices.forEach((inv) => {
+      const key = String(inv.lockerId);
+      if (!invoiceMap.has(key)) {
+        invoiceMap.set(key, inv);
+      }
+    });
+
+    const now = new Date();
+    const monthEndMs = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+
+    const enrichedLockers = (sanitizedLockers as any[]).map((l) => {
+      const lockerIdStr = String(l._id);
+      const alloc = allocMap.get(lockerIdStr);
+      const inv = invoiceMap.get(lockerIdStr);
+
+      const isInvoiceDue = Boolean(
+        inv && (
+          inv.dueStatus === 'OVERDUE' ||
+          (inv.dueDate && new Date(inv.dueDate).getTime() <= monthEndMs)
+        )
+      );
+      const allocDueMs = alloc?.nextRenewalDueDate
+        ? new Date(alloc.nextRenewalDueDate).getTime()
+        : (alloc?.paidThroughDate ? new Date(alloc.paidThroughDate).getTime() : 0);
+      const isAllocDue = allocDueMs > 0 && allocDueMs <= monthEndMs;
+      const isRenewalDue = isInvoiceDue || isAllocDue;
+
+      const base = typeof (l as any).toObject === 'function' ? (l as any).toObject() : l;
+      return {
+        ...base,
+        isRenewalDue,
+        tenantName: alloc?.customerId?.fullName,
+        tenantCode: alloc?.customerId?.customerCode,
+        tenantPhone: alloc?.customerId?.phone,
+        nextRenewalDueDate: alloc?.nextRenewalDueDate || alloc?.paidThroughDate || inv?.dueDate,
+        renewalBalanceAmount: inv?.balanceAmount,
+      };
+    });
+
     return {
-      lockers: sanitizedLockers as unknown as Partial<ILocker>[],
+      lockers: enrichedLockers as unknown as Partial<ILocker>[],
       pagination: {
         page,
         limit,
@@ -172,7 +265,7 @@ export class LockerService {
   static async getLockerById(
     id: string,
     canViewSensitive: boolean
-  ): Promise<Partial<ILocker>> {
+  ): Promise<any> {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error('Invalid locker ID');
     }
@@ -185,7 +278,41 @@ export class LockerService {
       throw new Error('Locker not found');
     }
 
-    return this.sanitizeLocker(locker, canViewSensitive);
+    const sanitized = this.sanitizeLocker(locker, canViewSensitive);
+    const [activeAlloc, pendingInv] = await Promise.all([
+      LockerAllocation.findOne({ lockerId: locker._id, status: 'ACTIVE' })
+        .populate('customerId', 'fullName customerCode phone')
+        .lean(),
+      LockerInvoice.findOne({
+        lockerId: locker._id,
+        status: { $ne: 'CANCELLED' },
+        balanceAmount: { $gt: 0 },
+      }).lean(),
+    ]);
+
+    const now = new Date();
+    const monthEndMs = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    const isInvoiceDue = Boolean(
+      pendingInv && (
+        pendingInv.dueStatus === 'OVERDUE' ||
+        (pendingInv.dueDate && new Date(pendingInv.dueDate).getTime() <= monthEndMs)
+      )
+    );
+    const allocDueMs = activeAlloc?.nextRenewalDueDate
+      ? new Date(activeAlloc.nextRenewalDueDate).getTime()
+      : (activeAlloc?.paidThroughDate ? new Date(activeAlloc.paidThroughDate).getTime() : 0);
+    const isAllocDue = allocDueMs > 0 && allocDueMs <= monthEndMs;
+    const isRenewalDue = isInvoiceDue || isAllocDue;
+
+    return {
+      ...sanitized,
+      isRenewalDue,
+      tenantName: (activeAlloc?.customerId as any)?.fullName,
+      tenantCode: (activeAlloc?.customerId as any)?.customerCode,
+      tenantPhone: (activeAlloc?.customerId as any)?.phone,
+      nextRenewalDueDate: activeAlloc?.nextRenewalDueDate || activeAlloc?.paidThroughDate || pendingInv?.dueDate,
+      renewalBalanceAmount: pendingInv?.balanceAmount,
+    };
   }
 
   /**
@@ -196,7 +323,10 @@ export class LockerService {
     const cached = this.statsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     const match = this.buildLockerFilter({ ...params, isActive: params.isActive ?? true });
-    const [total, statusCounts, operationalCounts, sizeMatrix, availableCount] =
+    const now = new Date();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const [total, statusCounts, operationalCounts, sizeMatrix, availableCount, invoiceLockerIds, allocLockerIds] =
       await Promise.all([
         Locker.countDocuments(match),
         Locker.aggregate([
@@ -220,7 +350,24 @@ export class LockerService {
           status: 'VACANT',
           operationalStatus: 'ACTIVE',
         }),
+        LockerInvoice.find({
+          status: { $ne: 'CANCELLED' },
+          balanceAmount: { $gt: 0 },
+          $or: [
+            { dueStatus: 'OVERDUE' },
+            { dueDate: { $lte: monthEnd } },
+          ],
+        }).distinct('lockerId'),
+        LockerAllocation.find({
+          status: 'ACTIVE',
+          $or: [
+            { nextRenewalDueDate: { $lte: monthEnd } },
+            { paidThroughDate: { $lte: monthEnd } },
+          ],
+        }).distinct('lockerId'),
       ]);
+
+    const renewalDueCount = new Set([...invoiceLockerIds, ...allocLockerIds].map(String)).size;
 
     const getStatusCount = (statusName: string) => {
       const item = statusCounts.find((s) => s._id === statusName);
@@ -262,6 +409,7 @@ export class LockerService {
       damaged: getOperationalCount('DAMAGED'),
       decommissioned: getOperationalCount('DECOMMISSIONED'),
       availableForAllocation: availableCount,
+      renewalDue: renewalDueCount,
       sizeBreakdown,
     };
     this.statsCache.set(cacheKey, { expiresAt: Date.now() + 15_000, value: result });

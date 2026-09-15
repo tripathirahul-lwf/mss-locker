@@ -305,6 +305,11 @@ export function PaymentReceiptModal({
                     {payment.bankReference && <span className="text-[10px] text-slate-600 block">UTR: {payment.bankReference}</span>}
                     {payment.transactionReference && <span className="text-[10px] text-slate-600 block">Txn: {payment.transactionReference}</span>}
                     {payment.chequeNumber && <span className="text-[10px] text-slate-600 block">Cheque #{payment.chequeNumber}</span>}
+                    {payment.proofUrl && (
+                      <span className="text-[9.5px] font-sans text-emerald-800 font-bold block mt-1">
+                        &#10003; Proof Attached: {payment.proofDocumentName || 'Verified'}
+                      </span>
+                    )}
                   </td>
                   <td className="p-2.5 text-right font-black font-mono text-base text-slate-950">
                     ₹{payment.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}

@@ -40,6 +40,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { usePermission } from '../hooks/usePermission';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 
 import { allocationApi } from '../features/allocations/api/allocationApi';
 import { AllocationStatusBadge } from '../features/allocations/components/AllocationStatusBadge';
@@ -114,6 +115,10 @@ export function CustomerDetailPage() {
     null
   );
   const [recordPaymentInvoiceId, setRecordPaymentInvoiceId] = useState<string | null>(null);
+  const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [deletingKycDoc, setDeletingKycDoc] = useState<CustomerKycDocument | null>(null);
+  const [isDeletingKyc, setIsDeletingKyc] = useState(false);
 
   // Fetch Customer
   const {
@@ -265,16 +270,31 @@ export function CustomerDetailPage() {
     }
   };
 
-  const handleDeactivateCustomer = async () => {
+  const handleConfirmArchive = async () => {
     if (!customer) return;
-    if (
-      window.confirm(
-        `Are you sure you want to archive customer ${customer.fullName} (${customer.customerCode})?`
-      )
-    ) {
+    setIsArchiving(true);
+    try {
       await customerApi.deactivateCustomer(customer._id);
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setConfirmArchiveOpen(false);
       navigate('/customers');
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to archive customer.');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleConfirmDeleteKyc = async () => {
+    if (!deletingKycDoc || !id) return;
+    setIsDeletingKyc(true);
+    try {
+      await deleteKycDocMutation.mutateAsync(deletingKycDoc._id);
+      setDeletingKycDoc(null);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to delete KYC document.');
+    } finally {
+      setIsDeletingKyc(false);
     }
   };
 
@@ -347,7 +367,7 @@ export function CustomerDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDeactivateCustomer}
+              onClick={() => setConfirmArchiveOpen(true)}
               className="h-9 px-3.5 text-xs font-medium text-rose-700 hover:bg-rose-50 border-rose-200 rounded-xl cursor-pointer shadow-2xs"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-600" />
@@ -624,9 +644,8 @@ export function CustomerDetailPage() {
                 await verifyKycDocMutation.mutateAsync({ kycId, input });
               }}
               onDeleteDocument={async (kycId) => {
-                if (window.confirm('Delete this KYC document proof?')) {
-                  await deleteKycDocMutation.mutateAsync(kycId);
-                }
+                const doc = kycDocs?.find((d) => d._id === kycId);
+                if (doc) setDeletingKycDoc(doc);
               }}
             />
           </CardContent>
@@ -1227,6 +1246,56 @@ export function CustomerDetailPage() {
           isSubmitting={addKycDocMutation.isPending || updateKycDocMutation.isPending}
         />
       )}
+
+      {/* Archive Customer Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmArchiveOpen}
+        onClose={() => setConfirmArchiveOpen(false)}
+        onConfirm={handleConfirmArchive}
+        title={`Archive Customer ${customer.fullName}?`}
+        description={
+          <div>
+            <p>
+              Are you sure you want to archive customer{' '}
+              <strong className="font-semibold text-slate-800">{customer.fullName}</strong> (
+              <span className="font-mono text-slate-700">{customer.customerCode}</span>)?
+            </p>
+            <p className="text-slate-500 text-[11px] mt-1">
+              The customer will be removed from active safe-deposit workflows. Historical invoices, payments, and KYC records will remain intact in compliance audits.
+            </p>
+          </div>
+        }
+        confirmText="Confirm Archive"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isArchiving}
+      />
+
+      {/* Delete KYC Document Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(deletingKycDoc)}
+        onClose={() => setDeletingKycDoc(null)}
+        onConfirm={handleConfirmDeleteKyc}
+        title={`Delete ${deletingKycDoc?.documentType || 'KYC'} Document?`}
+        description={
+          <div>
+            <p>
+              Are you sure you want to permanently delete this verification proof (
+              <span className="font-mono text-slate-800">
+                {deletingKycDoc?.maskedDocumentNumber || deletingKycDoc?.documentNumber || 'Document'}
+              </span>
+              )?
+            </p>
+            <p className="text-rose-600 text-[11px] mt-1 font-medium">
+              This action cannot be undone. The uploaded proof will be deleted from the bank registry.
+            </p>
+          </div>
+        }
+        confirmText="Delete Document"
+        cancelText="Keep Document"
+        variant="danger"
+        isLoading={isDeletingKyc}
+      />
     </div>
   );
 }

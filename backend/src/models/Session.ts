@@ -4,6 +4,8 @@ export interface ISession extends Document {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
   refreshTokenHash: string;
+  previousRefreshTokenHash?: string;
+  rotatedAt?: Date;
   deviceInfo?: string;
   ipAddress?: string;
   userAgent?: string;
@@ -26,6 +28,13 @@ const sessionSchema = new Schema<ISession>(
       type: String,
       required: true,
       index: true,
+    },
+    previousRefreshTokenHash: {
+      type: String,
+      index: true,
+    },
+    rotatedAt: {
+      type: Date,
     },
     deviceInfo: {
       type: String,

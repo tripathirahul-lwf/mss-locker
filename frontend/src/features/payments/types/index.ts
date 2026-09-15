@@ -64,6 +64,9 @@ export interface Payment {
   bankName?: string;
   chequeDate?: string;
 
+  proofUrl?: string;
+  proofDocumentName?: string;
+
   paymentDate: string;
   receivedAt: string;
 
@@ -108,6 +111,8 @@ export interface RecordPaymentInput {
   chequeNumber?: string;
   bankName?: string;
   chequeDate?: string;
+  proofUrl?: string;
+  proofDocumentName?: string;
   notes?: string;
 }
 

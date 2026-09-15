@@ -18,6 +18,7 @@ import { CustomerSummaryCards } from '../features/customers/components/CustomerS
 import { CustomerFilters } from '../features/customers/components/CustomerFilters';
 import { CustomerTable } from '../features/customers/components/CustomerTable';
 import { Button } from '../components/ui/button';
+import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { usePermission } from '../hooks/usePermission';
 
 const CustomerFormModal = lazy(() => import('../features/customers/components/CustomerFormModal').then((module) => ({ default: module.CustomerFormModal })));
@@ -329,27 +330,26 @@ export function CustomersPage() {
         })()}
       </Suspense>
 
-      {archiveCustomer && (
-        <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setArchiveCustomer(null)}>
-          <div role="alertdialog" aria-modal="true" aria-labelledby="archive-customer-title" className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-start gap-3.5">
-              <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-700 shrink-0 border border-rose-200/80 flex items-center justify-center shadow-2xs">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <h2 id="archive-customer-title" className="text-base font-semibold text-slate-900 tracking-tight">Archive Customer?</h2>
-                <p className="text-xs text-slate-500 leading-relaxed font-normal">
-                  <strong className="font-semibold text-slate-700">{archiveCustomer.fullName}</strong> ({archiveCustomer.customerCode}) will be removed from active safe-deposit workflows. Historical records will remain preserved.
-                </p>
-              </div>
-            </div>
-            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
-              <Button variant="outline" size="sm" onClick={() => setArchiveCustomer(null)} className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9.5 px-4 hover:bg-slate-50 cursor-pointer">Cancel</Button>
-              <Button size="sm" variant="destructive" disabled={deactivateMutation.isPending} onClick={() => deactivateMutation.mutate(archiveCustomer._id, { onSuccess: () => setArchiveCustomer(null) })} className="rounded-xl font-medium text-xs h-9.5 px-4 cursor-pointer">{deactivateMutation.isPending ? 'Archiving…' : 'Archive Customer'}</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal
+        isOpen={Boolean(archiveCustomer)}
+        onClose={() => setArchiveCustomer(null)}
+        onConfirm={() => {
+          if (archiveCustomer) {
+            deactivateMutation.mutate(archiveCustomer._id, {
+              onSuccess: () => setArchiveCustomer(null),
+            });
+          }
+        }}
+        title="Archive Customer Profile?"
+        message={
+          archiveCustomer
+            ? `${archiveCustomer.fullName} (${archiveCustomer.customerCode}) will be removed from active safe-deposit workflows. Historical records, past allocations, and financial logs will remain preserved.`
+            : ''
+        }
+        confirmLabel="Archive Customer"
+        variant="danger"
+        isLoading={deactivateMutation.isPending}
+      />
     </div>
   );
 }

@@ -87,7 +87,7 @@ export interface InvoiceQueryParams {
   invoiceType?: InvoiceType;
   status?: InvoiceStatus;
   paymentStatus?: PaymentStatus;
-  dueStatus?: DueStatus;
+  dueStatus?: DueStatus | 'DUE_THIS_MONTH' | 'DUE_THIS_WEEK';
   billingCycle?: BillingCycle;
   customerId?: string;
   lockerId?: string;
@@ -96,6 +96,7 @@ export interface InvoiceQueryParams {
   dueDateTo?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  onlyOutstanding?: boolean | string;
 }
 
 export interface GenerateRenewalInput {
