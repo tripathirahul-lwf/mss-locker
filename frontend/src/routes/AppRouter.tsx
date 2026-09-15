@@ -4,6 +4,7 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
 
+
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const LockerDetailPage = lazy(() => import('../pages/LockerDetailPage').then((m) => ({ default: m.LockerDetailPage })));
 const CustomerDetailPage = lazy(() => import('../pages/CustomerDetailPage').then((m) => ({ default: m.CustomerDetailPage })));
