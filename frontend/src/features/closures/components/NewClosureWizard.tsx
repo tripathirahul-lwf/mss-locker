@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { allocationApi } from '../../allocations/api/allocationApi';
 import { LockerAllocation } from '../../allocations/types';
+import { formatPhone } from '../../customers/utils/phoneFormatter';
 import { closureApi } from '../api/closureApi';
 import {
   ClosureType,
@@ -35,6 +36,8 @@ interface NewClosureWizardProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialLockerId?: string;
+  initialAllocationId?: string;
 }
 
 const STEPS = [
@@ -72,6 +75,8 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  initialLockerId,
+  initialAllocationId,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [maxStepReached, setMaxStepReached] = useState<number>(1);
@@ -119,6 +124,48 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
       setMaxStepReached(currentStep);
     }
   }, [currentStep, maxStepReached]);
+
+  // Pre-select target allocation if initialLockerId or initialAllocationId is provided
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedAllocation(null);
+      setCurrentStep(1);
+      setMaxStepReached(1);
+      return;
+    }
+
+    const resolveInitialTarget = async () => {
+      if (initialLockerId) {
+        try {
+          const res = await allocationApi.getLockerAllocations(initialLockerId);
+          if (res?.currentAllocation) {
+            setSelectedAllocation(res.currentAllocation);
+            setAllocations((prev) => {
+              const exists = prev.some((a) => a._id === res.currentAllocation!._id);
+              return exists ? prev : [res.currentAllocation!, ...prev];
+            });
+          }
+        } catch (e) {
+          console.error('Failed to pre-select locker allocation:', e);
+        }
+      } else if (initialAllocationId) {
+        try {
+          const alloc = await allocationApi.getAllocationById(initialAllocationId);
+          if (alloc) {
+            setSelectedAllocation(alloc);
+            setAllocations((prev) => {
+              const exists = prev.some((a) => a._id === alloc._id);
+              return exists ? prev : [alloc, ...prev];
+            });
+          }
+        } catch (e) {
+          console.error('Failed to pre-select allocation by ID:', e);
+        }
+      }
+    };
+
+    resolveInitialTarget();
+  }, [isOpen, initialLockerId, initialAllocationId]);
 
   // Search active allocations
   useEffect(() => {
@@ -354,7 +401,27 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
 
           {/* STEP 1: Select Active Allocation */}
           {currentStep === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
+              {/* Pre-Selected Locker Target Notice if launched with initial IDs */}
+              {selectedAllocation && (initialLockerId || initialAllocationId) && (
+                <div className="p-3 bg-emerald-50/90 border border-emerald-200/90 rounded-xl flex items-center justify-between text-xs shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="font-bold text-emerald-950 block truncate">
+                        Target Locker #{(selectedAllocation.lockerId as any)?.lockerNumber} Pre-Selected
+                      </span>
+                      <span className="text-[11px] text-emerald-800 font-normal truncate block">
+                        {(selectedAllocation.customerId as any)?.fullName} &bull; Agreement {selectedAllocation.allocationCode}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/60 shrink-0">
+                    Ready
+                  </span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Search Active Custody Lease
@@ -381,7 +448,7 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
                 </div>
               </div>
 
-              <div className="max-h-72 sm:max-h-80 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white shadow-2xs">
+              <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100 border border-slate-200/90 rounded-2xl bg-white shadow-2xs pb-1">
                 {loadingAllocations ? (
                   <div className="p-8 text-center text-sm text-slate-500">
                     <div className="inline-block w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2" />
@@ -415,10 +482,10 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center shrink-0">
-                            <span className="text-[10px] font-semibold text-slate-500 leading-none">
-                              LOCKER
+                            <span className="text-[9.5px] font-semibold text-slate-500 uppercase leading-none">
+                              Locker
                             </span>
-                            <span className="font-mono font-bold text-xs text-slate-900 leading-tight">
+                            <span className="font-mono font-bold text-xs text-slate-900 leading-tight mt-0.5">
                               #{lock?.lockerNumber || 'N/A'}
                             </span>
                           </div>
@@ -427,13 +494,13 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
                               <span className="font-bold text-slate-900 text-sm truncate">
                                 {cust?.fullName || 'Customer Record'}
                               </span>
-                              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                                {lock?.size || 'Standard'}
+                              <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/70">
+                                Size {lock?.size || 'Standard'}
                               </span>
                             </div>
                             <div className="text-xs text-slate-500 font-mono mt-0.5 flex flex-wrap items-center gap-x-2">
                               <span>Code: {alloc.allocationCode}</span>
-                              {cust?.phone && <span>&bull; Phone: {cust.phone}</span>}
+                              {cust?.phone && <span>&bull; Phone: {formatPhone(cust.phone)}</span>}
                               {alloc.securityDeposit > 0 && (
                                 <span className="text-emerald-700 font-semibold">
                                   &bull; Deposit: ₹{alloc.securityDeposit.toLocaleString('en-IN')}
@@ -476,12 +543,12 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
                         {(selectedAllocation.customerId as any)?.fullName}
                       </span>
                       <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700">
-                        {(selectedAllocation.lockerId as any)?.size || 'Standard'}
+                        Size {(selectedAllocation.lockerId as any)?.size || 'Standard'}
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 font-mono mt-0.5">
                       Tenancy Code: {selectedAllocation.allocationCode} &bull; Phone:{' '}
-                      {(selectedAllocation.customerId as any)?.phone || 'N/A'}
+                      {formatPhone((selectedAllocation.customerId as any)?.phone)}
                     </div>
                   </div>
                 </div>

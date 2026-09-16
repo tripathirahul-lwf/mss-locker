@@ -62,6 +62,8 @@ export const ClosuresPage: React.FC = () => {
 
   // Surrender workflow state
   const [closures, setClosures] = useState<LockerClosure[]>([]);
+  const [workflowTotal, setWorkflowTotal] = useState<number>(0);
+  const [workflowPages, setWorkflowPages] = useState<number>(1);
   const [stats, setStats] = useState<ClosureStats | null>(null);
   const [loadingClosures, setLoadingClosures] = useState<boolean>(false);
   const [statsLoading, setStatsLoading] = useState<boolean>(false);
@@ -82,6 +84,26 @@ export const ClosuresPage: React.FC = () => {
   const [viewingLocker, setViewingLocker] = useState<Locker | null>(null);
 
   const canCreate = hasPermission('closures.create');
+
+  // URL query params for auto-initiating surrender from locker detail view
+  const initialLockerId = searchParams.get('lockerId') || undefined;
+  const initialAllocationId = searchParams.get('allocationId') || undefined;
+
+  useEffect(() => {
+    if (initialLockerId || initialAllocationId) {
+      setWizardOpen(true);
+    }
+  }, [initialLockerId, initialAllocationId]);
+
+  const handleCloseWizard = () => {
+    setWizardOpen(false);
+    if (searchParams.get('lockerId') || searchParams.get('allocationId')) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('lockerId');
+      nextParams.delete('allocationId');
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
 
   // 1. Fetch Closed Physical Lockers (for Card Grid)
   const fetchClosedLockers = useCallback(async () => {
@@ -119,6 +141,8 @@ export const ClosuresPage: React.FC = () => {
       };
       const res = await closureApi.getClosures(params);
       setClosures(res.closures);
+      setWorkflowTotal(res.pagination.total);
+      setWorkflowPages(res.pagination.totalPages);
     } catch (err) {
       console.error('Error loading closure workflow:', err);
     } finally {
@@ -504,8 +528,8 @@ export const ClosuresPage: React.FC = () => {
             closures={closures}
             loading={loadingClosures}
             page={page}
-            totalPages={closedPages}
-            total={closedTotal}
+            totalPages={workflowPages}
+            total={workflowTotal}
             onPageChange={setPage}
             onView={(c) => {
               setSelectedClosure(c);
@@ -548,7 +572,9 @@ export const ClosuresPage: React.FC = () => {
       {/* New Closure Wizard Modal */}
       <NewClosureWizard
         isOpen={wizardOpen}
-        onClose={() => setWizardOpen(false)}
+        onClose={handleCloseWizard}
+        initialLockerId={initialLockerId}
+        initialAllocationId={initialAllocationId}
         onSuccess={() => {
           fetchClosedLockers();
           fetchStats();
