@@ -119,8 +119,24 @@ export function CustomerSummaryCards({
           >
             {card.active && (
               <span className="absolute top-3 right-3 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    card.id === 'PENDING'
+                      ? 'bg-amber-400'
+                      : card.id === 'FLAGGED'
+                        ? 'bg-rose-400'
+                        : 'bg-emerald-400'
+                  }`}
+                ></span>
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                    card.id === 'PENDING'
+                      ? 'bg-amber-600'
+                      : card.id === 'FLAGGED'
+                        ? 'bg-rose-600'
+                        : 'bg-emerald-600'
+                  }`}
+                ></span>
               </span>
             )}
             <div className="flex items-center justify-between w-full mb-2">

@@ -6,6 +6,7 @@ import {
   UserPlus,
   RefreshCw,
   AlertCircle,
+  Download,
 } from 'lucide-react';
 import { customerApi } from '../features/customers/api/customerApi';
 import {
@@ -166,6 +167,46 @@ export function CustomersPage() {
     setArchiveCustomer(customer);
   };
 
+  const handleExportCSV = () => {
+    if (!customerData?.customers?.length) return;
+    const headers = [
+      'Customer Code',
+      'Full Name',
+      'Phone',
+      'Email',
+      'Status',
+      'KYC Status',
+      'Allocated Locker',
+      'City',
+      'Created Date',
+    ];
+    const rows = customerData.customers.map((c) => [
+      `"${(c.customerCode || '').replace(/"/g, '""')}"`,
+      `"${(c.fullName || '').replace(/"/g, '""')}"`,
+      `"${(c.phone || '').replace(/"/g, '""')}"`,
+      `"${(c.email || '').replace(/"/g, '""')}"`,
+      `"${(c.status || '').replace(/"/g, '""')}"`,
+      `"${(c.kycStatus || '').replace(/"/g, '""')}"`,
+      `"${(c.assignedLockers?.[0]?.lockerNumber ? `Locker #${c.assignedLockers[0].lockerNumber}` : 'None').replace(/"/g, '""')}"`,
+      `"${(c.city || '').replace(/"/g, '""')}"`,
+      `"${new Date(c.createdAt).toLocaleDateString('en-IN')}"`,
+    ]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute(
+      'download',
+      `customers_registry_${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -190,6 +231,18 @@ export function CustomersPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={!customerData?.customers?.length}
+            className="flex items-center gap-1.5 text-xs font-medium h-10 px-3.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Export current customer records to CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
