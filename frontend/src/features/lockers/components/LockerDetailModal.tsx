@@ -84,6 +84,8 @@ export function LockerDetailModal({
   const [activeTab, setActiveTab] = useState<'details' | 'receipts' | 'kyc' | 'refunds'>('details');
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedAllocCode, setCopiedAllocCode] = useState(false);
   const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -270,6 +272,30 @@ export function LockerDetailModal({
     navigator.clipboard.writeText(phone);
     setCopiedPhone(true);
     setTimeout(() => setCopiedPhone(false), 2000);
+  };
+
+  // Copy Customer Code
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  // Copy Allocation Code
+  const handleCopyAllocCode = (allocCode: string) => {
+    navigator.clipboard.writeText(allocCode);
+    setCopiedAllocCode(true);
+    setTimeout(() => setCopiedAllocCode(false), 2000);
+  };
+
+  // Consistent Date Formatter
+  const formatDate = (dateStr?: string | Date) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   const formatRackTitle = (rack?: string) => {
@@ -515,10 +541,10 @@ export function LockerDetailModal({
         </div>
 
         {/* 3. Modal Body Content */}
-        <div className="p-4 sm:p-6 overflow-y-auto max-h-[64vh] space-y-4">
+        <div className="p-4 sm:p-5 overflow-y-auto max-h-[74vh] space-y-3.5">
           {/* TAB 1: DETAILS */}
           {activeTab === 'details' && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {/* --- SCENARIO A: AVAILABLE LOCKER --- */}
               {isAvailable && (
                 <>
@@ -755,61 +781,71 @@ export function LockerDetailModal({
               {isOccupied && (
                 <>
                   {/* Customer Allotment Dossier Card */}
-                  <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3.5">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <User className="w-4 h-4 text-slate-500" />
-                        <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3">
+                    {/* Header: Clean title + Click-to-copy Agreement pill */}
+                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-emerald-800" />
+                        <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
                           Active Allottee Dossier
                         </h3>
-                        {tenant?.kycStatus === 'VERIFIED' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 border border-emerald-200 text-emerald-800">
-                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                            <span>KYC Verified</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-50 border border-amber-200 text-amber-800">
-                            <AlertCircle className="w-3 h-3 text-amber-600" />
-                            <span>KYC Pending</span>
-                          </span>
-                        )}
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 border border-slate-200 text-slate-700">
-                          Active Custody
-                        </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {currentAlloc?.allocationCode && (
-                          <span className="font-mono text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                            Agreement #{currentAlloc.allocationCode}
-                          </span>
-                        )}
-                        {tenantId && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                      {currentAlloc?.allocationCode && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyAllocCode(currentAlloc.allocationCode)}
+                          className="group font-mono text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1.5 transition cursor-pointer"
+                          title="Click to copy Agreement #"
+                        >
+                          <span>Agreement #{currentAlloc.allocationCode}</span>
+                          {copiedAllocCode ? (
+                            <Check className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 4-Column Grid: Customer, Phone, Allotment, Renewal */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      {/* Box 1: Customer Name & ID */}
+                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
+                        <span className="text-[11px] font-medium text-slate-500">Customer Name</span>
+                        {tenantId ? (
+                          <button
+                            type="button"
                             onClick={() => {
                               onClose();
                               navigate(`/customers/${tenantId}`);
                             }}
-                            className="h-7 text-xs font-semibold text-emerald-800 hover:text-emerald-950 p-1 px-2 cursor-pointer"
+                            className="font-bold text-slate-900 text-sm hover:text-emerald-800 text-left transition flex items-center gap-1.5 group cursor-pointer"
+                            title="View Customer Profile"
                           >
-                            <span>Open Profile</span>
-                            <ExternalLink className="w-3 h-3 ml-1" />
-                          </Button>
+                            <span>{tenant?.fullName || 'Active Allottee'}</span>
+                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-700 transition opacity-0 group-hover:opacity-100" />
+                          </button>
+                        ) : (
+                          <p className="font-bold text-slate-900 text-sm">
+                            {tenant?.fullName || 'Active Allottee'}
+                          </p>
                         )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
-                        <span className="text-[11px] font-medium text-slate-500">Customer Name</span>
-                        <p className="font-bold text-slate-900 text-sm">
-                          {tenant?.fullName || 'Active Allottee'}
-                        </p>
                         <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal">
                           {tenant?.customerCode && (
-                            <span className="font-mono">ID: {tenant.customerCode}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyCode(tenant.customerCode)}
+                              className="group inline-flex items-center gap-1 font-mono hover:text-slate-800 transition cursor-pointer"
+                              title="Click to copy Customer ID"
+                            >
+                              <span>ID: {tenant.customerCode}</span>
+                              {copiedCode ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600" />
+                              )}
+                            </button>
                           )}
                           {tenant?.city && (
                             <>
@@ -820,6 +856,7 @@ export function LockerDetailModal({
                         </div>
                       </div>
 
+                      {/* Box 2: Phone & Contact */}
                       <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
                         <span className="text-[11px] font-medium text-slate-500">Phone & Contact</span>
                         <div className="flex items-center justify-between">
@@ -852,43 +889,26 @@ export function LockerDetailModal({
                         ) : null}
                       </div>
 
+                      {/* Box 3: Allotment Started */}
                       <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
                         <span className="text-[11px] font-medium text-slate-500">Allotment Started</span>
                         <p className="font-semibold text-slate-900">
-                          {currentAlloc?.startDate
-                            ? new Date(currentAlloc.startDate).toLocaleDateString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })
-                            : '—'}
+                          {formatDate(currentAlloc?.startDate)}
                         </p>
                         <p className="text-[10.5px] text-slate-500">
                           Plan: {currentAlloc?.billingCycle === 'ANNUAL' ? '1 Year Annual' : currentAlloc?.billingCycle || 'Annual'}
                         </p>
                       </div>
 
+                      {/* Box 4: Next Renewal Due */}
                       <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
                         <span className="text-[11px] font-medium text-slate-500">Next Renewal Due</span>
-                        <div className="flex items-center justify-between">
-                          <p className="font-semibold text-slate-900">
-                            {currentAlloc?.endDate
-                              ? new Date(currentAlloc.endDate).toLocaleDateString('en-IN', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })
-                              : '—'}
-                          </p>
-                          {currentAlloc?.status && (
-                            <span className="inline-block text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                              {currentAlloc.status}
-                            </span>
-                          )}
-                        </div>
+                        <p className="font-semibold text-slate-900">
+                          {formatDate(currentAlloc?.endDate)}
+                        </p>
                         {currentAlloc?.paidThroughDate && (
                           <p className="text-[10.5px] text-slate-500">
-                            Paid up to: {new Date(currentAlloc.paidThroughDate).toLocaleDateString('en-IN')}
+                            Paid up to: {formatDate(currentAlloc.paidThroughDate)}
                           </p>
                         )}
                       </div>
@@ -901,11 +921,7 @@ export function LockerDetailModal({
                     const dueDateTime = new Date(unpaidInvoice.dueDate).setHours(0, 0, 0, 0);
                     const isOverdue = dueDateTime < todayTime;
                     const diffDays = Math.round(Math.abs(dueDateTime - todayTime) / (1000 * 60 * 60 * 24));
-                    const dueDateFormatted = new Date(unpaidInvoice.dueDate).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    });
+                    const dueDateFormatted = formatDate(unpaidInvoice.dueDate);
 
                     return (
                       <div
@@ -974,15 +990,15 @@ export function LockerDetailModal({
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Rack & Compartment</span>
-                        <span className="font-semibold text-slate-800">
-                          {formatRackTitle(locker.rackNumber)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
                         <span className="text-slate-500">Dimensions</span>
                         <span className="font-mono text-slate-800">
                           {sizeDefinition?.dimensions || '159 x 210 x 492 mm'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-0.5">
+                        <span className="text-slate-500">Rack & Compartment</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatRackTitle(locker.rackNumber)}
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">
@@ -991,15 +1007,45 @@ export function LockerDetailModal({
                           {formatSectionTitle(locker.section, locker.rackNumber)} &bull; {locker.floor || 'Ground Floor'}
                         </span>
                       </div>
-                      <div className="flex justify-between py-0.5">
+                      <div className="flex justify-between py-0.5 items-center">
                         <span className="text-slate-500">Key Reference</span>
-                        <span className="font-mono text-slate-800">
-                          {sensitiveRevealed
-                            ? locker.masterKeyReference || 'Not Assigned'
-                            : locker.masterKeyReference
-                            ? '••••••'
-                            : 'Not Assigned'}
-                        </span>
+                        <div className="flex items-center gap-1.5 font-mono text-slate-800">
+                          <span>
+                            {sensitiveRevealed
+                              ? locker.masterKeyReference || 'Not Assigned'
+                              : locker.masterKeyReference
+                              ? '••••••'
+                              : 'Not Assigned'}
+                          </span>
+                          {locker.masterKeyReference && canViewSensitive && (
+                            <button
+                              type="button"
+                              onClick={() => setSensitiveRevealed(!sensitiveRevealed)}
+                              className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                              title={sensitiveRevealed ? 'Hide Key' : 'Reveal Key'}
+                            >
+                              {sensitiveRevealed ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                          {locker.masterKeyReference && (
+                            <button
+                              type="button"
+                              onClick={handleCopyKey}
+                              className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                              title="Copy Key Reference"
+                            >
+                              {copiedKey ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -1020,19 +1066,21 @@ export function LockerDetailModal({
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Escrow Security</span>
-                        <span className="font-semibold text-emerald-800">Bank Protected Vault Escrow</span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Annual Tariff Plan</span>
+                        <span className="text-slate-500">Annual Base Tariff</span>
                         <span className="font-semibold text-slate-800">
                           ₹{annualRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Agreement Reference</span>
-                        <span className="font-mono text-slate-700">
-                          {currentAlloc?.allocationCode || 'Standard Agreement'}
+                        <span className="text-slate-500">Total Annual Rent (inc. GST)</span>
+                        <span className="font-semibold text-slate-800">
+                          ₹{totalAnnualRentWithTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-0.5">
+                        <span className="text-slate-500">Billing Schedule</span>
+                        <span className="font-semibold text-slate-700">
+                          {currentAlloc?.billingCycle === 'ANNUAL' ? '1 Year Annual' : currentAlloc?.billingCycle || 'Annual'}
                         </span>
                       </div>
                     </div>
