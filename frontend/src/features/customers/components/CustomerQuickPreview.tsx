@@ -111,73 +111,56 @@ export function CustomerQuickPreview({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
-        <div className="px-4 py-3.5 sm:px-5 sm:py-4 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0">
+        <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs shrink-0 ring-1 ring-slate-800">
-              <User className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+            <div className="h-9 w-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs shrink-0 ring-1 ring-slate-800">
+              <User className="w-4.5 h-4.5 text-emerald-400" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-slate-900 tracking-tight truncate">
-                  Walk-in Customer Quick Dossier
+                <h3 className="text-sm font-semibold text-slate-900 tracking-tight">
+                  Walk-in Customer Dossier
                 </h3>
                 <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 shrink-0 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                   Live
                 </span>
               </div>
-              <p className="text-[11px] sm:text-[11.5px] text-slate-500 font-normal mt-0.5 truncate">
-                Counter Lookup • Identity, Vault Allocations &amp; Financial Dues
+              <p className="text-[11px] text-slate-500 font-normal mt-0.5 truncate">
+                Counter Identity, Vault Allotment &amp; Dues Verification
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                onClose();
-                navigate(`/customers/${customer._id}`, {
-                  state: { from: location.pathname + location.search },
-                });
-              }}
-              className="h-8 px-2.5 rounded-xl text-xs font-medium text-slate-700 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 border-slate-200 hover:border-emerald-200 cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
-              title="Open Full Customer Page"
-            >
-              <span className="hidden sm:inline">Full Profile</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </Button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="grid h-8.5 w-8.5 sm:h-9 sm:w-9 place-items-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200 shrink-0"
-              aria-label="Close lookup drawer (ESC)"
-              title="Close (ESC)"
-            >
-              <X className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-8.5 w-8.5 place-items-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200 shrink-0"
+            aria-label="Close lookup drawer (ESC)"
+            title="Close (ESC)"
+          >
+            <X className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+          </button>
         </div>
 
         {/* Scrollable Body */}
         <div className="p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 overflow-y-auto flex-1 text-xs">
-          {/* 1. Customer Profile Card Header */}
-          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3.5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-3.5">
-              <div className="flex items-center gap-3 sm:gap-3.5">
+          {/* 1. Customer Profile & Contact Card */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
                 {customer.photoUrl ? (
                   <img
                     src={customer.photoUrl}
                     alt={customer.fullName}
-                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border border-slate-200 shadow-xs shrink-0"
+                    className="w-13 h-13 rounded-2xl object-cover border border-slate-200 shadow-xs shrink-0"
                   />
                 ) : (
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white border border-slate-800 flex items-center justify-center font-bold text-base sm:text-lg shrink-0 font-sans tracking-wide shadow-xs ring-1 ring-slate-900/10">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white border border-slate-800 flex items-center justify-center font-bold text-base shrink-0 font-sans tracking-wide shadow-xs ring-1 ring-slate-900/10">
                     {customer.fullName.slice(0, 2).toUpperCase()}
                   </div>
                 )}
 
-                <div className="space-y-1 min-w-0">
+                <div className="space-y-1.5 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-bold text-slate-900 leading-tight truncate font-sans">
                       {customer.fullName}
@@ -185,19 +168,19 @@ export function CustomerQuickPreview({
                     <button
                       type="button"
                       onClick={() => copyToClipboard(customer.customerCode, 'code')}
-                      className="inline-flex items-center gap-1 font-sans text-[11px] font-semibold bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 rounded-md border border-slate-200 text-slate-700 tabular-nums cursor-pointer transition-colors"
+                      className="group/code inline-flex items-center gap-1 font-sans text-[11px] font-semibold bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 rounded-md border border-slate-200 text-slate-700 tabular-nums cursor-pointer transition-colors"
                       title="Click to copy customer code"
                     >
                       <span>{customer.customerCode}</span>
                       {copiedField === 'code' ? (
                         <Check className="w-3 h-3 text-emerald-600" />
                       ) : (
-                        <Copy className="w-3 h-3 text-slate-400" />
+                        <Copy className="w-3 h-3 text-slate-400 group-hover/code:text-slate-700" />
                       )}
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <CustomerStatusBadge status={customer.status} />
                     <KycStatusBadge status={customer.kycStatus} />
                     {customer.createdAt && (
@@ -211,11 +194,12 @@ export function CustomerQuickPreview({
               </div>
 
               {/* Direct Quick Contact Buttons */}
-              <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+              <div className="flex items-center gap-1.5 sm:self-start shrink-0">
                 <a
                   href={`tel:${customer.phone}`}
                   className="inline-flex items-center justify-center h-8.5 w-8.5 rounded-xl bg-slate-50 text-slate-700 hover:text-emerald-800 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 transition-colors shadow-2xs"
                   title={`Call ${customer.phone}`}
+                  aria-label={`Call ${customer.phone}`}
                 >
                   <Phone className="w-4 h-4" />
                 </a>
@@ -224,8 +208,9 @@ export function CustomerQuickPreview({
                     href={`https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center h-8.5 w-8.5 rounded-xl bg-slate-50 text-slate-700 hover:text-emerald-800 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 transition-colors shadow-2xs"
+                    className="inline-flex items-center justify-center h-8.5 w-8.5 rounded-xl bg-slate-50 text-emerald-800 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 transition-colors shadow-2xs"
                     title="WhatsApp Chat"
+                    aria-label="WhatsApp Chat"
                   >
                     <MessageSquare className="w-4 h-4" />
                   </a>
@@ -235,11 +220,53 @@ export function CustomerQuickPreview({
                     href={`mailto:${customer.email}`}
                     className="inline-flex items-center justify-center h-8.5 w-8.5 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors shadow-2xs"
                     title={`Email ${customer.email}`}
+                    aria-label={`Email ${customer.email}`}
                   >
                     <Mail className="w-4 h-4" />
                   </a>
                 )}
               </div>
+            </div>
+
+            {/* Prominent Quick Contact Strip */}
+            <div className="pt-2.5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center justify-between sm:justify-start gap-2 bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100">
+                <span className="text-slate-500 text-[11px] font-medium flex items-center gap-1 shrink-0">
+                  <Phone className="w-3 h-3 text-emerald-800" />
+                  Phone:
+                </span>
+                <span className="font-sans font-semibold text-slate-900 text-xs tabular-nums">
+                  {formatPhone(customer.phone)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(customer.phone, 'phone')}
+                  className="p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer ml-auto"
+                  title="Copy phone"
+                >
+                  {copiedField === 'phone' ? (
+                    <Check className="w-3 h-3 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                </button>
+              </div>
+
+              {customer.email ? (
+                <div className="flex items-center justify-between sm:justify-start gap-2 bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100 min-w-0">
+                  <span className="text-slate-500 text-[11px] font-medium flex items-center gap-1 shrink-0">
+                    <Mail className="w-3 h-3 text-emerald-800" />
+                    Email:
+                  </span>
+                  <span className="text-slate-800 font-medium truncate text-xs">
+                    {customer.email}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100 text-slate-400 text-[11px]">
+                  <span>No registered email</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -250,7 +277,7 @@ export function CustomerQuickPreview({
                 <div className="h-6 w-6 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
                   <KeyRound className="w-3.5 h-3.5" />
                 </div>
-                <h4 className="font-semibold text-slate-900 text-xs tracking-tight uppercase">
+                <h4 className="font-semibold text-slate-900 text-xs tracking-tight">
                   Safe-Deposit Vault Allocation
                 </h4>
               </div>
@@ -266,18 +293,36 @@ export function CustomerQuickPreview({
                 Checking vault tenancy records…
               </div>
             ) : activeAllocation ? (
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-50/50 via-slate-50 to-white border border-emerald-200/80 space-y-3">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-50/40 via-slate-50/60 to-white border border-emerald-200/80 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-900 font-sans tracking-tight">
-                        Locker #{activeAllocation.lockerId?.lockerNumber || activeAllocation.lockerId?.lockerCode}
-                      </span>
-                      <span className="text-[10.5px] font-medium bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
-                        {activeAllocation.lockerId?.size} Size
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          navigate(
+                            `/lockers?search=${activeAllocation.lockerId?.lockerNumber || activeAllocation.lockerId?.lockerCode}`
+                          );
+                        }}
+                        className="font-bold text-sm text-slate-900 hover:text-emerald-800 font-sans tracking-tight hover:underline flex items-center gap-1 cursor-pointer"
+                        title="View locker in vault register"
+                      >
+                        <span>
+                          Locker #{activeAllocation.lockerId?.lockerNumber || activeAllocation.lockerId?.lockerCode}
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-slate-400" />
+                      </button>
+                      <span className="text-[10.5px] font-medium bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                        {(() => {
+                          const rawSize = activeAllocation.lockerId?.size || '';
+                          return rawSize.toLowerCase().includes('size')
+                            ? rawSize
+                            : `Size: ${rawSize || 'Standard'}`;
+                        })()}
                       </span>
                     </div>
-                    <p className="text-[11.5px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap font-sans">
+                    <p className="text-[11.5px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap font-sans">
                       {activeAllocation.lockerId?.rackNumber && (
                         <span>
                           {activeAllocation.lockerId.rackNumber.toLowerCase().startsWith('rack')
@@ -287,14 +332,16 @@ export function CustomerQuickPreview({
                       )}
                       {activeAllocation.lockerId?.floor && (
                         <span>
-                          • {activeAllocation.lockerId.floor.toLowerCase().includes('floor')
+                          •{' '}
+                          {activeAllocation.lockerId.floor.toLowerCase().includes('floor')
                             ? activeAllocation.lockerId.floor
                             : `Floor ${activeAllocation.lockerId.floor}`}
                         </span>
                       )}
                       {activeAllocation.lockerId?.section && (
                         <span>
-                          • {activeAllocation.lockerId.section.toLowerCase().startsWith('section')
+                          •{' '}
+                          {activeAllocation.lockerId.section.toLowerCase().startsWith('section')
                             ? activeAllocation.lockerId.section
                             : `Section ${activeAllocation.lockerId.section}`}
                         </span>
@@ -302,8 +349,8 @@ export function CustomerQuickPreview({
                     </p>
                   </div>
 
-                  <div className="text-right">
-                    <span className="text-xs font-bold text-emerald-900 block font-sans tabular-nums">
+                  <div className="text-right shrink-0">
+                    <span className="text-xs font-bold text-slate-900 block font-sans tabular-nums">
                       {formatINR(activeAllocation.rentSnapshot ?? activeAllocation.annualRent)} / yr
                     </span>
                     <span className="text-[10.5px] text-slate-500 block font-sans tabular-nums">
@@ -312,7 +359,7 @@ export function CustomerQuickPreview({
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] text-slate-600 font-sans tabular-nums">
+                <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] text-slate-600 font-sans tabular-nums flex-wrap gap-1">
                   <span>
                     Started:{' '}
                     <strong className="font-semibold text-slate-800">
@@ -346,7 +393,7 @@ export function CustomerQuickPreview({
                     No Active Locker Assigned
                   </span>
                   <p className="text-slate-500 text-[11px] font-normal">
-                    Customer is in directory with 0 active lockers. Ready for new allotment.
+                    Customer is registered with 0 active lockers. Ready for new allotment.
                   </p>
                 </div>
                 <Button
@@ -356,9 +403,9 @@ export function CustomerQuickPreview({
                     onClose();
                     navigate('/allocations');
                   }}
-                  className="h-7 text-xs rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer shadow-2xs"
+                  className="h-7.5 text-xs rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer shadow-2xs font-medium"
                 >
-                  Allocate
+                  Allocate Locker
                 </Button>
               </div>
             )}
@@ -371,7 +418,7 @@ export function CustomerQuickPreview({
                 <div className="h-6 w-6 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
                   <CreditCard className="w-3.5 h-3.5" />
                 </div>
-                <h4 className="font-semibold text-slate-900 text-xs tracking-tight uppercase">
+                <h4 className="font-semibold text-slate-900 text-xs tracking-tight">
                   Financial Standing &amp; Invoices
                 </h4>
               </div>
@@ -393,14 +440,16 @@ export function CustomerQuickPreview({
                 Loading billing history…
               </div>
             ) : totalUnpaidDue > 0 ? (
-              <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200 flex items-center justify-between gap-3">
+              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/90 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
                   <div>
-                    <span className="font-bold text-xs text-rose-700 font-sans tabular-nums block">
+                    <span className="font-bold text-xs text-amber-950 font-sans tabular-nums block">
                       {formatINR(totalUnpaidDue)} Pending Dues
                     </span>
-                    <p className="text-[11px] text-amber-900 font-normal">
+                    <p className="text-[11px] text-amber-800 font-normal">
                       {unpaidInvoices.length} unpaid / pending renewal bill(s)
                     </p>
                   </div>
@@ -411,14 +460,14 @@ export function CustomerQuickPreview({
                     onClose();
                     navigate(`/customers/${customer._id}?tab=billing`);
                   }}
-                  className="h-7 text-xs px-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white cursor-pointer shadow-2xs shrink-0"
+                  className="h-8 text-xs px-3 rounded-xl bg-amber-800 hover:bg-amber-900 text-white cursor-pointer shadow-2xs shrink-0 font-semibold"
                 >
-                  View &amp; Collect
+                  Collect Payment
                 </Button>
               </div>
             ) : (
               <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/80 flex items-center gap-2.5 text-emerald-900 text-xs">
-                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span className="font-medium">All dues cleared • Account in good financial standing</span>
               </div>
             )}
@@ -431,7 +480,7 @@ export function CustomerQuickPreview({
                 <div className="h-6 w-6 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
                   <ShieldCheck className="w-3.5 h-3.5" />
                 </div>
-                <h4 className="font-semibold text-slate-900 text-xs tracking-tight uppercase">
+                <h4 className="font-semibold text-slate-900 text-xs tracking-tight">
                   KYC Documents &amp; Compliance
                 </h4>
               </div>
@@ -496,7 +545,7 @@ export function CustomerQuickPreview({
                       onClose();
                       onManageKyc(customer);
                     }}
-                    className="h-7 text-[10.5px] px-2.5 rounded-xl border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50 cursor-pointer shrink-0"
+                    className="h-7 text-[10.5px] px-2.5 rounded-xl border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50 cursor-pointer shrink-0 font-medium"
                   >
                     Attach Scan
                   </Button>
@@ -513,7 +562,7 @@ export function CustomerQuickPreview({
                       onClose();
                       onManageKyc(customer);
                     }}
-                    className="h-7 text-[10.5px] px-2.5 rounded-xl border-amber-300 bg-white text-amber-900 hover:bg-amber-100/80 cursor-pointer"
+                    className="h-7 text-[10.5px] px-2.5 rounded-xl border-amber-300 bg-white text-amber-900 hover:bg-amber-100/80 cursor-pointer font-medium"
                   >
                     Upload Now
                   </Button>
@@ -522,82 +571,53 @@ export function CustomerQuickPreview({
             )}
           </div>
 
-          {/* 5. Contact & Demographic Dossier */}
+          {/* 5. Demographic & Permanent Address Details */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
-            <h4 className="font-semibold text-slate-900 text-xs tracking-tight pb-2.5 border-b border-slate-100 flex items-center gap-2 uppercase">
+            <h4 className="font-semibold text-slate-900 text-xs tracking-tight pb-2.5 border-b border-slate-100 flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5 text-emerald-800" />
-              <span>Contact &amp; Address Details</span>
+              <span>Demographics &amp; Address Details</span>
             </h4>
 
             <div className="space-y-2.5 pt-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 flex items-center gap-1.5 font-normal">
-                  <Phone className="w-3.5 h-3.5 text-emerald-800" />
-                  <span>Primary Phone</span>
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-sans font-medium text-slate-900 text-xs tracking-tight tabular-nums">
-                    {formatPhone(customer.phone)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(customer.phone, 'phone')}
-                    className="p-1 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
-                    title="Copy phone"
-                  >
-                    {copiedField === 'phone' ? (
-                      <Check className="w-3 h-3 text-emerald-600" />
-                    ) : (
-                      <Copy className="w-3 h-3" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
               {customer.alternatePhone && (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-500 font-normal">Alternate Phone</span>
-                  <span className="font-sans font-medium text-slate-700 text-xs tracking-tight tabular-nums">
+                  <span className="font-sans font-medium text-slate-700 tracking-tight tabular-nums">
                     {formatPhone(customer.alternatePhone)}
                   </span>
                 </div>
               )}
 
-              {customer.email && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 flex items-center gap-1.5 font-normal">
-                    <Mail className="w-3.5 h-3.5 text-emerald-800" />
-                    <span>Email Address</span>
+              {customer.dateOfBirth && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-normal flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    Date of Birth
                   </span>
-                  <span className="text-slate-800 font-medium truncate max-w-[220px] text-xs">
-                    {customer.email}
+                  <span className="font-semibold text-slate-800">
+                    {customer.dateOfBirth} {customer.gender ? `(${customer.gender})` : ''}
                   </span>
                 </div>
               )}
 
               <div className="pt-2 border-t border-slate-100 flex items-start gap-2">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                <p className="text-slate-700 leading-relaxed font-normal text-xs">
-                  {(() => {
-                    const parts = [
-                      customer.address?.trim(),
-                      customer.city && customer.city !== 'Main Vault' ? customer.city.trim() : '',
-                      customer.state && customer.state !== 'Operational' ? customer.state.trim() : '',
-                      customer.postalCode?.trim(),
-                    ].filter(Boolean);
-                    return parts.length > 0 ? parts.join(', ') : 'No permanent address registered';
-                  })()}
-                </p>
-              </div>
-
-              {customer.dateOfBirth && (
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-slate-600">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  <span>
-                    DOB: <strong className="font-semibold text-slate-800">{customer.dateOfBirth}</strong> {customer.gender ? `(${customer.gender})` : ''}
-                  </span>
+                <div className="text-xs">
+                  <span className="font-medium text-slate-500 text-[11px] block">Permanent Address</span>
+                  <p className="text-slate-700 leading-relaxed font-normal mt-0.5">
+                    {(() => {
+                      const parts = [
+                        customer.address?.trim(),
+                        customer.city && customer.city !== 'Main Vault' ? customer.city.trim() : '',
+                        customer.state && customer.state !== 'Operational' ? customer.state.trim() : '',
+                        customer.postalCode?.trim(),
+                        customer.country?.trim(),
+                      ].filter(Boolean);
+                      return parts.length > 0 ? parts.join(', ') : 'No permanent address registered';
+                    })()}
+                  </p>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -621,25 +641,10 @@ export function CustomerQuickPreview({
             onClick={onClose}
             className="rounded-xl border-slate-300 text-slate-700 font-medium text-xs h-9 px-3.5 hover:bg-slate-50 cursor-pointer"
           >
-            Close
+            Close (Esc)
           </Button>
 
           <div className="flex items-center gap-2">
-            {onManageKyc && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  onClose();
-                  onManageKyc(customer);
-                }}
-                className="flex items-center gap-1.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs h-9 px-3 cursor-pointer whitespace-nowrap"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                <span>KYC</span>
-              </Button>
-            )}
-
             {onEdit && (
               <Button
                 variant="outline"
@@ -648,7 +653,7 @@ export function CustomerQuickPreview({
                   onClose();
                   onEdit(customer);
                 }}
-                className="flex items-center gap-1.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs h-9 px-3 cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-1.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs h-9 px-3.5 cursor-pointer whitespace-nowrap"
               >
                 <Edit3 className="w-3.5 h-3.5 shrink-0 text-slate-500" />
                 <span>Edit</span>
@@ -663,9 +668,9 @@ export function CustomerQuickPreview({
                   state: { from: location.pathname + location.search },
                 });
               }}
-              className="bg-emerald-800 hover:bg-emerald-900 text-white font-semibold shadow-xs flex items-center gap-1.5 rounded-xl px-3.5 sm:px-4 text-xs h-9 cursor-pointer whitespace-nowrap"
+              className="bg-emerald-800 hover:bg-emerald-900 text-white font-semibold shadow-xs flex items-center gap-1.5 rounded-xl px-4 text-xs h-9 cursor-pointer whitespace-nowrap"
             >
-              <span>Full Profile</span>
+              <span>Open Full Profile</span>
               <ExternalLink className="w-3.5 h-3.5 shrink-0" />
             </Button>
           </div>
