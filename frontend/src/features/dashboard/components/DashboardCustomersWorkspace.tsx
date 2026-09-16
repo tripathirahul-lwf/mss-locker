@@ -17,6 +17,9 @@ import {
   Mail,
   MapPin,
   CheckCircle2,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react';
 import { customerApi } from '../../customers/api/customerApi';
 import { Customer, CustomerQueryParams } from '../../customers/types';
@@ -25,6 +28,13 @@ import { KycStatusBadge } from '../../customers/components/KycStatusBadge';
 import { formatPhone } from '../../customers/utils/phoneFormatter';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
+
+function getInitials(name: string): string {
+  if (!name) return 'CU';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 interface DashboardCustomersWorkspaceProps {
   initialKycStatus?: string;
@@ -50,6 +60,24 @@ export function DashboardCustomersWorkspace({
   const [localSearch, setLocalSearch] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+  const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
+
+  const handleCopyCode = (e: React.MouseEvent, id: string, code: string) => {
+    e.stopPropagation();
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedCodeId(id);
+    setTimeout(() => setCopiedCodeId(null), 1800);
+  };
+
+  const handleCopyPhone = (e: React.MouseEvent, id: string, phone: string) => {
+    e.stopPropagation();
+    if (!phone) return;
+    navigator.clipboard.writeText(phone);
+    setCopiedPhoneId(id);
+    setTimeout(() => setCopiedPhoneId(null), 1800);
+  };
 
   // Sync with prop
   useEffect(() => {
@@ -241,8 +269,21 @@ export function DashboardCustomersWorkspace({
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Search by customer code, full name, phone number, or city..."
-            className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
+            className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
           />
+          {localSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                setLocalSearch('');
+                setSearch('');
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -289,52 +330,107 @@ export function DashboardCustomersWorkspace({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
-                  <th className="py-2.5 px-3">Client Code</th>
-                  <th className="py-2.5 px-3">Full Name</th>
+                  <th className="py-2.5 px-3.5">Customer Profile</th>
                   <th className="py-2.5 px-3">Contact</th>
                   <th className="py-2.5 px-3">City / Address</th>
-                  <th className="py-2.5 px-3 text-center">KYC Status</th>
+                  <th className="py-2.5 px-3 text-center">KYC Compliance</th>
                   <th className="py-2.5 px-3 text-center">Status</th>
-                  <th className="py-2.5 px-3 text-right">Actions</th>
+                  <th className="py-2.5 px-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {customers.map((c) => (
-                  <tr key={c._id} className="hover:bg-slate-50/70 transition">
-                    <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
-                      {c.customerCode || 'CU-N/A'}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-bold text-slate-800">{c.fullName}</div>
-                      {c.address && (
-                        <div className="text-[10px] text-slate-400 truncate max-w-[160px]">{c.address}</div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-mono text-slate-700 flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-slate-400" />
-                        {formatPhone(c.phone)}
+                  <tr
+                    key={c._id}
+                    onClick={() => onViewCustomer(c)}
+                    className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                  >
+                    <td className="py-2.5 px-3.5">
+                      <div className="flex items-center gap-2.5">
+                        {c.photoUrl ? (
+                          <img
+                            src={c.photoUrl}
+                            alt={c.fullName}
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center justify-center font-bold text-[11px] shrink-0 select-none">
+                            {getInitials(c.fullName)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-900 group-hover:text-emerald-800 transition-colors truncate max-w-[180px]">
+                            {c.fullName}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyCode(e, c._id, c.customerCode)}
+                              className="inline-flex items-center gap-1 font-mono text-[10px] text-slate-600 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded transition cursor-pointer"
+                              title="Click to copy customer code"
+                            >
+                              <span>{c.customerCode || 'CU-N/A'}</span>
+                              {copiedCodeId === c._id ? (
+                                <Check className="w-2.5 h-2.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-2.5 h-2.5 text-slate-400 opacity-60 hover:opacity-100" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopyPhone(e, c._id, c.phone)}
+                        className="font-mono text-slate-700 text-xs flex items-center gap-1 hover:text-emerald-800 transition cursor-pointer group/phone text-left"
+                        title="Click to copy phone"
+                      >
+                        <Phone className="w-3 h-3 text-slate-400 group-hover/phone:text-emerald-700 shrink-0" />
+                        <span>{formatPhone(c.phone)}</span>
+                        {copiedPhoneId === c._id ? (
+                          <Check className="w-2.5 h-2.5 text-emerald-600 ml-0.5" />
+                        ) : (
+                          <Copy className="w-2.5 h-2.5 text-slate-300 group-hover/phone:text-slate-500 opacity-0 group-hover/phone:opacity-100 transition-opacity ml-0.5" />
+                        )}
+                      </button>
                       {c.email && (
-                        <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate max-w-[150px]">
+                        <div className="text-[10.5px] text-slate-400 flex items-center gap-1 truncate max-w-[160px] mt-0.5">
                           <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                           <span className="truncate">{c.email}</span>
                         </div>
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-slate-600">
-                      <div className="flex items-center gap-1 truncate max-w-[140px]">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{c.city || 'Local Vault'}</span>
-                      </div>
+                      {c.city && c.city.toLowerCase() !== 'main vault' ? (
+                        <div>
+                          <div className="flex items-center gap-1 truncate max-w-[150px] font-medium text-slate-700">
+                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{c.city}</span>
+                          </div>
+                          {c.address && (
+                            <div className="text-[10px] text-slate-400 truncate max-w-[160px] pl-4">
+                              {c.address}
+                            </div>
+                          )}
+                        </div>
+                      ) : c.address ? (
+                        <div className="flex items-center gap-1 truncate max-w-[160px] text-slate-600">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{c.address}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">—</span>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       <KycStatusBadge status={c.kycStatus} />
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <CustomerStatusBadge status={c.status} />
+                      <CustomerStatusBadge status={c.status} className="text-[10.5px] px-2 py-0.5" />
                     </td>
-                    <td className="py-2.5 px-3 text-right">
+                    <td className="py-2.5 px-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
@@ -348,7 +444,7 @@ export function DashboardCustomersWorkspace({
                           <button
                             type="button"
                             onClick={() => onEditCustomer(c)}
-                            className="p-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 cursor-pointer"
+                            className="p-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
                             title="Edit profile"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
