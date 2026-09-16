@@ -6,11 +6,13 @@ import { Button } from '../../../components/ui/button';
 interface CustomerPhotoUploaderProps {
   photoUrl?: string;
   onChange: (url: string) => void;
+  variant?: 'standard' | 'inline';
 }
 
 export function CustomerPhotoUploader({
   photoUrl,
   onChange,
+  variant = 'standard',
 }: CustomerPhotoUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -93,6 +95,179 @@ export function CustomerPhotoUploader({
     const file = e.dataTransfer.files?.[0];
     if (file) processFile(file);
   };
+
+  const renderZoomModal = () =>
+    isPreviewOpen &&
+    photoUrl && (
+      <div
+        data-customer-photo-preview="true"
+        className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Customer photo preview"
+        onMouseDown={(event) => event.target === event.currentTarget && setIsPreviewOpen(false)}
+      >
+        <div className="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-slate-900 shadow-2xl">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white">
+            <div>
+              <h3 className="text-sm font-bold">Customer Photo Preview</h3>
+              <p className="text-[11px] text-slate-300">Use + / − keys or controls to zoom</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPreviewScale((scale) => Math.max(0.5, scale - 0.25))}
+                className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Zoom out"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+              <span className="min-w-14 text-center text-xs font-semibold" aria-live="polite">
+                {Math.round(previewScale * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewScale((scale) => Math.min(3, scale + 0.25))}
+                className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Zoom in"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewScale(1)}
+                className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Reset zoom"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setIsPreviewOpen(false)}
+                className="ml-2 grid h-10 w-10 place-items-center rounded-lg bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Close photo preview"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,_#334155_0,_#0f172a_70%)] p-6">
+            <img
+              src={photoUrl}
+              alt="Full size customer preview"
+              className="max-h-full max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-150"
+              style={{ transform: `scale(${previewScale})` }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+
+  if (variant === 'inline') {
+    return (
+      <div className="flex flex-col items-center gap-1.5 shrink-0 select-none">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          aria-label="Choose customer profile photo"
+        />
+
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className="relative group"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (photoUrl) {
+                setIsPreviewOpen(true);
+              } else {
+                fileInputRef.current?.click();
+              }
+            }}
+            disabled={isUploading}
+            aria-label={photoUrl ? 'Preview customer photo' : 'Upload customer photo'}
+            className={`relative w-20 h-20 sm:w-21 sm:h-21 rounded-2xl overflow-hidden border transition-all flex items-center justify-center cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+              isDragging
+                ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20'
+                : photoUrl
+                  ? 'border-slate-300 bg-white'
+                  : 'border-dashed border-slate-300 bg-white hover:bg-slate-50 hover:border-emerald-600'
+            }`}
+          >
+            {photoUrl ? (
+              <img
+                src={photoUrl}
+                alt="Customer avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-1 text-slate-400 group-hover:text-emerald-800 transition-colors">
+                <Camera className="w-5 h-5 stroke-[1.75]" />
+                <span className="text-[10px] font-semibold">Photo</span>
+              </div>
+            )}
+
+            {isUploading && (
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] flex items-center justify-center text-white">
+                <Loader2 className="w-5 h-5 animate-spin text-white" aria-hidden="true" />
+              </div>
+            )}
+
+            {photoUrl && !isUploading && (
+              <span className="absolute inset-0 grid place-items-center bg-slate-950/40 text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                <Eye className="h-5 w-5" />
+              </span>
+            )}
+          </button>
+
+          {photoUrl && !isUploading && (
+            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs border-2 border-white">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+            </div>
+          )}
+        </div>
+
+        {/* Small Action buttons underneath */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="text-[10.5px] font-semibold text-emerald-800 hover:text-emerald-950 hover:underline cursor-pointer"
+          >
+            {photoUrl ? 'Change' : 'Upload'}
+          </button>
+          {photoUrl && !isUploading && (
+            <>
+              <span className="text-slate-300 text-[10px]">•</span>
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className="text-[10.5px] font-semibold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
+              >
+                Remove
+              </button>
+            </>
+          )}
+        </div>
+
+        {error && (
+          <p role="alert" className="text-[10px] text-rose-600 font-normal max-w-[90px] text-center leading-tight">
+            {error}
+          </p>
+        )}
+
+        {renderZoomModal()}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -232,25 +407,7 @@ export function CustomerPhotoUploader({
         <p role="alert" className="text-[11px] text-rose-600 font-normal">{error}</p>
       )}
 
-      {isPreviewOpen && photoUrl && (
-        <div data-customer-photo-preview="true" className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Customer photo preview" onMouseDown={(event) => event.target === event.currentTarget && setIsPreviewOpen(false)}>
-          <div className="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-slate-900 shadow-2xl">
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white">
-              <div><h3 className="text-sm font-bold">Customer Photo Preview</h3><p className="text-[11px] text-slate-300">Use + / − keys or controls to zoom</p></div>
-              <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setPreviewScale((scale) => Math.max(0.5, scale - 0.25))} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Zoom out"><ZoomOut className="h-4 w-4" /></button>
-                <span className="min-w-14 text-center text-xs font-semibold" aria-live="polite">{Math.round(previewScale * 100)}%</span>
-                <button type="button" onClick={() => setPreviewScale((scale) => Math.min(3, scale + 0.25))} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Zoom in"><ZoomIn className="h-4 w-4" /></button>
-                <button type="button" onClick={() => setPreviewScale(1)} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Reset zoom"><RotateCcw className="h-4 w-4" /></button>
-                <button type="button" autoFocus onClick={() => setIsPreviewOpen(false)} className="ml-2 grid h-10 w-10 place-items-center rounded-lg bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Close photo preview"><X className="h-5 w-5" /></button>
-              </div>
-            </div>
-            <div className="flex flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,_#334155_0,_#0f172a_70%)] p-6">
-              <img src={photoUrl} alt="Full size customer preview" className="max-h-full max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-150" style={{ transform: `scale(${previewScale})` }} />
-            </div>
-          </div>
-        </div>
-      )}
+      {renderZoomModal()}
     </div>
   );
 }

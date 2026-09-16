@@ -285,35 +285,66 @@ export function CustomerFormModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-4 sm:px-6 sm:py-4.5 border-b border-slate-100 bg-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
-              <UserPlus className="w-5 h-5" />
+        <div className="flex flex-col border-b border-slate-100 bg-white shrink-0">
+          <div className="flex items-center justify-between p-4 sm:px-6 sm:py-3.5">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
+                <UserPlus className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2
+                    ref={titleRef}
+                    tabIndex={-1}
+                    id="customer-form-title"
+                    className="text-base sm:text-lg font-bold text-slate-900 tracking-tight outline-none"
+                  >
+                    {isEdit ? `Edit Customer: ${customer?.fullName}` : 'Register New Customer'}
+                  </h2>
+                  {isEdit && customer?.customerCode && (
+                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                      {customer.customerCode}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 font-normal mt-0.5">
+                  {isEdit
+                    ? 'Update contact details, address, and profile specifications'
+                    : 'Add customer profile to directory before locker allotment and KYC verification'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h2
-                ref={titleRef}
-                tabIndex={-1}
-                id="customer-form-title"
-                className="text-base sm:text-lg font-bold text-slate-900 tracking-tight outline-none"
-              >
-                {isEdit ? `Edit Customer: ${customer?.fullName}` : 'Register New Customer'}
-              </h2>
-              <p className="text-xs text-slate-500 font-normal mt-0.5">
-                {isEdit
-                  ? 'Update contact details, address, and profile specifications'
-                  : 'Add customer profile to directory before locker allotment and KYC verification'}
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close customer form"
+              className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer"
+            >
+              <X className="w-4.5 h-4.5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close customer form"
-            className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer"
-          >
-            <X className="w-4.5 h-4.5" />
-          </button>
+
+          {/* Quick-Jump Section Navigation Tabs */}
+          <div className="flex items-center gap-1.5 px-4 sm:px-6 pb-2.5 overflow-x-auto select-none">
+            {[
+              { id: 'section-personal', label: '1. Personal & Identity' },
+              { id: 'section-contact', label: '2. Contact Info' },
+              { id: 'section-address', label: '3. Postal Address' },
+              { id: 'section-remarks', label: '4. Staff Remarks' },
+            ].map((sec) => (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById(sec.id);
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-emerald-900 hover:bg-emerald-50 border border-transparent hover:border-emerald-200/80 transition-colors cursor-pointer shrink-0"
+              >
+                {sec.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Modal Form */}
@@ -339,21 +370,18 @@ export function CustomerFormModal({
               </div>
             )}
 
-            {/* Profile Photo Uploader */}
-            <CustomerPhotoUploader
-              photoUrl={photoUrl}
-              onChange={(url) => setPhotoUrl(url)}
-            />
-
             {/* Step 1: Personal Details & Demographics */}
-            <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs">
+            <div
+              id="section-personal"
+              className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs scroll-mt-4"
+            >
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/80">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-xs font-bold flex items-center justify-center shadow-xs">
                     1
                   </div>
                   <h3 className="font-bold text-slate-800 text-xs sm:text-sm">
-                    Personal Details & Demographics
+                    Personal Details &amp; Demographics
                   </h3>
                 </div>
                 <span className="text-[10.5px] text-slate-400 font-normal">
@@ -361,52 +389,61 @@ export function CustomerFormModal({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    htmlFor="customer-full-name"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
-                  >
-                    Full Customer Name <span className="text-emerald-700">*</span>
-                  </label>
-                  <input
-                    id="customer-full-name"
-                    autoComplete="name"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Ramesh Kumar Sharma"
-                    required
-                    aria-invalid={Boolean(fieldErrors.fullName)}
-                    aria-describedby={fieldErrors.fullName ? 'customer-full-name-error' : undefined}
-                    className="w-full h-11 px-4 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 transition shadow-xs hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal"
-                  />
-                  {fieldErrors.fullName && (
-                    <p id="customer-full-name-error" className="text-[11px] font-medium text-rose-600 mt-1">
-                      {fieldErrors.fullName}
-                    </p>
-                  )}
-                </div>
+              {/* Inline Photo + Name + Status Flex Grid */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                <CustomerPhotoUploader
+                  photoUrl={photoUrl}
+                  onChange={(url) => setPhotoUrl(url)}
+                  variant="inline"
+                />
 
-                <div>
-                  <label
-                    htmlFor="customer-status"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
-                  >
-                    Account Status
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="customer-status"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as CustomerStatus)}
-                      className="w-full h-11 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 text-sm focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 appearance-none cursor-pointer shadow-xs transition hover:border-slate-400"
+                <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3.5 min-w-0">
+                  <div>
+                    <label
+                      htmlFor="customer-full-name"
+                      className="block text-xs font-semibold text-slate-700 mb-1.5"
                     >
-                      <option value="ACTIVE">ACTIVE - Operational Account</option>
-                      <option value="INACTIVE">INACTIVE - Suspended / Dormant</option>
-                      <option value="BLOCKED">BLOCKED - Access Restricted</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      Full Customer Name <span className="text-emerald-700">*</span>
+                    </label>
+                    <input
+                      id="customer-full-name"
+                      autoComplete="name"
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Ramesh Kumar Sharma"
+                      required
+                      aria-invalid={Boolean(fieldErrors.fullName)}
+                      aria-describedby={fieldErrors.fullName ? 'customer-full-name-error' : undefined}
+                      className="w-full h-11 px-4 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 transition shadow-xs hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal"
+                    />
+                    {fieldErrors.fullName && (
+                      <p id="customer-full-name-error" className="text-[11px] font-medium text-rose-600 mt-1">
+                        {fieldErrors.fullName}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="customer-status"
+                      className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    >
+                      Account Status
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="customer-status"
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value as CustomerStatus)}
+                        className="w-full h-11 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 text-sm focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 appearance-none cursor-pointer shadow-xs transition hover:border-slate-400"
+                      >
+                        <option value="ACTIVE">ACTIVE - Operational Account</option>
+                        <option value="INACTIVE">INACTIVE - Suspended / Dormant</option>
+                        <option value="BLOCKED">BLOCKED - Access Restricted</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -481,7 +518,10 @@ export function CustomerFormModal({
             </div>
 
             {/* Step 2: Contact & Communications */}
-            <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs">
+            <div
+              id="section-contact"
+              className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs scroll-mt-4"
+            >
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/80">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-xs font-bold flex items-center justify-center shadow-xs">
@@ -667,7 +707,10 @@ export function CustomerFormModal({
             </div>
 
             {/* Step 3: Registered Postal Address */}
-            <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs">
+            <div
+              id="section-address"
+              className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs scroll-mt-4"
+            >
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/80">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-xs font-bold flex items-center justify-center shadow-xs">
@@ -780,7 +823,10 @@ export function CustomerFormModal({
             </div>
 
             {/* Step 4: Operational Remarks */}
-            <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-3 shadow-2xs">
+            <div
+              id="section-remarks"
+              className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-3 shadow-2xs scroll-mt-4"
+            >
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/80">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-xs font-bold flex items-center justify-center shadow-xs">
