@@ -15,6 +15,8 @@ import {
   CreateCustomerInput,
   UpdateCustomerInput,
 } from '../features/customers/types';
+import { allocationApi } from '../features/allocations/api/allocationApi';
+import { CreateAllocationInput, ReserveLockerInput } from '../features/allocations/types';
 import { CustomerSummaryCards } from '../features/customers/components/CustomerSummaryCards';
 import { CustomerFilters } from '../features/customers/components/CustomerFilters';
 import { CustomerTable } from '../features/customers/components/CustomerTable';
@@ -25,6 +27,7 @@ import { usePermission } from '../hooks/usePermission';
 const CustomerFormModal = lazy(() => import('../features/customers/components/CustomerFormModal').then((module) => ({ default: module.CustomerFormModal })));
 const CustomerQuickPreview = lazy(() => import('../features/customers/components/CustomerQuickPreview').then((module) => ({ default: module.CustomerQuickPreview })));
 const KycDocumentModal = lazy(() => import('../features/customers/components/KycDocumentModal').then((module) => ({ default: module.KycDocumentModal })));
+const AllocationWizardModal = lazy(() => import('../features/allocations/components/AllocationWizardModal').then((module) => ({ default: module.AllocationWizardModal })));
 
 const allowedStatuses = new Set(['ACTIVE', 'INACTIVE', 'BLOCKED', 'ARCHIVED']);
 const allowedKycStatuses = new Set(['PENDING', 'PARTIAL', 'PENDING,PARTIAL', 'VERIFIED', 'REJECTED', 'EXPIRED']);
@@ -44,6 +47,9 @@ export function CustomersPage() {
   const [previewCustomer, setPreviewCustomer] = useState<Customer | null>(null);
   const [kycCustomerId, setKycCustomerId] = useState<string | null>(null);
   const [archiveCustomer, setArchiveCustomer] = useState<Customer | null>(null);
+  const [allocatingCustomer, setAllocatingCustomer] = useState<Customer | null>(null);
+  const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
+  const [isSubmittingAllocation, setIsSubmittingAllocation] = useState(false);
 
   // Restore saved query params from sessionStorage if landed on bare /customers
   useEffect(() => {
@@ -160,6 +166,25 @@ export function CustomersPage() {
       });
     } else {
       await createMutation.mutateAsync(data as CreateCustomerInput);
+    }
+  };
+
+  const handleAllocationSubmit = async (data: CreateAllocationInput | ReserveLockerInput) => {
+    setIsSubmittingAllocation(true);
+    try {
+      if ('allocationType' in data) {
+        await allocationApi.createAllocation(data as CreateAllocationInput);
+      } else {
+        await allocationApi.reserveLocker(data as ReserveLockerInput);
+      }
+      setIsAllocationModalOpen(false);
+      setAllocatingCustomer(null);
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['lockers'] });
+    } finally {
+      setIsSubmittingAllocation(false);
     }
   };
 
@@ -358,8 +383,29 @@ export function CustomersPage() {
           onManageKyc={(customer) => {
             setKycCustomerId(customer._id);
           }}
+          onAllocateLocker={(customer) => {
+            setPreviewCustomer(null);
+            setAllocatingCustomer(customer);
+            setIsAllocationModalOpen(true);
+          }}
         />
       )}</Suspense>
+
+      {/* Allocation Wizard Modal when allocating directly from customer table or preview drawer */}
+      <Suspense fallback={null}>
+        {isAllocationModalOpen && (
+          <AllocationWizardModal
+            mode="allocate"
+            onClose={() => {
+              setIsAllocationModalOpen(false);
+              setAllocatingCustomer(null);
+            }}
+            preSelectedCustomer={allocatingCustomer}
+            onSubmit={handleAllocationSubmit}
+            isSubmitting={isSubmittingAllocation}
+          />
+        )}
+      </Suspense>
 
       {/* KYC Document Upload / Verification Modal */}
       <Suspense fallback={null}>

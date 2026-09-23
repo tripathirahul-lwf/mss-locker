@@ -42,6 +42,7 @@ interface CustomerQuickPreviewProps {
   onClose: () => void;
   onEdit?: (customer: Customer) => void;
   onManageKyc?: (customer: Customer) => void;
+  onAllocateLocker?: (customer: Customer) => void;
 }
 
 export function CustomerQuickPreview({
@@ -49,6 +50,7 @@ export function CustomerQuickPreview({
   onClose,
   onEdit,
   onManageKyc,
+  onAllocateLocker,
 }: CustomerQuickPreviewProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -414,12 +416,18 @@ export function CustomerQuickPreview({
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    onClose();
-                    navigate('/allocations');
+                    if (!customer) return;
+                    if (onAllocateLocker) {
+                      onAllocateLocker(customer);
+                    } else {
+                      onClose();
+                      navigate(`/allocations?allocateCustomer=${customer._id}`);
+                    }
                   }}
-                  className="h-7.5 text-xs rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer shadow-2xs font-medium"
+                  className="h-8 px-3 text-xs rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer shadow-2xs font-semibold shrink-0 flex items-center gap-1.5"
                 >
-                  Allocate Locker
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Allocate Locker</span>
                 </Button>
               </div>
             )}

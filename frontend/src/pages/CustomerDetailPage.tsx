@@ -1048,9 +1048,10 @@ export function CustomerDetailPage() {
                     This customer currently has no assigned safe-deposit locker.
                   </p>
                 </div>
-                <Link to="/allocations">
-                  <Button size="sm" className="bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-medium rounded-xl mt-2 cursor-pointer shadow-xs">
-                    Allocate a Locker
+                <Link to={`/allocations?allocateCustomer=${customer._id}`}>
+                  <Button size="sm" className="bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold rounded-xl mt-2 cursor-pointer shadow-xs flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Allocate a Locker</span>
                   </Button>
                 </Link>
               </CardContent>

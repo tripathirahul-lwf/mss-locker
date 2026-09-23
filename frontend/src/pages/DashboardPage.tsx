@@ -163,6 +163,7 @@ export function DashboardPage() {
 
   // Modal visibility & submission states
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
+  const [preselectedCustomerForAllocation, setPreselectedCustomerForAllocation] = useState<Customer | null>(null);
   const [isSubmittingAllocation, setIsSubmittingAllocation] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -281,8 +282,13 @@ export function DashboardPage() {
   const handleAllocationSubmit = async (data: CreateAllocationInput | ReserveLockerInput) => {
     setIsSubmittingAllocation(true);
     try {
-      await allocationApi.createAllocation(data as CreateAllocationInput);
+      if ('allocationType' in data) {
+        await allocationApi.createAllocation(data as CreateAllocationInput);
+      } else {
+        await allocationApi.reserveLocker(data as ReserveLockerInput);
+      }
       setIsAllocationModalOpen(false);
+      setPreselectedCustomerForAllocation(null);
       refreshAll();
       setNotice('Locker allocated successfully!');
     } finally {
@@ -622,7 +628,11 @@ export function DashboardPage() {
       {isAllocationModalOpen && (
         <AllocationWizardModal
           mode="allocate"
-          onClose={() => setIsAllocationModalOpen(false)}
+          onClose={() => {
+            setIsAllocationModalOpen(false);
+            setPreselectedCustomerForAllocation(null);
+          }}
+          preSelectedCustomer={preselectedCustomerForAllocation}
           onSubmit={handleAllocationSubmit}
           isSubmitting={isSubmittingAllocation}
         />
@@ -650,6 +660,11 @@ export function DashboardPage() {
             setViewingCustomer(null);
             setEditingCustomer(c);
             setIsCustomerModalOpen(true);
+          }}
+          onAllocateLocker={(c) => {
+            setViewingCustomer(null);
+            setPreselectedCustomerForAllocation(c);
+            setIsAllocationModalOpen(true);
           }}
         />
       )}

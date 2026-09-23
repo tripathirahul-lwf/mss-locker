@@ -27,6 +27,7 @@ import { LOCKER_SIZES } from '../../lockers/constants';
 interface AllocationWizardModalProps {
   mode?: 'allocate' | 'reserve';
   preSelectedLocker?: Locker | null;
+  preSelectedCustomer?: Customer | null;
   onClose: () => void;
   onSubmit: (data: CreateAllocationInput | ReserveLockerInput) => Promise<void>;
   isSubmitting: boolean;
@@ -35,6 +36,7 @@ interface AllocationWizardModalProps {
 export function AllocationWizardModal({
   mode = 'allocate',
   preSelectedLocker = null,
+  preSelectedCustomer = null,
   onClose,
   onSubmit,
   isSubmitting,
@@ -75,10 +77,20 @@ export function AllocationWizardModal({
   );
 
   // Customer Details
-  const [customerName, setCustomerName] = useState('');
-  const [customerMobile, setCustomerMobile] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
+  const [customerName, setCustomerName] = useState(preSelectedCustomer?.fullName || '');
+  const [customerMobile, setCustomerMobile] = useState(preSelectedCustomer?.phone || '');
+  const [customerEmail, setCustomerEmail] = useState(preSelectedCustomer?.email || '');
+  const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(preSelectedCustomer || null);
+
+  // Sync customer details if preSelectedCustomer changes
+  useEffect(() => {
+    if (preSelectedCustomer) {
+      setMatchedCustomer(preSelectedCustomer);
+      setCustomerName(preSelectedCustomer.fullName);
+      setCustomerMobile(preSelectedCustomer.phone);
+      setCustomerEmail(preSelectedCustomer.email || '');
+    }
+  }, [preSelectedCustomer]);
 
   // Search / Lookup dropdown state
   const [customerQuery, setCustomerQuery] = useState('');

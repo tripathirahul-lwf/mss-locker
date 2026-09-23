@@ -4,7 +4,9 @@ import { useSearchParams } from 'react-router-dom';
 import { Layers, Plus, Clock, Download, RefreshCw } from 'lucide-react';
 import { allocationApi } from '../features/allocations/api/allocationApi';
 import { lockerApi } from '../features/lockers/api/lockerApi';
+import { customerApi } from '../features/customers/api/customerApi';
 import { Locker } from '../features/lockers/types';
+import { Customer } from '../features/customers/types';
 import {
   LockerAllocation,
   AllocationQueryParams,
@@ -89,6 +91,7 @@ export function AllocationsPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardMode, setWizardMode] = useState<'allocate' | 'reserve'>('allocate');
   const [preSelectedLocker, setPreSelectedLocker] = useState<Locker | null>(null);
+  const [preSelectedCustomer, setPreSelectedCustomer] = useState<Customer | null>(null);
   const [viewingAllocation, setViewingAllocation] = useState<LockerAllocation | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [confirmCancelAllocation, setConfirmCancelAllocation] = useState<LockerAllocation | null>(null);
@@ -108,6 +111,20 @@ export function AllocationsPage() {
     }
   }, [allocateLockerId]);
 
+  // Check for direct customer allocation query param
+  const allocateCustomerId = searchParams.get('allocateCustomer');
+  useEffect(() => {
+    if (allocateCustomerId) {
+      customerApi.getCustomerById(allocateCustomerId).then((customer) => {
+        if (customer) {
+          setPreSelectedCustomer(customer);
+          setWizardMode('allocate');
+          setWizardOpen(true);
+        }
+      }).catch(() => {});
+    }
+  }, [allocateCustomerId]);
+
   // Mutations
   const createMutation = useMutation({
     mutationFn: (data: CreateAllocationInput | ReserveLockerInput) => {
@@ -119,6 +136,11 @@ export function AllocationsPage() {
     onSuccess: () => {
       setWizardOpen(false);
       setPreSelectedLocker(null);
+      setPreSelectedCustomer(null);
+      const updated = new URLSearchParams(searchParams);
+      updated.delete('allocateLocker');
+      updated.delete('allocateCustomer');
+      setSearchParams(updated, { replace: true });
       queryClient.invalidateQueries({ queryKey: ['allocations'] });
       queryClient.invalidateQueries({ queryKey: ['allocation-stats'] });
       queryClient.invalidateQueries({ queryKey: ['lockers'] });
@@ -258,9 +280,15 @@ export function AllocationsPage() {
         <AllocationWizardModal
           mode={wizardMode}
           preSelectedLocker={preSelectedLocker}
+          preSelectedCustomer={preSelectedCustomer}
           onClose={() => {
             setWizardOpen(false);
             setPreSelectedLocker(null);
+            setPreSelectedCustomer(null);
+            const updated = new URLSearchParams(searchParams);
+            updated.delete('allocateLocker');
+            updated.delete('allocateCustomer');
+            setSearchParams(updated, { replace: true });
           }}
           onSubmit={async (data) => {
             await createMutation.mutateAsync(data);
