@@ -135,6 +135,42 @@ export class BillingController {
     }
   }
 
+  async updateInvoiceBillingPeriod(req: Request, res: Response): Promise<void> {
+    try {
+      const id = String(req.params.id);
+      const userId = (req as any).user?._id;
+      const { billingPeriodStart, billingPeriodEnd } = req.body;
+
+      if (!billingPeriodStart || !billingPeriodEnd) {
+        res.status(400).json({
+          success: false,
+          message: 'Both billingPeriodStart and billingPeriodEnd are required',
+        });
+        return;
+      }
+
+      const invoice = await billingService.updateInvoiceBillingPeriod(
+        id,
+        billingPeriodStart,
+        billingPeriodEnd,
+        userId
+      );
+
+      res.status(200).json({
+        success: true,
+        data: invoice,
+        message: 'Billing period updated successfully',
+      });
+    } catch (error: any) {
+      logger.error('Error updating invoice billing period:', error);
+      const statusCode = error.statusCode || 400;
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || 'Failed to update billing period',
+      });
+    }
+  }
+
   async getCustomerInvoices(req: Request, res: Response): Promise<void> {
     try {
       const id = String(req.params.id);

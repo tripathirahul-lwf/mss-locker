@@ -145,6 +145,25 @@ export const renewalApi = {
   },
 
   /**
+   * Update custom billing period (start and end date) for an invoice
+   */
+  async updateBillingPeriod(
+    id: string,
+    billingPeriodStart: string,
+    billingPeriodEnd: string
+  ): Promise<LockerInvoice> {
+    const response = await apiClient.patch<{
+      success: boolean;
+      data: LockerInvoice;
+      message: string;
+    }>(`/renewals/${id}/billing-period`, {
+      billingPeriodStart,
+      billingPeriodEnd,
+    });
+    return response.data.data;
+  },
+
+  /**
    * Get all invoices for a customer
    */
   async getCustomerInvoices(customerId: string): Promise<LockerInvoice[]> {

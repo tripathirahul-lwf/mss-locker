@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -19,6 +19,8 @@ import {
   Receipt,
   Layers,
   Loader2,
+  Edit2,
+  Save,
 } from 'lucide-react';
 import { LockerInvoice } from '../types';
 import { PaymentStatusBadge, DueStatusBadge } from './RenewalStatusBadge';
@@ -26,7 +28,7 @@ import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
 import { Link } from 'react-router-dom';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { paymentApi } from '../../payments/api/paymentApi';
 import { PaymentMethodBadge, PaymentStatusBadge as TransactionStatusBadge } from '../../payments/components/PaymentMethodBadge';
 import { renewalApi } from '../api/renewalApi';
@@ -46,6 +48,20 @@ function formatInvoiceDate(dateInput?: string | Date): string {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function toInputDateFormat(dateInput?: string | Date): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  if (year > 100 && year < 1000) {
+    d.setFullYear(2000 + (year % 100));
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 const getInitials = (fullName?: string): string => {
@@ -88,8 +104,15 @@ export function InvoiceDetailModal({
   onCancelInvoice,
   onRecordPayment,
 }: InvoiceDetailModalProps) {
+  const queryClient = useQueryClient();
   const canCreate = usePermission('renewals.create');
   const canPay = usePermission('payments.create');
+  const [currentInvoice, setCurrentInvoice] = useState<LockerInvoice>(invoice);
+
+  useEffect(() => {
+    setCurrentInvoice(invoice);
+  }, [invoice]);
+
   const [copiedNumber, setCopiedNumber] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -97,19 +120,72 @@ export function InvoiceDetailModal({
   const [isCancelling, setIsCancelling] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
+  // Billing period inline editing state
+  const [isEditingPeriod, setIsEditingPeriod] = useState(false);
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [isSavingPeriod, setIsSavingPeriod] = useState(false);
+  const [periodError, setPeriodError] = useState<string | null>(null);
+  const [periodSuccess, setPeriodSuccess] = useState<string | null>(null);
+
+  const handleStartEditPeriod = () => {
+    setPeriodStart(toInputDateFormat(currentInvoice.billingPeriodStart));
+    setPeriodEnd(toInputDateFormat(currentInvoice.billingPeriodEnd));
+    setPeriodError(null);
+    setIsEditingPeriod(true);
+  };
+
+  const handleSaveBillingPeriod = async () => {
+    if (!periodStart || !periodEnd) {
+      setPeriodError('Both start and end dates are required');
+      return;
+    }
+    if (new Date(periodEnd) < new Date(periodStart)) {
+      setPeriodError('End date cannot be earlier than start date');
+      return;
+    }
+
+    setIsSavingPeriod(true);
+    setPeriodError(null);
+    try {
+      const updated = await renewalApi.updateBillingPeriod(
+        currentInvoice._id,
+        periodStart,
+        periodEnd
+      );
+      setCurrentInvoice((prev) => ({
+        ...prev,
+        billingPeriodStart: updated.billingPeriodStart,
+        billingPeriodEnd: updated.billingPeriodEnd,
+      }));
+      setIsEditingPeriod(false);
+      setPeriodSuccess('Billing period updated successfully');
+      setTimeout(() => setPeriodSuccess(null), 3500);
+
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-detail', currentInvoice._id] });
+      queryClient.invalidateQueries({ queryKey: ['renewal-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['locker-invoices'] });
+    } catch (err: any) {
+      setPeriodError(err.response?.data?.message || err.message || 'Failed to update billing period');
+    } finally {
+      setIsSavingPeriod(false);
+    }
+  };
+
   // Fetch payments recorded against this invoice
   const { data: invoicePayments } = useQuery({
-    queryKey: ['invoice-payments', invoice._id],
-    queryFn: () => paymentApi.getInvoicePayments(invoice._id),
+    queryKey: ['invoice-payments', currentInvoice._id],
+    queryFn: () => paymentApi.getInvoicePayments(currentInvoice._id),
   });
 
-  const customer = invoice.customerId;
-  const rawLocker = invoice.lockerId;
+  const customer = currentInvoice.customerId || invoice.customerId;
+  const rawLocker = currentInvoice.lockerId || invoice.lockerId;
   const locker =
     typeof rawLocker === 'object' && rawLocker !== null && (rawLocker as any).lockerNumber
       ? (rawLocker as any)
       : fallbackLocker || (rawLocker as any) || {};
-  const allocation = invoice.allocationId;
+  const allocation = currentInvoice.allocationId || invoice.allocationId;
 
   const todayTime = new Date().setHours(0, 0, 0, 0);
   const dueDateTime = invoice.dueDate ? new Date(invoice.dueDate).setHours(0, 0, 0, 0) : todayTime;
@@ -145,7 +221,7 @@ export function InvoiceDetailModal({
     if (!onCancelInvoice) return;
     setIsCancelling(true);
     try {
-      await onCancelInvoice(invoice, cancelReason);
+      await onCancelInvoice(currentInvoice, cancelReason);
       setCancelModalOpen(false);
       onClose();
     } catch {
@@ -158,7 +234,7 @@ export function InvoiceDetailModal({
   const handlePrintInvoice = async () => {
     setIsPrinting(true);
     try {
-      await renewalApi.printInvoicePdf(invoice._id, invoice.invoiceNumber);
+      await renewalApi.printInvoicePdf(currentInvoice._id, currentInvoice.invoiceNumber);
     } catch (err: any) {
       console.error('Print invoice error:', err);
       window.alert('Failed to open invoice PDF. Please ensure server is running.');
@@ -370,16 +446,116 @@ export function InvoiceDetailModal({
 
           {/* Financial Breakdown Table */}
           <div className="p-4 rounded-xl border border-slate-200/90 bg-white space-y-3 shadow-2xs font-sans">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
               <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
                 Financial Tariff Breakdown
               </h3>
-              {invoice.billingPeriodStart && invoice.billingPeriodEnd && (
-                <span className="text-slate-500 text-[11px] font-medium font-sans">
-                  Billing Period: {formatInvoiceDate(invoice.billingPeriodStart)} – {formatInvoiceDate(invoice.billingPeriodEnd)}
-                </span>
+              {!isEditingPeriod && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-600 text-[11px] font-medium font-sans">
+                    Billing Period:{' '}
+                    <strong className="text-slate-900 font-semibold font-mono">
+                      {formatInvoiceDate(currentInvoice.billingPeriodStart)} – {formatInvoiceDate(currentInvoice.billingPeriodEnd)}
+                    </strong>
+                  </span>
+                  {canCreate && (
+                    <button
+                      type="button"
+                      onClick={handleStartEditPeriod}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                      title="Adjust Tenancy Billing Period"
+                    >
+                      <Edit2 className="w-3 h-3 text-emerald-700" />
+                      <span>Edit Period</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
+
+            {/* Inline Billing Period Editor */}
+            {isEditingPeriod && (
+              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/90 space-y-2.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-950">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <span>Adjust Locker Tenancy Period (Commencement &amp; Renewal Coverage)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    (Transaction Issue Date: {formatInvoiceDate(currentInvoice.issueDate)})
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="text-[10.5px] font-semibold text-slate-700 block">
+                      Period Start Date <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={periodStart}
+                      onChange={(e) => setPeriodStart(e.target.value)}
+                      className="w-full h-8 px-2.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-600 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10.5px] font-semibold text-slate-700 block">
+                      Period End Date <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={periodEnd}
+                      onChange={(e) => setPeriodEnd(e.target.value)}
+                      className="w-full h-8 px-2.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-600 font-medium"
+                    />
+                  </div>
+                </div>
+
+                {periodError && (
+                  <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                    <span>{periodError}</span>
+                  </p>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsEditingPeriod(false);
+                      setPeriodError(null);
+                    }}
+                    disabled={isSavingPeriod}
+                    className="h-7 px-2.5 text-[11px] rounded-lg border-slate-300 cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveBillingPeriod}
+                    disabled={isSavingPeriod}
+                    className="h-7 px-3 text-[11px] rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    {isSavingPeriod ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Save className="w-3 h-3" />
+                    )}
+                    <span>{isSavingPeriod ? 'Saving...' : 'Save Period'}</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {periodSuccess && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-1.5 text-xs text-emerald-800 font-medium">
+                <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span>{periodSuccess}</span>
+              </div>
+            )}
 
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between py-1 text-slate-600">

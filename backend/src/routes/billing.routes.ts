@@ -66,6 +66,15 @@ router.post(
 );
 
 /**
+ * PATCH /api/renewals/:id/billing-period
+ */
+router.patch(
+  '/:id/billing-period',
+  requirePermission(PERMISSIONS.RENEWALS_CREATE),
+  billingController.updateInvoiceBillingPeriod
+);
+
+/**
  * GET /api/renewals/customer/:id
  */
 router.get(

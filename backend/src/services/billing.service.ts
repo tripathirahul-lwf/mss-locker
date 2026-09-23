@@ -355,6 +355,63 @@ export class BillingService {
   }
 
   /**
+   * Update custom billing period for an invoice
+   */
+  async updateInvoiceBillingPeriod(
+    id: string,
+    billingPeriodStart: string | Date,
+    billingPeriodEnd: string | Date,
+    userId?: string
+  ) {
+    const invoice = await LockerInvoice.findById(id);
+    if (!invoice) {
+      throw Object.assign(new Error('Invoice not found'), { statusCode: 404 });
+    }
+
+    const start = new Date(billingPeriodStart);
+    const end = new Date(billingPeriodEnd);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw Object.assign(new Error('Invalid billing period dates provided'), { statusCode: 400 });
+    }
+
+    if (end < start) {
+      throw Object.assign(new Error('Billing period end date cannot be earlier than start date'), { statusCode: 400 });
+    }
+
+    const oldStart = invoice.billingPeriodStart;
+    const oldEnd = invoice.billingPeriodEnd;
+
+    invoice.billingPeriodStart = start;
+    invoice.billingPeriodEnd = end;
+    if (userId) {
+      invoice.updatedBy = new Types.ObjectId(userId);
+    }
+    await invoice.save();
+
+    try {
+      await AuditLog.create({
+        action: 'INVOICE_BILLING_PERIOD_UPDATED' as any,
+        module: 'BILLING',
+        performedBy: userId ? new Types.ObjectId(userId) : undefined,
+        entityId: String(invoice._id),
+        entityType: 'LockerInvoice',
+        details: {
+          invoiceNumber: invoice.invoiceNumber,
+          oldStart,
+          oldEnd,
+          newStart: start,
+          newEnd: end,
+        },
+      });
+    } catch {
+      // audit log error should not break update
+    }
+
+    return this.getInvoiceById(String(invoice._id));
+  }
+
+  /**
    * Get all invoices for a customer
    */
   async getCustomerInvoices(customerId: string) {
