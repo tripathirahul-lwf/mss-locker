@@ -330,7 +330,8 @@ export function PaymentDetailModal({
           </div>
 
           {/* Reference & Settlement Details Card */}
-          {(payment.upiReference ||
+          {(payment.billNumber ||
+            payment.upiReference ||
             payment.bankReference ||
             payment.transactionReference ||
             payment.chequeNumber ||
@@ -341,6 +342,23 @@ export function PaymentDetailModal({
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                {payment.billNumber && (
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-sans text-slate-400 block font-semibold">MANUAL BILL / BOOK NO</span>
+                      <strong className="text-emerald-950 font-bold">#{payment.billNumber}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(payment.billNumber!, 'bill')}
+                      className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      title="Copy Bill Number"
+                    >
+                      {copiedKey === 'bill' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+
                 {payment.upiReference && (
                   <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
                     <div>

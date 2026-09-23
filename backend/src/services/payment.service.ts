@@ -18,6 +18,7 @@ export interface RecordPaymentInput {
   amount: number;
   paymentMethod: PaymentMethod;
   paymentDate?: string;
+  billNumber?: string;
   transactionReference?: string;
   bankReference?: string;
   upiReference?: string;
@@ -190,6 +191,7 @@ export class PaymentService {
       amount,
       paymentMethod: input.paymentMethod,
       paymentStatus: 'COMPLETED',
+      billNumber: input.billNumber?.trim() || undefined,
       transactionReference: input.transactionReference?.trim() || undefined,
       bankReference: input.bankReference?.trim() || undefined,
       upiReference: input.upiReference?.trim() || undefined,
@@ -219,6 +221,7 @@ export class PaymentService {
       details: {
         paymentNumber: payment.paymentNumber,
         receiptNumber: payment.receiptNumber,
+        billNumber: payment.billNumber,
         invoiceNumber: invoice.invoiceNumber,
         amount: payment.amount,
         paymentMethod: payment.paymentMethod,
@@ -343,6 +346,7 @@ export class PaymentService {
       query.$or = [
         { paymentNumber: searchRegex },
         { receiptNumber: searchRegex },
+        { billNumber: searchRegex },
         { transactionReference: searchRegex },
         { bankReference: searchRegex },
         { upiReference: searchRegex },
@@ -791,6 +795,7 @@ export class PaymentService {
         <td style="text-align: right; vertical-align: top;">
           <div class="receipt-badge">${isCancelled ? 'CANCELLED RECEIPT' : 'OFFICIAL PAYMENT RECEIPT'}</div>
           <div class="receipt-num">${payment.receiptNumber}</div>
+          ${payment.billNumber ? `<div style="font-size: 9pt; font-weight: 700; color: #065f46; margin-top: 2px;">Manual Bill No: #${payment.billNumber}</div>` : ''}
           <div class="meta-text" style="font-weight: 700; color: #000; margin-top: 3px;">
             Date: ${paymentDateStr} ${paymentTimeStr ? '• ' + paymentTimeStr : ''}
           </div>

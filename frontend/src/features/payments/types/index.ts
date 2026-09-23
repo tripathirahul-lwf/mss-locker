@@ -57,6 +57,7 @@ export interface Payment {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
 
+  billNumber?: string;
   transactionReference?: string;
   bankReference?: string;
   upiReference?: string;
@@ -105,6 +106,7 @@ export interface RecordPaymentInput {
   amount: number;
   paymentMethod: PaymentMethod;
   paymentDate?: string;
+  billNumber?: string;
   transactionReference?: string;
   bankReference?: string;
   upiReference?: string;

@@ -23,6 +23,7 @@ export interface IPayment extends Document {
   paymentStatus: PaymentStatus;
 
   // Method specific reference details (no full card details stored)
+  billNumber?: string;
   transactionReference?: string;
   bankReference?: string;
   upiReference?: string;
@@ -118,6 +119,11 @@ const paymentSchema = new Schema<IPayment>(
       type: String,
       enum: ['COMPLETED', 'PENDING', 'FAILED', 'CANCELLED'],
       default: 'COMPLETED',
+      index: true,
+    },
+    billNumber: {
+      type: String,
+      trim: true,
       index: true,
     },
     transactionReference: {

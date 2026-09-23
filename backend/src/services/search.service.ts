@@ -227,11 +227,12 @@ export class SearchService {
           $or: [
             { paymentNumber: regex },
             { receiptNumber: regex },
+            { billNumber: regex },
             { transactionReference: regex },
             { upiReference: regex },
           ],
         })
-          .select('_id paymentNumber receiptNumber amount paymentDate customerId lockerId')
+          .select('_id paymentNumber receiptNumber billNumber amount paymentDate customerId lockerId')
           .populate('customerId', 'fullName')
           .populate('lockerId', 'lockerNumber')
           .limit(limit)
@@ -241,6 +242,7 @@ export class SearchService {
               _id: p._id.toString(),
               paymentNumber: p.paymentNumber,
               receiptNumber: p.receiptNumber,
+              billNumber: p.billNumber,
               amount: p.amount,
               paymentDate: p.paymentDate,
               customerName: p.customerId?.fullName || 'N/A',

@@ -70,6 +70,7 @@ export function RecordPaymentModal({
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentDate, setPaymentDate] = useState(localToday);
+  const [billNumber, setBillNumber] = useState('');
 
   // Dynamic references
   const [upiReference, setUpiReference] = useState('');
@@ -267,6 +268,7 @@ export function RecordPaymentModal({
           amount: Number(amount),
           paymentMethod,
           paymentDate,
+          billNumber: billNumber.trim() || undefined,
           upiReference: paymentMethod === 'UPI' ? upiReference.trim() : undefined,
           bankReference: paymentMethod === 'BANK_TRANSFER' ? bankReference.trim() : undefined,
           transactionReference: paymentMethod === 'CARD' || paymentMethod === 'OTHER' ? transactionReference.trim() : undefined,
@@ -352,7 +354,7 @@ export function RecordPaymentModal({
                 Payment Recorded Successfully!
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Receipt #{recordedPayment.receiptNumber} &bull; Payment #{recordedPayment.paymentNumber}
+                Receipt #{recordedPayment.receiptNumber} {recordedPayment.billNumber ? `• Bill #${recordedPayment.billNumber}` : ''} &bull; Payment #{recordedPayment.paymentNumber}
               </p>
             </div>
 
@@ -363,6 +365,14 @@ export function RecordPaymentModal({
                   ₹{recordedPayment.amount.toLocaleString('en-IN')}
                 </strong>
               </div>
+              {recordedPayment.billNumber && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Manual Bill / Book No:</span>
+                  <strong className="text-emerald-900 font-mono font-bold">
+                    #{recordedPayment.billNumber}
+                  </strong>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-slate-500 font-medium">Payment Method:</span>
                 <strong className="text-slate-800 font-bold">
@@ -589,7 +599,7 @@ export function RecordPaymentModal({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                     {/* Amount to Collect */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
@@ -661,6 +671,32 @@ export function RecordPaymentModal({
                         required
                         className="w-full h-11 px-4 text-sm font-semibold bg-white border border-slate-300 text-slate-900 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 cursor-pointer"
                       />
+                    </div>
+
+                    {/* Bill No. / Physical Receipt Book No. */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label htmlFor="bill-number" className="block text-xs font-semibold text-slate-700">
+                          Bill / Book No.
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          Optional
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none pointer-events-none">
+                          No.
+                        </span>
+                        <input
+                          id="bill-number"
+                          type="text"
+                          value={billNumber}
+                          onChange={(e) => setBillNumber(e.target.value)}
+                          placeholder="e.g. 3633"
+                          maxLength={50}
+                          className="w-full h-11 pl-10 pr-3 text-sm font-semibold bg-white border border-slate-300 text-slate-900 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal font-mono"
+                        />
+                      </div>
                     </div>
                   </div>
 

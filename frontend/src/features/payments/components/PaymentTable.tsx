@@ -115,9 +115,16 @@ export function PaymentTable({
                       <span className="font-mono font-bold text-slate-900 bg-slate-100 group-hover:bg-emerald-100 group-hover:text-emerald-950 px-2 py-0.5 rounded-lg border border-slate-200 transition-colors block w-fit">
                         {p.paymentNumber}
                       </span>
-                      <span className="text-[11px] text-emerald-700 font-mono font-bold block">
-                        {p.receiptNumber}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] text-emerald-700 font-mono font-bold">
+                          {p.receiptNumber}
+                        </span>
+                        {p.billNumber && (
+                          <span className="text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                            Bill #{p.billNumber}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
 

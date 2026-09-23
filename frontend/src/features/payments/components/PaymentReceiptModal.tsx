@@ -106,7 +106,7 @@ export function PaymentReceiptModal({
   };
 
   const handleCopyReceipt = () => {
-    const summary = `MSS LOCKER OFFICIAL RECEIPT\nReceipt #: ${payment.receiptNumber}\nPayment Ref: ${payment.paymentNumber}\nCustomer: ${customer?.fullName || 'N/A'} (${customer?.customerCode || 'N/A'})\nLocker: #${locker?.lockerNumber || 'N/A'} (Size ${locker?.size || 'N/A'})\nAmount Paid: INR ${payment.amount.toLocaleString('en-IN')}\nDate: ${new Date(payment.paymentDate).toLocaleDateString('en-IN')}\nMode: ${payment.paymentMethod}`;
+    const summary = `MSS LOCKER OFFICIAL RECEIPT\nReceipt #: ${payment.receiptNumber}${payment.billNumber ? `\nManual Bill #: ${payment.billNumber}` : ''}\nPayment Ref: ${payment.paymentNumber}\nCustomer: ${customer?.fullName || 'N/A'} (${customer?.customerCode || 'N/A'})\nLocker: #${locker?.lockerNumber || 'N/A'} (Size ${locker?.size || 'N/A'})\nAmount Paid: INR ${payment.amount.toLocaleString('en-IN')}\nDate: ${new Date(payment.paymentDate).toLocaleDateString('en-IN')}\nMode: ${payment.paymentMethod}`;
     navigator.clipboard.writeText(summary);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -231,6 +231,11 @@ export function PaymentReceiptModal({
               <p className="font-mono text-base font-black text-slate-950">
                 {payment.receiptNumber}
               </p>
+              {payment.billNumber && (
+                <p className="text-[11px] font-mono font-bold text-emerald-800">
+                  Manual Bill No: #{payment.billNumber}
+                </p>
+              )}
               <div className="text-[11px] font-mono text-slate-700">
                 <span>Date: </span>
                 <strong>
