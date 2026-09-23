@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Receipt,
   Layers,
+  Loader2,
 } from 'lucide-react';
 import { LockerInvoice } from '../types';
 import { PaymentStatusBadge, DueStatusBadge } from './RenewalStatusBadge';
@@ -114,6 +115,19 @@ export function InvoiceDetailModal({
   const dueDateTime = invoice.dueDate ? new Date(invoice.dueDate).setHours(0, 0, 0, 0) : todayTime;
   const isOverdue = dueDateTime < todayTime && invoice.balanceAmount > 0;
   const daysDiff = Math.round(Math.abs(dueDateTime - todayTime) / (1000 * 60 * 60 * 24));
+
+  const effectiveTax =
+    invoice.taxAmount > 0
+      ? invoice.taxAmount
+      : invoice.totalAmount > 0
+      ? Math.round((invoice.totalAmount - invoice.totalAmount / 1.18) * 100) / 100
+      : 0;
+  const effectiveBase =
+    invoice.taxAmount > 0
+      ? invoice.baseRent
+      : invoice.totalAmount > 0
+      ? Math.round((invoice.totalAmount / 1.18) * 100) / 100
+      : invoice.baseRent;
 
   const handleCopyInvoiceNumber = () => {
     navigator.clipboard.writeText(invoice.invoiceNumber);
@@ -371,15 +385,18 @@ export function InvoiceDetailModal({
               <div className="flex items-center justify-between py-1 text-slate-600">
                 <span>Base Safe-Deposit Rent Tariff</span>
                 <span className="font-semibold text-slate-900 font-mono tabular-nums">
-                  ₹{invoice.baseRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{effectiveBase.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
               </div>
 
-              {invoice.taxAmount > 0 && (
+              {effectiveTax > 0 && (
                 <div className="flex items-center justify-between py-1 text-slate-600">
-                  <span>Goods & Services Tax (GST 18%)</span>
+                  <span className="flex items-center gap-1.5">
+                    <span>Goods & Services Tax (GST 18%)</span>
+                    <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">SAC 997212</span>
+                  </span>
                   <span className="font-semibold text-slate-900 font-mono tabular-nums">
-                    +₹{invoice.taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    +₹{effectiveTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               )}
@@ -523,9 +540,9 @@ export function InvoiceDetailModal({
               size="sm"
               onClick={handlePrintInvoice}
               disabled={isPrinting}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl flex items-center gap-1.5 text-xs h-9 px-3.5 cursor-pointer shadow-xs"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl flex items-center gap-1.5 text-xs h-9 px-3.5 cursor-pointer shadow-xs disabled:opacity-70"
             >
-              <Printer className="w-3.5 h-3.5" />
+              {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
               <span>{isPrinting ? 'Opening Print...' : 'Print Invoice'}</span>
             </Button>
           </div>
