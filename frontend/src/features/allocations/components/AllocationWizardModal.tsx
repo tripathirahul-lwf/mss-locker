@@ -381,13 +381,14 @@ export function AllocationWizardModal({
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
+        {/* Form Container */}
         <form
           id="allocation-wizard-form"
           onSubmit={handleSubmit}
           noValidate
-          className="p-5 sm:p-7 space-y-4 sm:space-y-5 overflow-y-auto flex-1 text-xs"
+          className="flex flex-col flex-1 overflow-hidden min-h-0"
         >
+          <div className="p-5 sm:p-7 space-y-4 sm:space-y-5 overflow-y-auto flex-1 text-xs">
           {error && (
             <div
               role="alert"
@@ -1004,51 +1005,57 @@ export function AllocationWizardModal({
               </div>
             )}
           </div>
-        </form>
-
-        {/* Pinned Modal Footer - Always Visible */}
-        <div className="px-5 sm:px-7 py-3.5 border-t border-slate-200/90 bg-slate-50/90 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
-          <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
-            <span className="text-emerald-700 font-bold">*</span> Mandatory fields for statutory vault register
-          </div>
-
-          <div className="flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-200/70 transition cursor-pointer"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              form="allocation-wizard-form"
-              disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 transition shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Processing Allotment...</span>
-                </>
-              ) : allocationType === 'RESERVED' ? (
-                <>
-                  <Calendar className="h-4 w-4" />
-                  <span>Reserve Locker</span>
-                </>
-              ) : (
-                <>
-                  <KeyRound className="h-4 w-4" />
-                  <span>
-                    Confirm Allotment &bull; ₹ {totalInitialPayable.toLocaleString('en-IN')}
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
         </div>
+
+          {/* Pinned Modal Footer - Always Visible */}
+          <div className="px-5 sm:px-7 py-3.5 border-t border-slate-200/90 bg-slate-50/90 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
+            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+              <span className="text-emerald-700 font-bold">*</span> Mandatory fields for statutory vault register
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-200/70 transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                form="allocation-wizard-form"
+                onClick={(e) => {
+                  if (!isSubmitting) {
+                    handleSubmit(e);
+                  }
+                }}
+                disabled={isSubmitting}
+                className="px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 transition shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 min-w-[140px] justify-center"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Processing Allotment...</span>
+                  </>
+                ) : allocationType === 'RESERVED' ? (
+                  <>
+                    <Calendar className="h-4 w-4" />
+                    <span>Reserve Locker</span>
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="h-4 w-4" />
+                    <span>
+                      Confirm Allotment &bull; ₹ {totalInitialPayable.toLocaleString('en-IN')}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );

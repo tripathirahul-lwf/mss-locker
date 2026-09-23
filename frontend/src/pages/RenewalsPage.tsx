@@ -857,9 +857,9 @@ export function RenewalsPage() {
       <ConfirmationModal
         isOpen={Boolean(cancellingInvoice)}
         onClose={() => setCancellingInvoice(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (cancellingInvoice) {
-            cancelMutation.mutate({
+            await cancelMutation.mutateAsync({
               id: cancellingInvoice._id,
               reason: 'Staff cancellation via renewals ledger',
             });

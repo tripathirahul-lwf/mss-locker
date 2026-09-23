@@ -17,6 +17,7 @@ import {
   UserCheck,
   Calendar,
   Lock,
+  Loader2,
 } from 'lucide-react';
 import { Payment } from '../types';
 import { Button } from '../../../components/ui/button';
@@ -159,10 +160,15 @@ export function PaymentReceiptModal({
             <Button
               size="sm"
               onClick={handlePrint}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 text-xs h-9 px-4 cursor-pointer shadow-sm"
+              disabled={isPrinting}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 text-xs h-9 px-4 cursor-pointer shadow-sm disabled:opacity-60"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Receipt</span>
+              {isPrinting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Printer className="w-3.5 h-3.5" />
+              )}
+              <span>{isPrinting ? 'Preparing Print...' : 'Print Receipt'}</span>
             </Button>
 
             <button

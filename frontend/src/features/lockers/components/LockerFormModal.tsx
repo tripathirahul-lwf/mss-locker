@@ -19,6 +19,7 @@ import {
   Layers,
   MapPin,
   Lock,
+  Loader2,
 } from 'lucide-react';
 import { Locker, CreateLockerInput, UpdateLockerInput, LockerStatus, OperationalStatus } from '../types';
 import { LOCKER_SIZES, LOCKER_STATUS_CONFIG, OPERATIONAL_STATUS_CONFIG } from '../constants';
@@ -982,17 +983,22 @@ export function LockerFormModal({
                 type="submit"
                 size="sm"
                 disabled={isSubmitting || (isEdit && !isDirty)}
-                className={`font-semibold shadow-xs rounded-xl text-xs h-9 px-4 transition-all active:scale-[0.98] ${
+                className={`font-semibold shadow-xs rounded-xl text-xs h-9 px-4 transition-all active:scale-[0.98] flex items-center gap-1.5 ${
                   isEdit && !isDirty
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200'
                     : 'bg-emerald-800 hover:bg-emerald-900 text-white cursor-pointer'
                 }`}
               >
-                {isSubmitting
-                  ? 'Saving changes...'
-                  : isEdit
-                  ? 'Save Locker Changes'
-                  : 'Create Physical Locker'}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving changes...</span>
+                  </>
+                ) : isEdit ? (
+                  'Save Locker Changes'
+                ) : (
+                  'Create Physical Locker'
+                )}
               </Button>
             </div>
           </div>

@@ -37,6 +37,7 @@ import {
   Building,
   Lock,
   Wrench,
+  Loader2,
 } from 'lucide-react';
 import { Locker } from '../types';
 import { lockerApi } from '../api/lockerApi';
@@ -178,6 +179,7 @@ export function LockerDetailModal({
   // Child Modals State
   const [recordingPaymentInvoiceId, setRecordingPaymentInvoiceId] = useState<string | null>(null);
   const [renewingAllocation, setRenewingAllocation] = useState<LockerAllocation | null>(null);
+  const [isSubmittingRenewal, setIsSubmittingRenewal] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<LockerInvoice | null>(null);
   const [viewingReceiptPayment, setViewingReceiptPayment] = useState<Payment | null>(null);
 
@@ -640,9 +642,16 @@ export function LockerDetailModal({
                                   type="button"
                                   onClick={handleSaveKey}
                                   disabled={isSavingKey}
-                                  className="h-7 px-2 rounded-lg bg-emerald-800 text-white text-[11px] font-semibold hover:bg-emerald-900 transition cursor-pointer"
+                                  className="h-7 px-2.5 rounded-lg bg-emerald-800 text-white text-[11px] font-semibold hover:bg-emerald-900 transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
                                 >
-                                  {isSavingKey ? '...' : 'Save'}
+                                  {isSavingKey ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      <span>Saving</span>
+                                    </>
+                                  ) : (
+                                    <span>Save</span>
+                                  )}
                                 </button>
                                 <button
                                   type="button"
@@ -1566,7 +1575,11 @@ export function LockerDetailModal({
                 disabled={markVacantMutation.isPending}
                 className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 px-4 shadow-xs gap-1.5 cursor-pointer"
               >
-                <Trash2 className="h-4 w-4" />
+                {markVacantMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
                 <span>
                   {markVacantMutation.isPending ? 'Marking Vacant...' : 'Mark Vacant'}
                 </span>
@@ -1640,7 +1653,11 @@ export function LockerDetailModal({
                 disabled={markRepairedMutation.isPending}
                 className="rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs h-9 px-4 shadow-xs gap-1.5 cursor-pointer"
               >
-                <CheckCircle2 className="h-4 w-4" />
+                {markRepairedMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
                 <span>
                   {markRepairedMutation.isPending ? 'Restoring Unit...' : 'Mark Repaired & Available'}
                 </span>
@@ -1667,13 +1684,18 @@ export function LockerDetailModal({
           preSelectedAllocation={renewingAllocation}
           onClose={() => setRenewingAllocation(null)}
           onSubmit={async (data) => {
-            await renewalApi.generateRenewal(data);
-            queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
-            queryClient.invalidateQueries({ queryKey: ['locker-allocations', locker._id] });
-            setRenewingAllocation(null);
-            setNotice('Renewal invoice generated successfully.');
+            setIsSubmittingRenewal(true);
+            try {
+              await renewalApi.generateRenewal(data);
+              queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
+              queryClient.invalidateQueries({ queryKey: ['locker-allocations', locker._id] });
+              setRenewingAllocation(null);
+              setNotice('Renewal invoice generated successfully.');
+            } finally {
+              setIsSubmittingRenewal(false);
+            }
           }}
-          isSubmitting={false}
+          isSubmitting={isSubmittingRenewal}
         />
       )}
 
@@ -1685,8 +1707,11 @@ export function LockerDetailModal({
             const p = await paymentApi.recordPayment(data, idempotencyKey);
             queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
             queryClient.invalidateQueries({ queryKey: ['lockers'] });
-            setViewingReceiptPayment(p);
             return p;
+          }}
+          onSuccessViewReceipt={(p) => {
+            setRecordingPaymentInvoiceId(null);
+            setViewingReceiptPayment(p);
           }}
         />
       )}
@@ -1714,8 +1739,8 @@ export function LockerDetailModal({
       <ConfirmationModal
         isOpen={confirmVacantOpen}
         onClose={() => setConfirmVacantOpen(false)}
-        onConfirm={() => {
-          markVacantMutation.mutate();
+        onConfirm={async () => {
+          await markVacantMutation.mutateAsync();
           setConfirmVacantOpen(false);
         }}
         title="Mark Locker as Vacant?"
@@ -1728,8 +1753,8 @@ export function LockerDetailModal({
       <ConfirmationModal
         isOpen={confirmRepairedOpen}
         onClose={() => setConfirmRepairedOpen(false)}
-        onConfirm={() => {
-          markRepairedMutation.mutate();
+        onConfirm={async () => {
+          await markRepairedMutation.mutateAsync();
           setConfirmRepairedOpen(false);
         }}
         title="Restore Locker to Service?"

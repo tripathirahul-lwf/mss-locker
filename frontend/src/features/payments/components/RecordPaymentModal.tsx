@@ -231,6 +231,8 @@ export function RecordPaymentModal({
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!selectedInvoice) {
       setError('Please select an invoice to settle.');
       return;
@@ -250,6 +252,11 @@ export function RecordPaymentModal({
       setError(
         `Payment amount (₹${amount.toLocaleString('en-IN')}) cannot exceed current outstanding balance (₹${selectedInvoice.balanceAmount.toLocaleString('en-IN')}).`
       );
+      return;
+    }
+
+    if (!paymentDate) {
+      setError('Collection date is required.');
       return;
     }
 
@@ -434,8 +441,13 @@ export function RecordPaymentModal({
           </div>
         ) : (
           /* Payment Form Body */
-          <>
-            <form id="record-payment-form" onSubmit={handleFormSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+          <form
+            id="record-payment-form"
+            onSubmit={handleFormSubmit}
+            noValidate
+            className="flex flex-col flex-1 overflow-hidden min-h-0"
+          >
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
               {error && (
                 <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 text-xs font-semibold">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
@@ -1047,7 +1059,7 @@ export function RecordPaymentModal({
                   </div>
                 </div>
               )}
-            </form>
+            </div>
 
             {/* Pinned Modal Footer */}
             <div className="p-4 sm:px-6 sm:py-3.5 bg-slate-50/90 border-t border-slate-200/90 flex items-center justify-between gap-2.5 shrink-0">
@@ -1066,7 +1078,7 @@ export function RecordPaymentModal({
                   type="button"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-200/70 transition cursor-pointer"
+                  className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-200/70 transition cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1075,6 +1087,11 @@ export function RecordPaymentModal({
                   <button
                     type="submit"
                     form="record-payment-form"
+                    onClick={(e) => {
+                      if (!isSubmitting) {
+                        handleFormSubmit(e);
+                      }
+                    }}
                     disabled={isSubmitting || amount <= 0 || amount > selectedInvoice.balanceAmount || !paymentDate}
                     className="px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 transition shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 min-w-[140px] justify-center"
                   >
@@ -1101,7 +1118,7 @@ export function RecordPaymentModal({
                 )}
               </div>
             </div>
-          </>
+          </form>
         )}
       </div>
     </div>
