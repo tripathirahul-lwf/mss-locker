@@ -21,7 +21,9 @@ import {
   CreditCard,
   Building2,
   Lock,
+  Eye,
 } from 'lucide-react';
+import { CustomerPhotoPreviewModal } from '../../customers/components/CustomerPhotoPreviewModal';
 import { searchApi } from '../api/searchApi';
 import {
   CustomerQuickPreviewData,
@@ -45,6 +47,7 @@ export const CustomerQuickPreviewModal: React.FC<CustomerQuickPreviewModalProps>
   const [data, setData] = useState<CustomerQuickPreviewData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState<boolean>(false);
 
   // Renewal History Lazy Load State
   const [historyExpanded, setHistoryExpanded] = useState<boolean>(false);
@@ -159,32 +162,71 @@ export const CustomerQuickPreviewModal: React.FC<CustomerQuickPreviewModalProps>
                   {/* Photo Avatar */}
                   <div className="relative shrink-0">
                     {customer.photoUrl ? (
-                      <img
-                        src={customer.photoUrl}
-                        alt={customer.fullName}
-                        className="w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] rounded-2xl object-cover border-2 border-white shadow-xs"
-                      />
+                      <div className="relative group/avatar shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setIsPhotoPreviewOpen(true)}
+                          className="relative block w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] rounded-2xl overflow-hidden border-2 border-white shadow-xs cursor-pointer group-hover/avatar:ring-2 group-hover/avatar:ring-emerald-500 transition-all focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                          title="Click to view full photo"
+                          aria-label="View customer profile photo"
+                        >
+                          <img
+                            src={customer.photoUrl}
+                            alt={customer.fullName}
+                            className="w-full h-full object-cover transition-transform duration-200 group-hover/avatar:scale-105"
+                          />
+                          {/* Hover Overlay with Eye Icon */}
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
+                            <Eye className="w-6 h-6 text-white drop-shadow-xs" />
+                          </div>
+                        </button>
+                        {/* Corner Eye Badge */}
+                        <button
+                          type="button"
+                          onClick={() => setIsPhotoPreviewOpen(true)}
+                          className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          title="View Profile Photo"
+                          aria-label="View Profile Photo"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
+                      </div>
                     ) : (
                       <div className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-2xl bg-slate-200 text-slate-600 font-black text-xl flex items-center justify-center border-2 border-white shadow-xs">
                         {customer.fullName.slice(0, 2).toUpperCase()}
                       </div>
                     )}
-                    <span
-                      className={`absolute -bottom-1 -right-1 p-1 rounded-full text-white shadow-xs ${
-                        customer.kycStatus === 'VERIFIED'
-                          ? 'bg-emerald-600'
-                          : 'bg-amber-500'
-                      }`}
-                      title={`KYC: ${customer.kycStatus}`}
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                    </span>
+                    {!customer.photoUrl && (
+                      <span
+                        className={`absolute -bottom-1 -right-1 p-1 rounded-full text-white shadow-xs ${
+                          customer.kycStatus === 'VERIFIED'
+                            ? 'bg-emerald-600'
+                            : 'bg-amber-500'
+                        }`}
+                        title={`KYC: ${customer.kycStatus}`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                      </span>
+                    )}
                   </div>
 
                   <div>
-                    <h2 className="text-lg font-black text-slate-900 leading-tight">
-                      {customer.fullName}
-                    </h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-lg font-black text-slate-900 leading-tight">
+                        {customer.fullName}
+                      </h2>
+                      {customer.photoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setIsPhotoPreviewOpen(true)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-200/80 transition-colors cursor-pointer"
+                          title="View high-resolution profile photo"
+                        >
+                          <Eye className="w-3 h-3 text-emerald-700" />
+                          <span>View Photo</span>
+                        </button>
+                      )}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 font-mono mt-1">
                       <span className="font-bold text-slate-800">
                         {customer.customerCode}
@@ -578,5 +620,20 @@ export const CustomerQuickPreviewModal: React.FC<CustomerQuickPreviewModalProps>
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <>
+      {createPortal(modalContent, document.body)}
+      {customer?.photoUrl && (
+        <CustomerPhotoPreviewModal
+          isOpen={isPhotoPreviewOpen}
+          onClose={() => setIsPhotoPreviewOpen(false)}
+          photoUrl={customer.photoUrl}
+          customerName={customer.fullName}
+          customerCode={customer.customerCode}
+          phone={customer.phone}
+          email={customer.email}
+        />
+      )}
+    </>
+  );
 };

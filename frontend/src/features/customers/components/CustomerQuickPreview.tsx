@@ -25,10 +25,12 @@ import {
   Clock,
   ShieldAlert,
   CreditCard,
+  Eye,
 } from 'lucide-react';
 import { Customer } from '../types';
 import { CustomerStatusBadge } from './CustomerStatusBadge';
 import { KycStatusBadge } from './KycStatusBadge';
+import { CustomerPhotoPreviewModal } from './CustomerPhotoPreviewModal';
 import { formatPhone } from '../utils/phoneFormatter';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -56,6 +58,12 @@ export function CustomerQuickPreview({
   const location = useLocation();
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+    setIsPhotoPreviewOpen(false);
+  }, [customer?._id]);
 
   // Close on Escape key
   useEffect(() => {
@@ -152,12 +160,36 @@ export function CustomerQuickPreview({
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0">
                 {customer.photoUrl && !imageError ? (
-                  <img
-                    src={customer.photoUrl}
-                    alt={customer.fullName}
-                    onError={() => setImageError(true)}
-                    className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-2xl object-cover border border-slate-200 shadow-xs shrink-0"
-                  />
+                  <div className="relative group/avatar shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsPhotoPreviewOpen(true)}
+                      className="relative block w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-2xl overflow-hidden border border-slate-200 shadow-xs cursor-pointer group-hover/avatar:ring-2 group-hover/avatar:ring-emerald-500 transition-all focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                      title="Click to view full profile photo"
+                      aria-label="View customer profile photo"
+                    >
+                      <img
+                        src={customer.photoUrl}
+                        alt={customer.fullName}
+                        onError={() => setImageError(true)}
+                        className="w-full h-full object-cover transition-transform duration-200 group-hover/avatar:scale-105"
+                      />
+                      {/* Hover Overlay with Eye Icon */}
+                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
+                        <Eye className="w-5 h-5 text-white drop-shadow-xs" />
+                      </div>
+                    </button>
+                    {/* Corner Eye Badge */}
+                    <button
+                      type="button"
+                      onClick={() => setIsPhotoPreviewOpen(true)}
+                      className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                      title="View Profile Photo"
+                      aria-label="View Profile Photo"
+                    >
+                      <Eye className="w-3 h-3" />
+                    </button>
+                  </div>
                 ) : (
                   <div className="w-14 h-14 min-w-[56px] min-h-[56px] rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white border border-slate-800 flex items-center justify-center font-bold text-base shrink-0 font-sans tracking-wide shadow-xs ring-1 ring-slate-900/10">
                     {customer.fullName.slice(0, 2).toUpperCase()}
@@ -187,6 +219,17 @@ export function CustomerQuickPreview({
                   <div className="flex items-center gap-2 flex-wrap">
                     <CustomerStatusBadge status={customer.status} />
                     <KycStatusBadge status={customer.kycStatus} />
+                    {customer.photoUrl && !imageError && (
+                      <button
+                        type="button"
+                        onClick={() => setIsPhotoPreviewOpen(true)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-200/80 transition-colors cursor-pointer"
+                        title="View high-resolution profile photo"
+                      >
+                        <Eye className="w-3 h-3 text-emerald-700" />
+                        <span>View Photo</span>
+                      </button>
+                    )}
                     {customer.createdAt && (
                       <span className="text-[11px] text-slate-500 font-sans tabular-nums flex items-center gap-1">
                         <Clock className="w-3 h-3 text-slate-400" />
@@ -701,6 +744,21 @@ export function CustomerQuickPreview({
     </div>
   );
 
-  return createPortal(drawerContent, document.body);
+  return (
+    <>
+      {createPortal(drawerContent, document.body)}
+      {customer.photoUrl && (
+        <CustomerPhotoPreviewModal
+          isOpen={isPhotoPreviewOpen}
+          onClose={() => setIsPhotoPreviewOpen(false)}
+          photoUrl={customer.photoUrl}
+          customerName={customer.fullName}
+          customerCode={customer.customerCode}
+          phone={customer.phone}
+          email={customer.email}
+        />
+      )}
+    </>
+  );
 }
 

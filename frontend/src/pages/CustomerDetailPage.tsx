@@ -24,8 +24,10 @@ import {
   Copy,
   Check,
   ExternalLink,
+  Eye,
 } from 'lucide-react';
 import { customerApi } from '../features/customers/api/customerApi';
+import { CustomerPhotoPreviewModal } from '../features/customers/components/CustomerPhotoPreviewModal';
 import {
   CustomerKycDocument,
   AddKycDocumentInput,
@@ -103,6 +105,7 @@ export function CustomerDetailPage() {
   };
 
   // Modals
+  const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [editingKycDoc, setEditingKycDoc] = useState<CustomerKycDocument | null>(
@@ -410,17 +413,41 @@ export function CustomerDetailPage() {
           <div className="flex items-start gap-3.5 sm:gap-4 min-w-0">
             <div className="relative shrink-0">
               {customer.photoUrl ? (
-                <img
-                  src={customer.photoUrl}
-                  alt={customer.fullName}
-                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white shadow-xs"
-                />
+                <div className="relative group/avatar shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsPhotoPreviewOpen(true)}
+                    className="relative block w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-white shadow-xs cursor-pointer group-hover/avatar:ring-2 group-hover/avatar:ring-emerald-500 transition-all focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    title="Click to view full photo"
+                    aria-label="View customer profile photo"
+                  >
+                    <img
+                      src={customer.photoUrl}
+                      alt={customer.fullName}
+                      className="w-full h-full object-cover transition-transform duration-200 group-hover/avatar:scale-105"
+                    />
+                    {/* Hover Overlay with Eye Icon */}
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
+                      <Eye className="w-6 h-6 text-white drop-shadow-xs" />
+                    </div>
+                  </button>
+                  {/* Corner Eye Badge */}
+                  <button
+                    type="button"
+                    onClick={() => setIsPhotoPreviewOpen(true)}
+                    className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                    title="View Profile Photo"
+                    aria-label="View Profile Photo"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               ) : (
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white flex items-center justify-center font-semibold text-xl sm:text-2xl shadow-xs ring-1 ring-slate-900/10 font-sans tracking-wide">
                   {customer.fullName.slice(0, 2).toUpperCase()}
                 </div>
               )}
-              {customer.kycStatus === 'VERIFIED' && (
+              {customer.kycStatus === 'VERIFIED' && !customer.photoUrl && (
                 <div
                   className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center ring-2 ring-white shadow-2xs"
                   title="KYC Certified"
@@ -453,6 +480,18 @@ export function CustomerDetailPage() {
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
                 <CustomerStatusBadge status={customer.status} />
                 <KycStatusBadge status={customer.kycStatus} />
+
+                {customer.photoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPhotoPreviewOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium bg-emerald-50 hover:bg-emerald-100/90 text-emerald-800 border border-emerald-200/80 transition-colors cursor-pointer shadow-2xs"
+                    title="View high-resolution profile photo"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>View Photo</span>
+                  </button>
+                )}
 
                 {/* Vault Locker Credential Asset Badge */}
                 {customerAllocations?.activeAllocation ? (
@@ -1511,6 +1550,19 @@ export function CustomerDetailPage() {
         variant="danger"
         isLoading={isDeletingKyc}
       />
+
+      {/* Customer Profile Photo Lightbox Modal */}
+      {customer?.photoUrl && (
+        <CustomerPhotoPreviewModal
+          isOpen={isPhotoPreviewOpen}
+          onClose={() => setIsPhotoPreviewOpen(false)}
+          photoUrl={customer.photoUrl}
+          customerName={customer.fullName}
+          customerCode={customer.customerCode}
+          phone={customer.phone}
+          email={customer.email}
+        />
+      )}
     </div>
   );
 }
