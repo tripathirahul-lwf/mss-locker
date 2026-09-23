@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -20,6 +20,7 @@ import {
   Inbox,
   Lock,
   KeyRound,
+  Loader2,
 } from 'lucide-react';
 import { lockerApi } from '../api/lockerApi';
 import { Locker, LockerQueryParams } from '../types';
@@ -119,10 +120,10 @@ export const DashboardLockersSection = forwardRef<
     apiIsActive = true;
   }
 
-  const queryFilters: LockerQueryParams = {
+  const queryFilters: LockerQueryParams = useMemo(() => ({
     page,
     limit: viewMode === 'by_rack' ? 2000 : limit,
-    search: search || undefined,
+    search: search ? search.trim() : undefined,
     size,
     status: apiStatus,
     operationalStatus: apiOpStatus,
@@ -131,7 +132,7 @@ export const DashboardLockersSection = forwardRef<
     compact: true,
     sortBy,
     sortOrder,
-  };
+  }), [page, limit, viewMode, search, size, apiStatus, apiOpStatus, rackNumber, apiIsActive, sortBy, sortOrder]);
 
   // Queries
   const {
@@ -152,6 +153,8 @@ export const DashboardLockersSection = forwardRef<
       };
     },
     placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const lockers = listData?.lockers || [];
@@ -192,18 +195,22 @@ export const DashboardLockersSection = forwardRef<
       staleTime: 60_000,
     });
 
-  const handleViewLocker = async (locker: Locker) => {
+  const handleViewLocker = useCallback(async (locker: Locker) => {
     setViewingLocker(await loadLockerDetail(locker));
-  };
+  }, []);
 
-  const handleAllocateLocker = (locker: Locker) => {
+  const handleAllocateLocker = useCallback((locker: Locker) => {
     setAllocatingLocker(locker);
-  };
+  }, []);
 
   const handleAllocationSubmit = async (data: CreateAllocationInput | ReserveLockerInput) => {
     setIsSubmittingAction(true);
     try {
-      await allocationApi.createAllocation(data as CreateAllocationInput);
+      if ('allocationType' in data) {
+        await allocationApi.createAllocation(data as CreateAllocationInput);
+      } else {
+        await allocationApi.reserveLocker(data as ReserveLockerInput);
+      }
       setAllocatingLocker(null);
       queryClient.invalidateQueries({ queryKey: ['lockers'] });
       queryClient.invalidateQueries({ queryKey: ['locker-stats'] });
@@ -428,12 +435,23 @@ export const DashboardLockersSection = forwardRef<
         <div className="border-t border-slate-100 bg-slate-50/50 p-2.5 sm:px-4 sm:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
           {/* Search Box */}
           <div className="relative flex-1 min-w-[220px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            {isFetching && localSearch ? (
+              <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-emerald-600 animate-spin pointer-events-none" />
+            ) : (
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            )}
             <input
               type="text"
               placeholder="Search locker #, rack, or tenant..."
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setSearch(localSearch);
+                  setPage(1);
+                }
+              }}
+              aria-label="Search locker #, rack, or tenant"
               className="w-full h-8 pl-8 pr-7 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
             />
             {localSearch && (

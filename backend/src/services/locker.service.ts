@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { Locker, ILocker } from '../models/Locker';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
+import { Customer } from '../models/Customer';
 import {
   CreateLockerInput,
   UpdateLockerInput,
@@ -45,18 +46,79 @@ export interface LockerStatsResult {
 
 export class LockerService {
   private static readonly statsCache = new Map<string, { expiresAt: number; value: LockerStatsResult }>();
-  private static buildLockerFilter(params: Partial<LockerQueryParams>): Record<string, unknown> {
+  private static async buildLockerFilter(
+    params: Partial<LockerQueryParams>
+  ): Promise<Record<string, unknown>> {
     const { search, size, status, operationalStatus, rackNumber, section, isActive } = params;
     const filter: Record<string, unknown> = {};
     if (isActive !== undefined) filter.isActive = isActive;
     if (size) filter.size = size.toUpperCase();
     if (status && status !== 'ALL' && status !== 'RENEWAL_DUE') filter.status = status;
     if (operationalStatus && operationalStatus !== 'ALL') filter.operationalStatus = operationalStatus;
-    if (rackNumber) filter.rackNumber = { $regex: rackNumber, $options: 'i' };
-    if (section) filter.section = { $regex: section, $options: 'i' };
-    if (search) {
-      const searchRegex = { $regex: search, $options: 'i' };
-      filter.$or = [{ lockerNumber: searchRegex }, { lockerCode: searchRegex }, { rackNumber: searchRegex }, { section: searchRegex }];
+    if (rackNumber) filter.rackNumber = { $regex: rackNumber.trim(), $options: 'i' };
+    if (section) filter.section = { $regex: section.trim(), $options: 'i' };
+
+    if (search && search.trim()) {
+      const trimmed = search.trim();
+      const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const cleanNum = trimmed.replace(/^[#\s]+/, '').trim();
+      const escapedCleanNum = cleanNum.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const cleanRack = trimmed.replace(/^rack\s*/i, '').trim();
+      const escapedCleanRack = cleanRack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      // 1. Search matching active tenants by customer name, phone, or customer code
+      let tenantLockerIds: Types.ObjectId[] = [];
+      try {
+        const matchedCustomers = await Customer.find({
+          $or: [
+            { fullName: { $regex: escaped, $options: 'i' } },
+            { phone: { $regex: escaped, $options: 'i' } },
+            { customerCode: { $regex: escaped, $options: 'i' } },
+          ],
+        })
+          .select('_id')
+          .limit(100)
+          .lean();
+
+        if (matchedCustomers.length > 0) {
+          const customerIds = matchedCustomers.map((c) => c._id);
+          const allocations = await LockerAllocation.find({
+            customerId: { $in: customerIds },
+            status: 'ACTIVE',
+          })
+            .select('lockerId')
+            .lean();
+          tenantLockerIds = allocations.map((a) => a.lockerId as unknown as Types.ObjectId);
+        }
+      } catch {
+        // silent fallback if customer lookup encounters any issue
+      }
+
+      // 2. Base locker attributes matching
+      const orConditions: any[] = [
+        { lockerNumber: { $regex: escaped, $options: 'i' } },
+        { lockerCode: { $regex: escaped, $options: 'i' } },
+        { rackNumber: { $regex: escaped, $options: 'i' } },
+        { section: { $regex: escaped, $options: 'i' } },
+      ];
+
+      // If user typed "#1", also search for "1"
+      if (cleanNum && cleanNum !== trimmed) {
+        orConditions.push({ lockerNumber: { $regex: `^${escapedCleanNum}$`, $options: 'i' } });
+        orConditions.push({ lockerNumber: { $regex: escapedCleanNum, $options: 'i' } });
+      }
+
+      // If user typed "Rack 493", also search for "493" in rackNumber
+      if (cleanRack && cleanRack !== trimmed) {
+        orConditions.push({ rackNumber: { $regex: escapedCleanRack, $options: 'i' } });
+      }
+
+      // Add tenant-linked lockers
+      if (tenantLockerIds.length > 0) {
+        orConditions.push({ _id: { $in: tenantLockerIds } });
+      }
+
+      filter.$or = orConditions;
     }
     return filter;
   }
@@ -131,7 +193,7 @@ export class LockerService {
       sortOrder = 'asc',
     } = params;
 
-    const filter = this.buildLockerFilter({ search, size, status, operationalStatus, rackNumber, section, isActive });
+    const filter = await this.buildLockerFilter({ search, size, status, operationalStatus, rackNumber, section, isActive });
 
     // Handle RENEWAL_DUE virtual filter (synchronized with Actionable Dues: Overdue + Due This Month)
     if (status === 'RENEWAL_DUE') {
@@ -156,7 +218,15 @@ export class LockerService {
       ]);
       const combined = Array.from(new Set([...invoiceLockerIds, ...allocLockerIds].map(String)))
         .map((id) => new Types.ObjectId(id));
-      filter._id = { $in: combined };
+      if (filter.$or) {
+        filter.$and = [
+          { _id: { $in: combined } },
+          { $or: filter.$or },
+        ];
+        delete filter.$or;
+      } else {
+        filter._id = { $in: combined };
+      }
     }
 
     const sortOptions: Record<string, 1 | -1> = {
@@ -322,7 +392,7 @@ export class LockerService {
     const cacheKey = JSON.stringify(params, Object.keys(params).sort());
     const cached = this.statsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
-    const match = this.buildLockerFilter({ ...params, isActive: params.isActive ?? true });
+    const match = await this.buildLockerFilter({ ...params, isActive: params.isActive ?? true });
     const now = new Date();
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 

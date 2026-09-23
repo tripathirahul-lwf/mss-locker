@@ -10,7 +10,7 @@ interface LockerModernCardProps {
   canAllocate?: boolean;
 }
 
-export const LockerModernCard: React.FC<LockerModernCardProps> = ({
+export const LockerModernCard: React.FC<LockerModernCardProps> = React.memo(({
   locker,
   onView,
   onAllocate,
@@ -194,5 +194,5 @@ export const LockerModernCard: React.FC<LockerModernCardProps> = ({
       </div>
     </div>
   );
-};
+});
 

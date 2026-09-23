@@ -124,5 +124,6 @@ const lockerSchema = new Schema<ILocker>(
 lockerSchema.index({ status: 1, size: 1 });
 lockerSchema.index({ rackNumber: 1, status: 1 });
 lockerSchema.index({ isActive: 1, status: 1, operationalStatus: 1 });
+lockerSchema.index({ lockerNumber: 1 }, { collation: { locale: 'en', numericOrdering: true } });
 
 export const Locker = model<ILocker>('Locker', lockerSchema);
