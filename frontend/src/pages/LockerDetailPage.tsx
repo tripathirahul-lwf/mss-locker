@@ -244,7 +244,7 @@ export function LockerDetailPage() {
                 <span className="text-xl font-bold font-mono text-slate-900 mt-1 block">
                   {formatINR(locker.annualRent)}
                 </span>
-                <span className="text-[11px] text-slate-400 block mt-1">Per annum (Pre-tax)</span>
+                <span className="text-[11px] text-slate-400 block mt-1">Per annum (inc. GST)</span>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">

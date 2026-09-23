@@ -39,17 +39,26 @@ export function AllocationWizardModal({
   onSubmit,
   isSubmitting,
 }: AllocationWizardModalProps) {
+  const initialSizeDef = LOCKER_SIZES.find(
+    (s) => s.code === (preSelectedLocker?.size || 'A')
+  );
+  const initialTotalRent = preSelectedLocker?.annualRent || initialSizeDef?.defaultRent || 1180;
+  const initialBaseRent =
+    initialSizeDef?.baseRent ||
+    (preSelectedLocker?.securityDeposit
+      ? Math.round(preSelectedLocker.securityDeposit / 2)
+      : Math.round(initialTotalRent / 1.18));
+  const initialGst = Math.max(0, initialTotalRent - initialBaseRent);
+
   // Locker details
   const [lockerNumber, setLockerNumber] = useState(preSelectedLocker?.lockerNumber || '');
   const [size, setSize] = useState(preSelectedLocker?.size || 'A');
   const [keyNumber, setKeyNumber] = useState(preSelectedLocker?.masterKeyReference || '');
   const [rackNumber, setRackNumber] = useState(preSelectedLocker?.rackNumber || '');
-  const [rentAmount, setRentAmount] = useState<number>(preSelectedLocker?.annualRent || 1180);
-  const [gstAmount, setGstAmount] = useState<number>(
-    Math.round((preSelectedLocker?.annualRent || 1180) * 0.18)
-  );
+  const [rentAmount, setRentAmount] = useState<number>(initialBaseRent);
+  const [gstAmount, setGstAmount] = useState<number>(initialGst);
   const [securityDeposit, setSecurityDeposit] = useState<number>(
-    preSelectedLocker?.securityDeposit || 2000
+    preSelectedLocker?.securityDeposit || initialSizeDef?.defaultDeposit || 2000
   );
 
   // Plan & Dates & Allocation Type
@@ -85,8 +94,10 @@ export function AllocationWizardModal({
     setSize(newSize);
     const sizeDef = LOCKER_SIZES.find((s) => s.code === newSize);
     if (sizeDef) {
-      setRentAmount(sizeDef.defaultRent);
-      setGstAmount(Math.round(sizeDef.defaultRent * 0.18));
+      const base = sizeDef.baseRent || Math.round(sizeDef.defaultRent / 1.18);
+      const gst = Math.max(0, sizeDef.defaultRent - base);
+      setRentAmount(base);
+      setGstAmount(gst);
       setSecurityDeposit(sizeDef.defaultDeposit);
     }
   };
@@ -151,9 +162,15 @@ export function AllocationWizardModal({
     setSize(l.size);
     setRackNumber(l.rackNumber);
     setKeyNumber(l.masterKeyReference || '');
-    setRentAmount(l.annualRent || 1180);
-    setGstAmount(Math.round((l.annualRent || 1180) * 0.18));
-    setSecurityDeposit(l.securityDeposit || 2000);
+    const sizeDef = LOCKER_SIZES.find((s) => s.code === l.size);
+    const totalRent = l.annualRent || sizeDef?.defaultRent || 1180;
+    const base =
+      sizeDef?.baseRent ||
+      (l.securityDeposit ? Math.round(l.securityDeposit / 2) : Math.round(totalRent / 1.18));
+    const gst = Math.max(0, totalRent - base);
+    setRentAmount(base);
+    setGstAmount(gst);
+    setSecurityDeposit(l.securityDeposit || sizeDef?.defaultDeposit || 2000);
     setShowLockerDropdown(false);
   };
 
@@ -203,7 +220,7 @@ export function AllocationWizardModal({
             size,
             rackNumber: rackNumber.trim(),
             masterKeyReference: keyNumber.trim() || undefined,
-            annualRent: Number(rentAmount),
+            annualRent: (Number(rentAmount) || 0) + (Number(gstAmount) || 0),
             securityDeposit: Number(securityDeposit),
             status: 'VACANT',
             operationalStatus: 'ACTIVE',
@@ -258,13 +275,14 @@ export function AllocationWizardModal({
       const cycle = billingCycleMap[rentalPlan] || 'ANNUAL';
 
       // Step 4: Execute Allocation
+      const totalRent = (Number(rentAmount) || 0) + (Number(gstAmount) || 0);
       if (allocationType === 'RESERVED') {
         await onSubmit({
           customerId: finalCustomerId,
           lockerId: finalLockerId,
           startDate: new Date(startDate).toISOString(),
           billingCycle: cycle,
-          annualRent: Number(rentAmount),
+          annualRent: totalRent,
           securityDeposit: Number(securityDeposit),
           remarks: keyNumber.trim() ? `Key: ${keyNumber.trim()}` : undefined,
         });
@@ -274,7 +292,7 @@ export function AllocationWizardModal({
           lockerId: finalLockerId,
           startDate: new Date(startDate).toISOString(),
           billingCycle: cycle,
-          annualRent: Number(rentAmount),
+          annualRent: totalRent,
           securityDeposit: Number(securityDeposit),
           allocationType: 'NEW',
           remarks: keyNumber.trim() ? `Key: ${keyNumber.trim()}` : undefined,

@@ -331,11 +331,13 @@ export function LockerDetailModal({
     }
   };
 
-  const annualRent = locker.annualRent || 0;
-  const gstAmount = Math.round(annualRent * 0.18);
-  const totalAnnualRentWithTax = annualRent + gstAmount;
-  const deposit = locker.securityDeposit || 0;
-  const totalMoveInPayable = totalAnnualRentWithTax + deposit;
+  const totalAnnualRent = locker.annualRent || sizeDefinition?.defaultRent || 0;
+  const baseRent =
+    sizeDefinition?.baseRent ||
+    (locker.securityDeposit ? Math.round(locker.securityDeposit / 2) : Math.round(totalAnnualRent / 1.18));
+  const gstAmount = Math.max(0, totalAnnualRent - baseRent);
+  const deposit = locker.securityDeposit || sizeDefinition?.defaultDeposit || 0;
+  const totalMoveInPayable = totalAnnualRent + deposit;
 
   // Unpaid balance
   const unpaidInvoice = invoices.find(
@@ -729,7 +731,7 @@ export function LockerDetailModal({
                             <span className="text-slate-500 font-medium">Annual Base Rent</span>
                             <span className="font-bold text-slate-900 tabular-nums">
                               <span className="text-slate-400 font-normal mr-0.5">₹</span>
-                              {annualRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              {baseRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </span>
                           </div>
 
@@ -745,7 +747,7 @@ export function LockerDetailModal({
                             <span className="text-slate-700 font-semibold">Total Annual Rent (inc. GST)</span>
                             <span className="font-bold text-slate-900 tabular-nums">
                               <span className="text-slate-400 font-normal mr-0.5">₹</span>
-                              {totalAnnualRentWithTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              {totalAnnualRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </span>
                           </div>
 
@@ -1067,14 +1069,20 @@ export function LockerDetailModal({
                       </div>
                       <div className="flex justify-between py-0.5">
                         <span className="text-slate-500">Annual Base Tariff</span>
-                        <span className="font-semibold text-slate-800">
-                          ₹{annualRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
+                        <span className="font-semibold text-slate-800 tabular-nums">
+                          ₹{baseRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Total Annual Rent (inc. GST)</span>
-                        <span className="font-semibold text-slate-800">
-                          ₹{totalAnnualRentWithTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
+                        <span className="text-slate-500">GST (18%)</span>
+                        <span className="font-semibold text-slate-800 tabular-nums">
+                          ₹{gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-0.5 border-t border-dashed border-slate-200 pt-1">
+                        <span className="text-slate-700 font-semibold">Total Annual Rent (inc. GST)</span>
+                        <span className="font-bold text-slate-900 tabular-nums">
+                          ₹{totalAnnualRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">

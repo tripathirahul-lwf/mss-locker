@@ -5,6 +5,7 @@ export interface LockerSizeItem {
   code: string;
   label: string;
   dimensions: string;
+  baseRent: number;
   defaultRent: number;
   defaultDeposit: number;
   sortOrder: number;
