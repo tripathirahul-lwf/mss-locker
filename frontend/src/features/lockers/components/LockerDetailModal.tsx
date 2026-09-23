@@ -332,9 +332,14 @@ export function LockerDetailModal({
   };
 
   const totalAnnualRent = locker.annualRent || sizeDefinition?.defaultRent || 0;
+  const isDefaultSizeRent =
+    !locker.annualRent || (sizeDefinition && locker.annualRent === sizeDefinition.defaultRent);
   const baseRent =
-    sizeDefinition?.baseRent ||
-    (locker.securityDeposit ? Math.round(locker.securityDeposit / 2) : Math.round(totalAnnualRent / 1.18));
+    isDefaultSizeRent && sizeDefinition?.baseRent
+      ? sizeDefinition.baseRent
+      : locker.securityDeposit
+      ? Math.round(locker.securityDeposit / 2)
+      : Math.round(totalAnnualRent / 1.18);
   const gstAmount = Math.max(0, totalAnnualRent - baseRent);
   const deposit = locker.securityDeposit || sizeDefinition?.defaultDeposit || 0;
   const totalMoveInPayable = totalAnnualRent + deposit;

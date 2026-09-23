@@ -43,11 +43,15 @@ export function AllocationWizardModal({
     (s) => s.code === (preSelectedLocker?.size || 'A')
   );
   const initialTotalRent = preSelectedLocker?.annualRent || initialSizeDef?.defaultRent || 1180;
+  const isDefaultSizeRent =
+    !preSelectedLocker?.annualRent ||
+    (initialSizeDef && preSelectedLocker.annualRent === initialSizeDef.defaultRent);
   const initialBaseRent =
-    initialSizeDef?.baseRent ||
-    (preSelectedLocker?.securityDeposit
+    isDefaultSizeRent && initialSizeDef?.baseRent
+      ? initialSizeDef.baseRent
+      : preSelectedLocker?.securityDeposit
       ? Math.round(preSelectedLocker.securityDeposit / 2)
-      : Math.round(initialTotalRent / 1.18));
+      : Math.round(initialTotalRent / 1.18);
   const initialGst = Math.max(0, initialTotalRent - initialBaseRent);
 
   // Locker details
@@ -164,9 +168,14 @@ export function AllocationWizardModal({
     setKeyNumber(l.masterKeyReference || '');
     const sizeDef = LOCKER_SIZES.find((s) => s.code === l.size);
     const totalRent = l.annualRent || sizeDef?.defaultRent || 1180;
+    const isDefaultSizeRent =
+      !l.annualRent || (sizeDef && l.annualRent === sizeDef.defaultRent);
     const base =
-      sizeDef?.baseRent ||
-      (l.securityDeposit ? Math.round(l.securityDeposit / 2) : Math.round(totalRent / 1.18));
+      isDefaultSizeRent && sizeDef?.baseRent
+        ? sizeDef.baseRent
+        : l.securityDeposit
+        ? Math.round(l.securityDeposit / 2)
+        : Math.round(totalRent / 1.18);
     const gst = Math.max(0, totalRent - base);
     setRentAmount(base);
     setGstAmount(gst);
