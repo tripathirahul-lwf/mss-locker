@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -16,6 +16,7 @@ import {
   Building2,
   ShieldCheck,
   Mail,
+  Clock,
 } from 'lucide-react';
 import { customerApi } from '../../customers/api/customerApi';
 import { lockerApi } from '../../lockers/api/lockerApi';
@@ -295,6 +296,15 @@ export function AllocationWizardModal({
 
       const cycle = billingCycleMap[rentalPlan] || 'ANNUAL';
 
+      const startD = new Date(startDate);
+      let monthsToAdd = 12;
+      if (cycle === 'HALF_YEARLY') monthsToAdd = 6;
+      else if (cycle === 'QUARTERLY') monthsToAdd = 3;
+      else if (cycle === 'MONTHLY') monthsToAdd = 1;
+      const endD = new Date(startD);
+      endD.setMonth(endD.getMonth() + monthsToAdd);
+      endD.setDate(endD.getDate() - 1);
+
       // Step 4: Execute Allocation
       const totalRent = (Number(rentAmount) || 0) + (Number(gstAmount) || 0);
       if (allocationType === 'RESERVED') {
@@ -302,6 +312,7 @@ export function AllocationWizardModal({
           customerId: finalCustomerId,
           lockerId: finalLockerId,
           startDate: new Date(startDate).toISOString(),
+          endDate: endD.toISOString(),
           billingCycle: cycle,
           annualRent: totalRent,
           securityDeposit: Number(securityDeposit),
@@ -312,6 +323,7 @@ export function AllocationWizardModal({
           customerId: finalCustomerId,
           lockerId: finalLockerId,
           startDate: new Date(startDate).toISOString(),
+          endDate: endD.toISOString(),
           billingCycle: cycle,
           annualRent: totalRent,
           securityDeposit: Number(securityDeposit),
@@ -323,6 +335,25 @@ export function AllocationWizardModal({
       setError(err.response?.data?.message || err.message || 'Failed to complete allocation.');
     }
   };
+
+  const computedRenewalDates = useMemo(() => {
+    const startD = new Date(startDate);
+    if (isNaN(startD.getTime())) return null;
+    let monthsToAdd = 12;
+    if (rentalPlan === '6 Months') monthsToAdd = 6;
+    else if (rentalPlan === '3 Months') monthsToAdd = 3;
+    else if (rentalPlan === '1 Month') monthsToAdd = 1;
+    const endD = new Date(startD);
+    endD.setMonth(endD.getMonth() + monthsToAdd);
+    endD.setDate(endD.getDate() - 1);
+    const renewalDueD = new Date(endD);
+    renewalDueD.setDate(renewalDueD.getDate() + 1);
+    return {
+      startDateStr: startD.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      endDateStr: endD.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      renewalDueStr: renewalDueD.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+  }, [startDate, rentalPlan]);
 
   const totalRentWithGst = (Number(rentAmount) || 0) + (Number(gstAmount) || 0);
   const totalInitialPayable = totalRentWithGst + (Number(securityDeposit) || 0);
@@ -727,6 +758,22 @@ export function AllocationWizardModal({
                 </div>
               </div>
             </div>
+
+            {/* Agreement Term & Renewal Schedule Preview */}
+            {computedRenewalDates && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-white border border-slate-200/90 rounded-xl shadow-xs text-xs">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Clock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>
+                    Agreement Term: <strong className="text-slate-800">{computedRenewalDates.startDateStr}</strong> to <strong className="text-slate-800">{computedRenewalDates.endDateStr}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 font-medium text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60">
+                  <span>Next Renewal Due:</span>
+                  <span className="font-bold text-emerald-950">{computedRenewalDates.renewalDueStr}</span>
+                </div>
+              </div>
+            )}
 
             {/* Clear Financial Settlement Card */}
             <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/80 to-teal-50/50 p-3.5 sm:p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-2xs">

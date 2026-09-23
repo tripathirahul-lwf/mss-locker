@@ -9,6 +9,7 @@ import {
   LockerQueryParams,
 } from '../validators/locker.validator';
 import { recordAuditLog } from '../utils/auditLogger';
+import { calculateBillingPeriod } from '../utils/billingCalculator';
 
 export interface PaginatedLockersResult {
   lockers: Partial<ILocker>[];
@@ -300,8 +301,14 @@ export class LockerService {
           (inv.dueDate && new Date(inv.dueDate).getTime() <= monthEndMs)
         )
       );
-      const allocDueMs = alloc?.nextRenewalDueDate
-        ? new Date(alloc.nextRenewalDueDate).getTime()
+      const computedAllocDue =
+        alloc?.nextRenewalDueDate ||
+        alloc?.endDate ||
+        (alloc?.startDate
+          ? calculateBillingPeriod(new Date(alloc.startDate), (alloc.billingCycle as any) || 'ANNUAL').nextDueDate
+          : undefined);
+      const allocDueMs = computedAllocDue
+        ? new Date(computedAllocDue).getTime()
         : (alloc?.paidThroughDate ? new Date(alloc.paidThroughDate).getTime() : 0);
       const isAllocDue = allocDueMs > 0 && allocDueMs <= monthEndMs;
       const isRenewalDue = isInvoiceDue || isAllocDue;
@@ -313,7 +320,7 @@ export class LockerService {
         tenantName: alloc?.customerId?.fullName,
         tenantCode: alloc?.customerId?.customerCode,
         tenantPhone: alloc?.customerId?.phone,
-        nextRenewalDueDate: alloc?.nextRenewalDueDate || alloc?.paidThroughDate || inv?.dueDate,
+        nextRenewalDueDate: computedAllocDue || alloc?.paidThroughDate || inv?.dueDate,
         renewalBalanceAmount: inv?.balanceAmount,
       };
     });
@@ -368,8 +375,14 @@ export class LockerService {
         (pendingInv.dueDate && new Date(pendingInv.dueDate).getTime() <= monthEndMs)
       )
     );
-    const allocDueMs = activeAlloc?.nextRenewalDueDate
-      ? new Date(activeAlloc.nextRenewalDueDate).getTime()
+    const computedAllocDue =
+      activeAlloc?.nextRenewalDueDate ||
+      activeAlloc?.endDate ||
+      (activeAlloc?.startDate
+        ? calculateBillingPeriod(new Date(activeAlloc.startDate), (activeAlloc.billingCycle as any) || 'ANNUAL').nextDueDate
+        : undefined);
+    const allocDueMs = computedAllocDue
+      ? new Date(computedAllocDue).getTime()
       : (activeAlloc?.paidThroughDate ? new Date(activeAlloc.paidThroughDate).getTime() : 0);
     const isAllocDue = allocDueMs > 0 && allocDueMs <= monthEndMs;
     const isRenewalDue = isInvoiceDue || isAllocDue;
@@ -380,7 +393,7 @@ export class LockerService {
       tenantName: (activeAlloc?.customerId as any)?.fullName,
       tenantCode: (activeAlloc?.customerId as any)?.customerCode,
       tenantPhone: (activeAlloc?.customerId as any)?.phone,
-      nextRenewalDueDate: activeAlloc?.nextRenewalDueDate || activeAlloc?.paidThroughDate || pendingInv?.dueDate,
+      nextRenewalDueDate: computedAllocDue || activeAlloc?.paidThroughDate || pendingInv?.dueDate,
       renewalBalanceAmount: pendingInv?.balanceAmount,
     };
   }

@@ -920,11 +920,30 @@ export function LockerDetailModal({
                       <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
                         <span className="text-[11px] font-medium text-slate-500">Next Renewal Due</span>
                         <p className="font-semibold text-slate-900">
-                          {formatDate(currentAlloc?.endDate)}
+                          {(() => {
+                            const due =
+                              currentAlloc?.nextRenewalDueDate ||
+                              currentAlloc?.endDate ||
+                              (locker as any)?.nextRenewalDueDate;
+                            if (due) return formatDate(due);
+                            if (currentAlloc?.startDate) {
+                              const d = new Date(currentAlloc.startDate);
+                              if (!isNaN(d.getTime())) {
+                                const cycle = (currentAlloc.billingCycle || 'ANNUAL').toUpperCase();
+                                let monthsToAdd = 12;
+                                if (cycle.includes('HALF') || cycle === '6 MONTHS') monthsToAdd = 6;
+                                else if (cycle.includes('QUARTER') || cycle === '3 MONTHS') monthsToAdd = 3;
+                                else if (cycle.includes('MONTH') || cycle === '1 MONTH') monthsToAdd = 1;
+                                d.setMonth(d.getMonth() + monthsToAdd);
+                                return formatDate(d);
+                              }
+                            }
+                            return '—';
+                          })()}
                         </p>
-                        {currentAlloc?.paidThroughDate && (
+                        {(currentAlloc?.paidThroughDate || currentAlloc?.endDate) && (
                           <p className="text-[10.5px] text-slate-500">
-                            Paid up to: {formatDate(currentAlloc.paidThroughDate)}
+                            Paid up to: {formatDate(currentAlloc.paidThroughDate || currentAlloc.endDate)}
                           </p>
                         )}
                       </div>

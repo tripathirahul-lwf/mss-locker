@@ -166,6 +166,5 @@ const customerSchema = new Schema<ICustomer>(
 
 customerSchema.index({ status: 1, kycStatus: 1 });
 customerSchema.index({ createdAt: -1 });
-customerSchema.index({ fullName: 1 });
 
 export const Customer = model<ICustomer>('Customer', customerSchema);
