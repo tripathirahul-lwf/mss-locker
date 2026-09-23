@@ -145,7 +145,7 @@ export const CustomerQuickPreviewModal: React.FC<CustomerQuickPreviewModalProps>
           {loading ? (
             <div className="p-12 text-center text-slate-400 text-sm">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mb-3" />
-              <p className="font-medium">Loading walk-in dossier...</p>
+              <p className="font-medium">Loading customer profile...</p>
             </div>
           ) : error || !customer ? (
             <div className="p-8 text-center text-rose-600 text-sm font-medium">
@@ -162,10 +162,10 @@ export const CustomerQuickPreviewModal: React.FC<CustomerQuickPreviewModalProps>
                       <img
                         src={customer.photoUrl}
                         alt={customer.fullName}
-                        className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-xs"
+                        className="w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] rounded-2xl object-cover border-2 border-white shadow-xs"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-2xl bg-slate-200 text-slate-600 font-black text-xl flex items-center justify-center border-2 border-white shadow-xs">
+                      <div className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-2xl bg-slate-200 text-slate-600 font-black text-xl flex items-center justify-center border-2 border-white shadow-xs">
                         {customer.fullName.slice(0, 2).toUpperCase()}
                       </div>
                     )}
@@ -528,7 +528,7 @@ export const CustomerQuickPreviewModal: React.FC<CustomerQuickPreviewModalProps>
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
               >
                 <User className="w-3.5 h-3.5" />
-                Full Customer Dossier
+                View Full Profile
               </button>
             )}
 

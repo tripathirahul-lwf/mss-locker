@@ -53,6 +53,7 @@ export function CustomerQuickPreview({
   const navigate = useNavigate();
   const location = useLocation();
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   // Close on Escape key
   useEffect(() => {
@@ -119,7 +120,7 @@ export function CustomerQuickPreview({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-slate-900 tracking-tight">
-                  Walk-in Customer Dossier
+                  Customer Profile
                 </h3>
                 <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 shrink-0 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
@@ -148,14 +149,15 @@ export function CustomerQuickPreview({
           <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0">
-                {customer.photoUrl ? (
+                {customer.photoUrl && !imageError ? (
                   <img
                     src={customer.photoUrl}
                     alt={customer.fullName}
-                    className="w-13 h-13 rounded-2xl object-cover border border-slate-200 shadow-xs shrink-0"
+                    onError={() => setImageError(true)}
+                    className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-2xl object-cover border border-slate-200 shadow-xs shrink-0"
                   />
                 ) : (
-                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white border border-slate-800 flex items-center justify-center font-bold text-base shrink-0 font-sans tracking-wide shadow-xs ring-1 ring-slate-900/10">
+                  <div className="w-14 h-14 min-w-[56px] min-h-[56px] rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white border border-slate-800 flex items-center justify-center font-bold text-base shrink-0 font-sans tracking-wide shadow-xs ring-1 ring-slate-900/10">
                     {customer.fullName.slice(0, 2).toUpperCase()}
                   </div>
                 )}
@@ -168,7 +170,7 @@ export function CustomerQuickPreview({
                     <button
                       type="button"
                       onClick={() => copyToClipboard(customer.customerCode, 'code')}
-                      className="group/code inline-flex items-center gap-1 font-sans text-[11px] font-semibold bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 rounded-md border border-slate-200 text-slate-700 tabular-nums cursor-pointer transition-colors"
+                      className="group/code inline-flex items-center gap-1 font-mono text-[11px] font-semibold bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 rounded-md border border-slate-200 text-slate-700 tabular-nums cursor-pointer transition-colors"
                       title="Click to copy customer code"
                     >
                       <span>{customer.customerCode}</span>
@@ -261,6 +263,18 @@ export function CustomerQuickPreview({
                   <span className="text-slate-800 font-medium truncate text-xs">
                     {customer.email}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(customer.email!, 'email')}
+                    className="p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer ml-auto"
+                    title="Copy email"
+                  >
+                    {copiedField === 'email' ? (
+                      <Check className="w-3 h-3 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-1 bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100 text-slate-400 text-[11px]">

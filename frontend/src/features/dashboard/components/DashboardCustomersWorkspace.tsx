@@ -431,21 +431,23 @@ export function DashboardCustomersWorkspace({
                       <CustomerStatusBadge status={c.status} className="text-[10.5px] px-2 py-0.5" />
                     </td>
                     <td className="py-2.5 px-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => onViewCustomer(c)}
-                          className="inline-flex items-center gap-1 py-1 px-2.5 rounded-lg border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                          className="h-7 w-7 rounded-lg border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-slate-600 flex items-center justify-center transition cursor-pointer"
+                          title="View Customer Profile"
+                          aria-label={`View profile for ${c.fullName}`}
                         >
-                          <Eye className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Dossier</span>
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
                         {canUpdate && onEditCustomer && (
                           <button
                             type="button"
                             onClick={() => onEditCustomer(c)}
-                            className="p-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-                            title="Edit profile"
+                            className="h-7 w-7 rounded-lg border border-slate-200 hover:bg-slate-100 hover:text-slate-900 text-slate-600 flex items-center justify-center transition cursor-pointer"
+                            title="Edit Profile"
+                            aria-label={`Edit profile for ${c.fullName}`}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
