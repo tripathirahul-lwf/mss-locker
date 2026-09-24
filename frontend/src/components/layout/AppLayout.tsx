@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { TopNavHeader } from './TopNavHeader';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalSearchModal } from '../../features/search/components/GlobalSearchModal';
@@ -10,11 +10,21 @@ import { useAuth } from '../../hooks/useAuth';
 
 export function AppLayout() {
   const { user } = useAuth();
+  const location = useLocation();
   const userPermissions = (user as any)?.role?.permissions || [];
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [previewCustomerId, setPreviewCustomerId] = useState<string | null>(null);
   const [previewLockerId, setPreviewLockerId] = useState<string | null>(null);
+
+  // Track active operational route so page reloads or session restores never lose the current page or tab
+  useEffect(() => {
+    if (location.pathname && location.pathname !== '/login') {
+      const fullRoute = location.pathname + location.search;
+      sessionStorage.setItem('mss_last_active_route', fullRoute);
+      localStorage.setItem('mss_last_active_route', fullRoute);
+    }
+  }, [location.pathname, location.search]);
 
   // Global shortcut handler for Ctrl+K / Cmd+K
   useEffect(() => {

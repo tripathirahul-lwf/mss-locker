@@ -39,7 +39,9 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as any)?.from
+    ? ((location.state as any).from.pathname + ((location.state as any).from.search || ''))
+    : localStorage.getItem('mss_last_active_route') || '/';
 
   // Redirect if already authenticated
   useEffect(() => {

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Package,
   Lock,
@@ -144,6 +144,7 @@ function MetricCard({
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
 
@@ -152,11 +153,51 @@ export function DashboardPage() {
   const canCreateCustomer = hasPermission('customers.create');
   const canCreatePayment = hasPermission('payments.create');
 
-  // Multi-Workspace Active Tab State
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceTab>('LOCKERS');
-  const [activeMetricCard, setActiveMetricCard] = useState<string>('LOCKERS_ALL');
-  const [initialRenewalFilter, setInitialRenewalFilter] = useState<string>('ACTIONABLE');
-  const [initialKycFilter, setInitialKycFilter] = useState<string>('ALL');
+  // Multi-Workspace Active Tab State with URL query & localStorage persistence
+  const validWorkspaces: WorkspaceTab[] = ['LOCKERS', 'RENEWALS', 'CUSTOMERS', 'PAYMENTS'];
+  const rawWorkspace = searchParams.get('workspace')?.toUpperCase() as WorkspaceTab | null;
+  const initialWorkspace: WorkspaceTab = (rawWorkspace && validWorkspaces.includes(rawWorkspace))
+    ? rawWorkspace
+    : (localStorage.getItem('dashboard_active_workspace') as WorkspaceTab) || 'LOCKERS';
+
+  const [activeWorkspace, setActiveWorkspaceState] = useState<WorkspaceTab>(initialWorkspace);
+  const [activeMetricCard, setActiveMetricCardState] = useState<string>(() => {
+    return searchParams.get('card') || localStorage.getItem('dashboard_active_card') || 'LOCKERS_ALL';
+  });
+  const [initialRenewalFilter, setInitialRenewalFilter] = useState<string>(() => {
+    return searchParams.get('renewalStatus') || 'ACTIONABLE';
+  });
+  const [initialKycFilter, setInitialKycFilter] = useState<string>(() => {
+    return searchParams.get('kycStatus') || 'ALL';
+  });
+
+  const setActiveWorkspace = (ws: WorkspaceTab) => {
+    setActiveWorkspaceState(ws);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (ws === 'LOCKERS') {
+        next.delete('workspace');
+      } else {
+        next.set('workspace', ws.toLowerCase());
+      }
+      return next;
+    }, { replace: true });
+    localStorage.setItem('dashboard_active_workspace', ws);
+  };
+
+  const setActiveMetricCard = (card: string) => {
+    setActiveMetricCardState(card);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (card === 'LOCKERS_ALL') {
+        next.delete('card');
+      } else {
+        next.set('card', card);
+      }
+      return next;
+    }, { replace: true });
+    localStorage.setItem('dashboard_active_card', card);
+  };
 
   const workspaceRef = useRef<HTMLDivElement>(null);
   const lockersSectionRef = useRef<DashboardLockersSectionRef>(null);
@@ -246,6 +287,13 @@ export function DashboardPage() {
   const handleLockerMetricClick = (status: string) => {
     setActiveWorkspace('LOCKERS');
     setActiveMetricCard(`LOCKERS_${status}`);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('workspace');
+      next.set('status', status);
+      next.set('card', `LOCKERS_${status}`);
+      return next;
+    }, { replace: true });
     setTimeout(() => {
       lockersSectionRef.current?.setStatusFilter(status);
       workspaceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -254,8 +302,16 @@ export function DashboardPage() {
 
   const handleCustomerMetricClick = (kycStatus: string = 'ALL') => {
     setActiveWorkspace('CUSTOMERS');
-    setActiveMetricCard(kycStatus === 'ALL' ? 'CUSTOMERS_ALL' : 'CUSTOMERS_KYC');
+    const card = kycStatus === 'ALL' ? 'CUSTOMERS_ALL' : 'CUSTOMERS_KYC';
+    setActiveMetricCard(card);
     setInitialKycFilter(kycStatus);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('workspace', 'customers');
+      next.set('kycStatus', kycStatus);
+      next.set('card', card);
+      return next;
+    }, { replace: true });
     setTimeout(() => {
       workspaceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
@@ -265,6 +321,13 @@ export function DashboardPage() {
     setActiveWorkspace('RENEWALS');
     setActiveMetricCard('RENEWALS_DUE');
     setInitialRenewalFilter(status);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('workspace', 'renewals');
+      next.set('renewalStatus', status);
+      next.set('card', 'RENEWALS_DUE');
+      return next;
+    }, { replace: true });
     setTimeout(() => {
       workspaceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
@@ -272,7 +335,15 @@ export function DashboardPage() {
 
   const handlePaymentMetricClick = (metricType: 'MONTHLY' | 'YEARLY' = 'MONTHLY') => {
     setActiveWorkspace('PAYMENTS');
-    setActiveMetricCard(`PAYMENTS_${metricType}`);
+    const card = `PAYMENTS_${metricType}`;
+    setActiveMetricCard(card);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('workspace', 'payments');
+      next.set('paymentType', metricType);
+      next.set('card', card);
+      return next;
+    }, { replace: true });
     setTimeout(() => {
       workspaceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);

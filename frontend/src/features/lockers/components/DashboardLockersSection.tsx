@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   LayoutGrid,
   List,
@@ -52,6 +52,7 @@ export const DashboardLockersSection = forwardRef<
   DashboardLockersSectionProps
 >(({ initialStatus = 'ALL', onAllocationSuccess }, ref) => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -60,17 +61,92 @@ export const DashboardLockersSection = forwardRef<
   const canDelete = usePermission('lockers.delete');
   const canAllocate = usePermission('allocations.create');
 
-  // Filter & Pagination State
-  const [statusParam, setStatusParam] = useState<string>(initialStatus);
-  const [viewMode, setViewMode] = useState<'cards' | 'table' | 'by_rack'>('cards');
-  const [page, setPage] = useState<number>(1);
+  // Filter & Pagination State initialized from URL query params or localStorage
+  const urlStatus = searchParams.get('status');
+  const savedStatus = localStorage.getItem('dashboard_locker_status');
+  const initialResolvedStatus = urlStatus || savedStatus || initialStatus || 'ALL';
+
+  const urlView = searchParams.get('view') as 'cards' | 'table' | 'by_rack' | null;
+  const savedView = localStorage.getItem('dashboard_locker_view') as 'cards' | 'table' | 'by_rack' | null;
+  const initialResolvedView = (urlView === 'cards' || urlView === 'table' || urlView === 'by_rack')
+    ? urlView
+    : (savedView === 'cards' || savedView === 'table' || savedView === 'by_rack')
+    ? savedView
+    : 'cards';
+
+  const [statusParam, setStatusParamState] = useState<string>(initialResolvedStatus);
+  const [viewMode, setViewModeState] = useState<'cards' | 'table' | 'by_rack'>(initialResolvedView);
+  const [page, setPageState] = useState<number>(() => Math.max(1, Number(searchParams.get('page')) || 1));
   const [limit, setLimit] = useState<number>(12);
-  const [search, setSearch] = useState<string>('');
-  const [localSearch, setLocalSearch] = useState<string>('');
-  const [size, setSize] = useState<string | undefined>(undefined);
-  const [rackNumber, setRackNumber] = useState<string | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<string>('lockerNumber');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [search, setSearchState] = useState<string>(() => searchParams.get('search') || '');
+  const [localSearch, setLocalSearch] = useState<string>(() => searchParams.get('search') || '');
+  const [size, setSizeState] = useState<string | undefined>(() => searchParams.get('size') || undefined);
+  const [rackNumber, setRackNumberState] = useState<string | undefined>(() => searchParams.get('rackNumber') || undefined);
+  const [sortBy, setSortByState] = useState<string>(() => searchParams.get('sortBy') || 'lockerNumber');
+  const [sortOrder, setSortOrderState] = useState<'asc' | 'desc'>(() => (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc');
+
+  // Helper to sync single parameter to URL query without losing others
+  const updateUrlParam = useCallback((key: string, value: string | undefined | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === undefined || value === null || value === '' || (key === 'status' && value === 'ALL') || (key === 'page' && value === '1') || (key === 'view' && value === 'cards')) {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setStatusParam = useCallback((newStatus: string) => {
+    setStatusParamState(newStatus);
+    setPageState(1);
+    updateUrlParam('status', newStatus);
+    updateUrlParam('page', null);
+    localStorage.setItem('dashboard_locker_status', newStatus);
+  }, [updateUrlParam]);
+
+  const setViewMode = useCallback((newView: 'cards' | 'table' | 'by_rack') => {
+    setViewModeState(newView);
+    updateUrlParam('view', newView);
+    localStorage.setItem('dashboard_locker_view', newView);
+  }, [updateUrlParam]);
+
+  const setPage = useCallback((pageAction: number | ((prev: number) => number)) => {
+    setPageState((prev) => {
+      const newPage = typeof pageAction === 'function' ? pageAction(prev) : pageAction;
+      updateUrlParam('page', newPage > 1 ? String(newPage) : null);
+      return newPage;
+    });
+  }, [updateUrlParam]);
+
+  const setSearch = useCallback((newSearch: string) => {
+    setSearchState(newSearch);
+    updateUrlParam('search', newSearch || null);
+  }, [updateUrlParam]);
+
+  const setSize = useCallback((newSize: string | undefined) => {
+    setSizeState(newSize);
+    updateUrlParam('size', newSize || null);
+  }, [updateUrlParam]);
+
+  const setRackNumber = useCallback((newRack: string | undefined) => {
+    setRackNumberState(newRack);
+    updateUrlParam('rackNumber', newRack || null);
+  }, [updateUrlParam]);
+
+  const setSortBy = useCallback((newSortBy: string) => {
+    setSortByState(newSortBy);
+    updateUrlParam('sortBy', newSortBy);
+  }, [updateUrlParam]);
+
+  const setSortOrder = useCallback((newOrderAction: 'asc' | 'desc' | ((prev: 'asc' | 'desc') => 'asc' | 'desc')) => {
+    setSortOrderState((prev) => {
+      const newOrder = typeof newOrderAction === 'function' ? newOrderAction(prev) : newOrderAction;
+      updateUrlParam('sortOrder', newOrder);
+      return newOrder;
+    });
+  }, [updateUrlParam]);
 
   // Notice toast
   const [notice, setNotice] = useState<string | null>(null);
@@ -85,7 +161,6 @@ export const DashboardLockersSection = forwardRef<
   useImperativeHandle(ref, () => ({
     setStatusFilter: (newStatus: string) => {
       setStatusParam(newStatus);
-      setPage(1);
     },
     scrollIntoView: () => {
       if (sectionRef.current) {

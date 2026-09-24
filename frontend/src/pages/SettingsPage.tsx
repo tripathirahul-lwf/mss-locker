@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -75,7 +76,26 @@ export function SettingsPage() {
     staleTime: 60_000,
   });
 
-  const [activeTab, setActiveTab] = useState<'config' | 'tariffs'>('config');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab: 'config' | 'tariffs' = (tabParam === 'tariffs' || tabParam === 'config')
+    ? tabParam
+    : (localStorage.getItem('settings_active_tab') as 'config' | 'tariffs') || 'config';
+  const [activeTab, setActiveTabState] = useState<'config' | 'tariffs'>(initialTab);
+
+  const setActiveTab = (tab: 'config' | 'tariffs') => {
+    setActiveTabState(tab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === 'config') {
+        next.delete('tab');
+      } else {
+        next.set('tab', tab);
+      }
+      return next;
+    }, { replace: true });
+    localStorage.setItem('settings_active_tab', tab);
+  };
   const [form, setForm] = useState<SystemSettings>(EMPTY);
   const [tariffSearch, setTariffSearch] = useState('');
   const [editingTariff, setEditingTariff] = useState<TariffPlan | null>(null);
