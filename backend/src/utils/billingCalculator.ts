@@ -111,25 +111,31 @@ export function determineDueStatus(dueDate: Date, balanceAmount: number): DueSta
   }
 }
 
+import { Sequence } from '../models/Sequence';
+
 export async function generateInvoiceNumber(): Promise<string> {
   const currentYear = new Date().getFullYear();
+  const key = `invoice:${currentYear}`;
   const prefix = `INV-${currentYear}-`;
 
-  const lastInvoice = await LockerInvoice.findOne({
-    invoiceNumber: { $regex: `^${prefix}` },
-  })
-    .sort({ invoiceNumber: -1 })
-    .select('invoiceNumber')
-    .lean();
+  const sequence = await Sequence.findOneAndUpdate(
+    { key },
+    { $inc: { value: 1 } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
-  let nextSeq = 1;
-  if (lastInvoice && lastInvoice.invoiceNumber) {
-    const parts = lastInvoice.invoiceNumber.split('-');
-    const lastSeq = parseInt(parts[2], 10);
-    if (!isNaN(lastSeq)) {
-      nextSeq = lastSeq + 1;
-    }
+  let nextSeq = sequence.value;
+  let candidate = `${prefix}${String(nextSeq).padStart(6, '0')}`;
+
+  while (await LockerInvoice.exists({ invoiceNumber: candidate })) {
+    const bumped = await Sequence.findOneAndUpdate(
+      { key },
+      { $inc: { value: 1 } },
+      { new: true }
+    );
+    nextSeq = bumped ? bumped.value : nextSeq + 1;
+    candidate = `${prefix}${String(nextSeq).padStart(6, '0')}`;
   }
 
-  return `${prefix}${String(nextSeq).padStart(6, '0')}`;
+  return candidate;
 }

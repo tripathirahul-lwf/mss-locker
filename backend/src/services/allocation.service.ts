@@ -1,5 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import { LockerAllocation, ILockerAllocation } from '../models/LockerAllocation';
+import { LockerInvoice } from '../models/LockerInvoice';
 import { Locker } from '../models/Locker';
 import { Customer } from '../models/Customer';
 import { AuditLog } from '../models/AuditLog';
@@ -10,7 +11,11 @@ import {
   BILLING_CYCLE,
   BillingCycle,
 } from '../constants/allocation.constants';
-import { calculateBillingPeriod } from '../utils/billingCalculator';
+import {
+  calculateBillingPeriod,
+  generateInvoiceNumber,
+  determineDueStatus,
+} from '../utils/billingCalculator';
 import {
   CreateAllocationInput,
   ReserveLockerInput,
@@ -151,7 +156,43 @@ export class LockerAllocationService {
 
     await allocation.save({ session });
 
-    // 6. Write Audit Log
+    // 6. Generate Initial Tenancy Invoice (NEW_ALLOCATION)
+    if (annualRent > 0) {
+      const invoiceNumber = await generateInvoiceNumber();
+      const baseRent = Math.round((annualRent / 1.18) * 100) / 100;
+      const taxAmount = Math.round((annualRent - baseRent) * 100) / 100;
+      const dueStatus = determineDueStatus(startDate, annualRent);
+
+      await LockerInvoice.create([{
+        invoiceNumber,
+        invoiceType: 'NEW_ALLOCATION',
+        allocationId: allocation._id,
+        customerId: customer._id,
+        lockerId: locker._id,
+        billingPeriodStart: startDate,
+        billingPeriodEnd: calculatedEndDate,
+        issueDate: new Date(),
+        dueDate: startDate,
+        billingCycle: cycle,
+        baseRent,
+        taxAmount,
+        discount: 0,
+        lateFee: 0,
+        otherCharges: 0,
+        subtotal: baseRent,
+        totalAmount: annualRent,
+        paidAmount: 0,
+        balanceAmount: annualRent,
+        status: 'ISSUED',
+        paymentStatus: 'UNPAID',
+        dueStatus,
+        source: 'SYSTEM',
+        notes: `Initial Tenancy Allocation Invoice for Locker #${locker.lockerNumber}`,
+        createdBy: actor.userId ? new Types.ObjectId(actor.userId) : undefined,
+      }], { session });
+    }
+
+    // 7. Write Audit Log
     await AuditLog.create([{
       actorUserId: actor.userId ? new Types.ObjectId(actor.userId) : undefined,
       actorUsername: actor.username || 'SYSTEM',

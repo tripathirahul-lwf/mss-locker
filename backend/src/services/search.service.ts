@@ -69,7 +69,8 @@ export class SearchService {
     query: string,
     userPermissions: string[],
     limit = 6,
-    types?: string[]
+    types?: string[],
+    isSuperAdmin = false
   ): Promise<GlobalSearchResult> {
     const cleanQuery = (query || '').trim();
     if (!cleanQuery || cleanQuery.length < 2) {
@@ -82,9 +83,13 @@ export class SearchService {
       };
     }
 
+    const hasPermission = (perm: string) => isSuperAdmin || userPermissions.includes(perm);
+
     const escaped = this.escapeRegex(cleanQuery);
     const regex = new RegExp(escaped, 'i');
     const exactRegex = new RegExp(`^${escaped}$`, 'i');
+    const cleanDigits = cleanQuery.replace(/\D/g, '');
+    const numberWithoutHash = cleanQuery.replace(/^#+/, '').trim();
 
     const requestedTypes = types && types.length > 0 ? types : ['customers', 'lockers', 'allocations', 'invoices', 'payments'];
 
@@ -99,17 +104,21 @@ export class SearchService {
     const tasks: Promise<any>[] = [];
 
     // 1. Customers (Checked with CUSTOMERS_VIEW)
-    if (requestedTypes.includes('customers') && userPermissions.includes(PERMISSIONS.CUSTOMERS_VIEW)) {
+    if (requestedTypes.includes('customers') && hasPermission(PERMISSIONS.CUSTOMERS_VIEW)) {
+      const custConditions: any[] = [
+        { fullName: regex },
+        { customerCode: regex },
+        { phone: regex },
+        { alternatePhone: regex },
+        { email: regex },
+      ];
+      if (cleanDigits.length >= 4) {
+        custConditions.push({ phone: { $regex: cleanDigits, $options: 'i' } });
+        custConditions.push({ alternatePhone: { $regex: cleanDigits, $options: 'i' } });
+      }
+
       tasks.push(
-        Customer.find({
-          $or: [
-            { fullName: regex },
-            { customerCode: regex },
-            { phone: regex },
-            { alternatePhone: regex },
-            { email: regex },
-          ],
-        })
+        Customer.find({ $or: custConditions })
           .select('_id customerCode fullName phone photoUrl kycStatus status')
           .limit(limit)
           .lean()
@@ -135,15 +144,18 @@ export class SearchService {
     }
 
     // 2. Lockers (Checked with LOCKERS_VIEW)
-    if (requestedTypes.includes('lockers') && userPermissions.includes(PERMISSIONS.LOCKERS_VIEW)) {
+    if (requestedTypes.includes('lockers') && hasPermission(PERMISSIONS.LOCKERS_VIEW)) {
+      const lockerConditions: any[] = [
+        { lockerNumber: regex },
+        { lockerCode: regex },
+        { rackNumber: regex },
+      ];
+      if (numberWithoutHash && numberWithoutHash !== cleanQuery) {
+        lockerConditions.push({ lockerNumber: new RegExp(`^${this.escapeRegex(numberWithoutHash)}$`, 'i') });
+      }
+
       tasks.push(
-        Locker.find({
-          $or: [
-            { lockerNumber: regex },
-            { lockerCode: regex },
-            { rackNumber: regex },
-          ],
-        })
+        Locker.find({ $or: lockerConditions })
           .select('_id lockerNumber lockerCode size rackNumber status operationalStatus')
           .limit(limit)
           .lean()
@@ -168,7 +180,7 @@ export class SearchService {
     }
 
     // 3. Allocations (Checked with ALLOCATIONS_VIEW)
-    if (requestedTypes.includes('allocations') && userPermissions.includes(PERMISSIONS.ALLOCATIONS_VIEW)) {
+    if (requestedTypes.includes('allocations') && hasPermission(PERMISSIONS.ALLOCATIONS_VIEW)) {
       tasks.push(
         LockerAllocation.find({
           allocationCode: regex,
@@ -194,7 +206,7 @@ export class SearchService {
     // 4. Invoices (Checked with PAYMENTS_VIEW or RENEWALS_VIEW)
     if (
       requestedTypes.includes('invoices') &&
-      (userPermissions.includes(PERMISSIONS.PAYMENTS_VIEW) || userPermissions.includes(PERMISSIONS.RENEWALS_VIEW))
+      (hasPermission(PERMISSIONS.PAYMENTS_VIEW) || hasPermission(PERMISSIONS.RENEWALS_VIEW))
     ) {
       tasks.push(
         LockerInvoice.find({
@@ -221,7 +233,7 @@ export class SearchService {
     }
 
     // 5. Payments (Checked with PAYMENTS_VIEW)
-    if (requestedTypes.includes('payments') && userPermissions.includes(PERMISSIONS.PAYMENTS_VIEW)) {
+    if (requestedTypes.includes('payments') && hasPermission(PERMISSIONS.PAYMENTS_VIEW)) {
       tasks.push(
         Payment.find({
           $or: [

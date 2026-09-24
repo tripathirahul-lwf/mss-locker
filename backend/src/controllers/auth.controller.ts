@@ -16,12 +16,14 @@ const setRefreshCookie = (res: Response, token: string): void => {
 };
 
 const clearRefreshCookie = (res: Response): void => {
-  res.clearCookie(REFRESH_COOKIE_NAME, {
+  const cookieOptions = {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: (env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
     path: '/',
-  });
+  };
+  res.clearCookie('vault_refresh_token', cookieOptions);
+  res.clearCookie('__Host-vault_refresh_token', cookieOptions);
 };
 
 export class AuthController {
@@ -68,7 +70,10 @@ export class AuthController {
 
   static async refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const refreshToken = req.cookies[REFRESH_COOKIE_NAME];
+      const refreshToken =
+        req.cookies[REFRESH_COOKIE_NAME] ||
+        req.cookies?.['vault_refresh_token'] ||
+        req.cookies?.['__Host-vault_refresh_token'];
       if (!refreshToken) {
         res.status(401).json(errorResponse('Refresh token missing or expired'));
         return;
@@ -94,7 +99,10 @@ export class AuthController {
 
   static async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const refreshToken = req.cookies[REFRESH_COOKIE_NAME];
+      const refreshToken =
+        req.cookies[REFRESH_COOKIE_NAME] ||
+        req.cookies?.['vault_refresh_token'] ||
+        req.cookies?.['__Host-vault_refresh_token'];
       const userId = req.user?.userId;
       const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];

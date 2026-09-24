@@ -30,10 +30,9 @@ export const verifyBrowserOrigin = (req: Request, res: Response, next: NextFunct
       candidate === expected ||
       candidate.endsWith('.vercel.app') ||
       candidate.endsWith('.onrender.com') ||
-      candidate === 'https://mss-locker.vercel.app'
+      candidate === 'https://mss-locker.vercel.app' ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(candidate)
     ) {
-      allowed = true;
-    } else if (env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(candidate)) {
       allowed = true;
     }
   }

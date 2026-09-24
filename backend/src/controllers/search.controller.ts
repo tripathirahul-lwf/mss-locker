@@ -10,13 +10,15 @@ export class SearchController {
       const limit = Math.min(20, Math.max(1, Number(req.query.limit) || 6));
       const types = req.query.types ? String(req.query.types).split(',') : undefined;
 
-      const userPermissions = (req as any).user?.role?.permissions || [];
+      const userPermissions = (req.user?.permissions as string[]) || [];
+      const isSuperAdmin = Boolean(req.user?.isSuperAdmin);
 
       const results = await searchService.globalSearch(
         q,
         userPermissions,
         limit,
-        types
+        types,
+        isSuperAdmin
       );
 
       res.status(200).json({
@@ -85,10 +87,12 @@ export class SearchController {
   async getLockerQuickPreview(req: Request, res: Response): Promise<void> {
     try {
       const id = String(req.params.id);
-      const userPermissions = (req as any).user?.role?.permissions || [];
+      const userPermissions = (req.user?.permissions as string[]) || [];
+      const isSuperAdmin = Boolean(req.user?.isSuperAdmin);
       const preview = await quickPreviewService.getLockerQuickPreview(
         id,
-        userPermissions
+        userPermissions,
+        isSuperAdmin
       );
 
       if (!preview) {

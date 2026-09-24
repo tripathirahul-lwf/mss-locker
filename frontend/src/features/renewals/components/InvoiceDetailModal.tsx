@@ -166,6 +166,10 @@ export function InvoiceDetailModal({
       queryClient.invalidateQueries({ queryKey: ['invoice-detail', currentInvoice._id] });
       queryClient.invalidateQueries({ queryKey: ['renewal-stats'] });
       queryClient.invalidateQueries({ queryKey: ['locker-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['lockers'] });
+      queryClient.invalidateQueries({ queryKey: ['locker'] });
+      queryClient.invalidateQueries({ queryKey: ['allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['allocation'] });
     } catch (err: any) {
       setPeriodError(err.response?.data?.message || err.message || 'Failed to update billing period');
     } finally {

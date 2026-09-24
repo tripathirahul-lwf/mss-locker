@@ -12,6 +12,7 @@ import {
   BillingCycle,
 } from '../constants/billing.constants';
 import { determineDueStatus } from '../utils/billingCalculator';
+import { logger } from '../utils/logger';
 
 export interface InvoiceQueryParams {
   page?: number;
@@ -388,6 +389,24 @@ export class BillingService {
       invoice.updatedBy = new Types.ObjectId(userId);
     }
     await invoice.save();
+
+    // If this invoice is PAID, synchronize the linked allocation's paidThroughDate & endDate
+    if (invoice.allocationId && invoice.paymentStatus === 'PAID') {
+      try {
+        const { LockerAllocation } = await import('../models/LockerAllocation');
+        const allocation = await LockerAllocation.findById(invoice.allocationId);
+        if (allocation) {
+          allocation.paidThroughDate = end;
+          allocation.endDate = end;
+          const nextDue = new Date(end);
+          nextDue.setDate(nextDue.getDate() + 1);
+          allocation.nextRenewalDueDate = nextDue;
+          await allocation.save();
+        }
+      } catch (allocErr) {
+        logger.warn('Failed to sync allocation dates on invoice period update:', allocErr);
+      }
+    }
 
     try {
       await AuditLog.create({

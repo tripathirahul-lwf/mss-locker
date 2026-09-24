@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { Customer, ICustomer } from '../models/Customer';
 import { LockerAllocation } from '../models/LockerAllocation';
+import { Sequence } from '../models/Sequence';
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
@@ -38,12 +39,21 @@ export class CustomerService {
    * Generates a unique customer code (e.g. CUS-000001).
    */
   private static async generateCustomerCode(): Promise<string> {
-    const count = await Customer.countDocuments();
-    let nextNum = count + 1;
+    const sequence = await Sequence.findOneAndUpdate(
+      { key: 'customer' },
+      { $inc: { value: 1 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    let nextNum = sequence.value;
     let code = `CUS-${String(nextNum).padStart(6, '0')}`;
 
     while (await Customer.exists({ customerCode: code })) {
-      nextNum += 1;
+      const bumped = await Sequence.findOneAndUpdate(
+        { key: 'customer' },
+        { $inc: { value: 1 } },
+        { new: true }
+      );
+      nextNum = bumped ? bumped.value : nextNum + 1;
       code = `CUS-${String(nextNum).padStart(6, '0')}`;
     }
 

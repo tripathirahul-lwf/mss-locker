@@ -252,14 +252,14 @@ export class QuickPreviewService {
   /**
    * Generates a lightweight Locker Quick Preview dossier
    */
-  async getLockerQuickPreview(lockerId: string, userPermissions: string[]) {
+  async getLockerQuickPreview(lockerId: string, userPermissions: string[], isSuperAdmin = false) {
     if (!Types.ObjectId.isValid(lockerId)) return null;
 
     const lockId = new Types.ObjectId(lockerId);
     const locker = await Locker.findById(lockId).lean();
     if (!locker) return null;
 
-    const canViewSensitive = userPermissions.includes(PERMISSIONS.LOCKERS_VIEW_SENSITIVE);
+    const canViewSensitive = isSuperAdmin || userPermissions.includes(PERMISSIONS.LOCKERS_VIEW_SENSITIVE);
 
     // Check active allocation
     const currentAllocation = await LockerAllocation.findOne({

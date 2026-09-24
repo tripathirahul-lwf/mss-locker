@@ -79,14 +79,42 @@ export class PaymentService {
 
     await invoice.save({ session });
 
-    // If fully paid, synchronize allocation paidThroughDate
+    // If fully paid, synchronize allocation paidThroughDate, endDate, and nextRenewalDueDate
     if (paymentStatus === 'PAID') {
       const allocation = await LockerAllocation.findById(invoice.allocationId).session(session || null);
       if (allocation) {
-        if (!allocation.paidThroughDate || new Date(allocation.paidThroughDate) < new Date(invoice.billingPeriodEnd)) {
+        if (!allocation.paidThroughDate || new Date(allocation.paidThroughDate) <= new Date(invoice.billingPeriodEnd)) {
           allocation.paidThroughDate = invoice.billingPeriodEnd;
+          allocation.endDate = invoice.billingPeriodEnd;
+          const nextDue = new Date(invoice.billingPeriodEnd);
+          nextDue.setDate(nextDue.getDate() + 1);
+          allocation.nextRenewalDueDate = nextDue;
+          allocation.lastRenewedAt = new Date();
           await allocation.save({ session });
         }
+      }
+    } else if (invoice.allocationId) {
+      // If invoice was previously marked paid but now cancelled/reopened, synchronize to latest valid paid invoice
+      const lastPaid = await LockerInvoice.findOne({
+        allocationId: invoice.allocationId,
+        _id: { $ne: invoice._id },
+        paymentStatus: 'PAID',
+        status: { $ne: 'CANCELLED' },
+      }).sort({ billingPeriodEnd: -1 }).session(session || null);
+
+      const allocation = await LockerAllocation.findById(invoice.allocationId).session(session || null);
+      if (allocation && allocation.paidThroughDate && new Date(allocation.paidThroughDate).getTime() === new Date(invoice.billingPeriodEnd).getTime()) {
+        if (lastPaid) {
+          allocation.paidThroughDate = lastPaid.billingPeriodEnd;
+          allocation.endDate = lastPaid.billingPeriodEnd;
+          const nextDue = new Date(lastPaid.billingPeriodEnd);
+          nextDue.setDate(nextDue.getDate() + 1);
+          allocation.nextRenewalDueDate = nextDue;
+        } else {
+          const nextDue = allocation.startDate ? new Date(allocation.startDate) : new Date();
+          allocation.nextRenewalDueDate = nextDue;
+        }
+        await allocation.save({ session });
       }
     }
 

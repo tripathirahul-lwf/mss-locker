@@ -131,9 +131,7 @@ export class RenewalService {
       createdBy: input.userId ? new Types.ObjectId(input.userId) : undefined,
     });
 
-    // 5. Update Allocation Renewal Metadata
-    allocation.paidThroughDate = periodEnd;
-    allocation.nextRenewalDueDate = nextDueDate;
+    // 5. Update Allocation Renewal Metadata (Only mark invoice timestamp; paidThroughDate & nextRenewalDueDate update when PAID)
     allocation.lastRenewedAt = new Date();
     await allocation.save();
 
