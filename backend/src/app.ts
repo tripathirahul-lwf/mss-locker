@@ -47,8 +47,31 @@ app.use(
       return callback(new Error(`CORS origin not allowed: ${origin}`), false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'Idempotency-Key',
+      'idempotency-key',
+      'X-Idempotency-Key',
+      'x-idempotency-key',
+      'X-Request-Id',
+      'x-request-id',
+      'Cache-Control',
+      'Pragma',
+      'Range',
+    ],
+    exposedHeaders: [
+      'Idempotency-Key',
+      'idempotency-key',
+      'Content-Disposition',
+      'X-Total-Count',
+    ],
     credentials: true,
+    optionsSuccessStatus: 200,
+    maxAge: 86400,
   })
 );
 
