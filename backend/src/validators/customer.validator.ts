@@ -94,7 +94,7 @@ export const checkDuplicateCustomerSchema = z.object({
 
 export const addKycDocumentSchema = z.object({
   documentType: z.enum(['AADHAAR', 'PAN', 'PASSPORT', 'DRIVING_LICENSE', 'VOTER_ID', 'OTHER']),
-  documentNumber: z.string().trim().min(1, 'Document Number is required').max(100),
+  documentNumber: z.string().trim().max(100).optional().default('KYC-SCAN-ATTACHED'),
   documentUrl: z.string().trim().min(1, 'Document file upload is required'),
   documentName: z.string().trim().max(200).optional(),
   mimeType: z.string().trim().optional().default('image/jpeg'),
