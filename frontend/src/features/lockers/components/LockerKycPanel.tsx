@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useId } from 'react';
+import React, { useEffect, useState, useId } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
@@ -8,31 +8,22 @@ import {
   X,
   ShieldCheck,
   ShieldAlert,
-  Shield,
   FileText,
   CreditCard,
   Globe,
   Car,
+  FileCheck2,
   CheckCircle2,
   AlertCircle,
   Copy,
   Check,
-  Camera,
-  FileCheck2,
-  FileUp,
-  User,
-  Sparkles,
-  Info,
-  Calendar,
-  ExternalLink,
+  Plus,
 } from 'lucide-react';
 import { customerApi } from '../../customers/api/customerApi';
 import { CustomerKycDocument, KycDocumentType } from '../../customers/types';
 import { apiClient } from '../../../services/apiClient';
 import { usePermission } from '../../../hooks/usePermission';
 import { DocumentPreviewModal } from '../../customers/components/DocumentPreviewModal';
-import { CustomerPhotoPreviewModal } from '../../customers/components/CustomerPhotoPreviewModal';
-import { KYC_DOCUMENT_TYPES, KYC_VERIFICATION_CONFIG } from '../../customers/constants';
 
 export interface LockerKycPanelProps {
   customerId?: string;
@@ -46,6 +37,64 @@ export interface LockerKycPanelProps {
   failed: boolean;
   onRetry: () => void;
 }
+
+interface KycTypeBoxConfig {
+  type: KycDocumentType;
+  title: string;
+  shortLabel: string;
+  issuer: string;
+  placeholder: string;
+  hint: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const KYC_BOXES: KycTypeBoxConfig[] = [
+  {
+    type: 'AADHAAR',
+    title: 'Aadhaar Card',
+    shortLabel: 'Aadhaar',
+    issuer: 'UIDAI (12 Digits)',
+    placeholder: 'e.g. 5432 9876 1234',
+    hint: 'Enter 12-digit Aadhaar UID number',
+    icon: ShieldCheck,
+  },
+  {
+    type: 'PAN',
+    title: 'PAN Card',
+    shortLabel: 'PAN',
+    issuer: 'Income Tax (10 Chars)',
+    placeholder: 'e.g. ABCDE1234F',
+    hint: 'Format: 5 letters, 4 digits, 1 letter',
+    icon: CreditCard,
+  },
+  {
+    type: 'PASSPORT',
+    title: 'Passport',
+    shortLabel: 'Passport',
+    issuer: 'Govt. of India',
+    placeholder: 'e.g. A1234567',
+    hint: 'Starts with a letter followed by 7 digits',
+    icon: Globe,
+  },
+  {
+    type: 'DRIVING_LICENSE',
+    title: 'Driving License',
+    shortLabel: 'Driving Lic.',
+    issuer: 'State Transport RTO',
+    placeholder: 'e.g. DL-1420110012345',
+    hint: 'Minimum 10 alphanumeric characters',
+    icon: Car,
+  },
+  {
+    type: 'VOTER_ID',
+    title: 'Voter ID (EPIC)',
+    shortLabel: 'Voter ID',
+    issuer: 'Election Commission',
+    placeholder: 'e.g. ABC1234567',
+    hint: 'Format: 3 letters followed by 7 digits',
+    icon: FileCheck2,
+  },
+];
 
 /**
  * Validate document ID format based on standard Indian government KYC specifications.
@@ -76,7 +125,7 @@ function validateDocumentFormat(type: KycDocumentType, rawValue: string): string
     }
     case 'PASSPORT': {
       if (clean.length < 8) {
-        return `Passport number must be 8 characters (currently ${clean.length}).`;
+        return `Passport number must be at least 8 characters (currently ${clean.length}).`;
       }
       if (!/^[A-Z][0-9]{7}$/.test(clean)) {
         return 'Passport standardly starts with a letter followed by 7 digits (e.g. A1234567).';
@@ -99,31 +148,8 @@ function validateDocumentFormat(type: KycDocumentType, rawValue: string): string
       }
       return null;
     }
-    case 'OTHER': {
-      if (clean.length < 3) {
-        return 'Document identifier must be at least 3 characters.';
-      }
-      return null;
-    }
     default:
       return null;
-  }
-}
-
-function getDocumentTypeIcon(type: KycDocumentType) {
-  switch (type) {
-    case 'AADHAAR':
-      return ShieldCheck;
-    case 'PAN':
-      return CreditCard;
-    case 'PASSPORT':
-      return Globe;
-    case 'DRIVING_LICENSE':
-      return Car;
-    case 'VOTER_ID':
-      return FileCheck2;
-    default:
-      return FileText;
   }
 }
 
@@ -138,9 +164,6 @@ export function LockerKycPanel({
   customerId,
   customerName = 'Customer',
   customerCode = '',
-  customerPhone = '',
-  photoUrl,
-  kycStatus,
   documents,
   loading,
   failed,
@@ -148,53 +171,42 @@ export function LockerKycPanel({
 }: LockerKycPanelProps) {
   const queryClient = useQueryClient();
   const canManage = usePermission('customers.kyc.manage');
-  const canUpdatePhoto = usePermission('customers.update');
+  const fileInputId = useId();
 
-  const docInputId = useId();
-  const photoInputId = useId();
-
-  // Form State
-  const [type, setType] = useState<KycDocumentType>('AADHAAR');
+  // Active Selected Type Box for Upload
+  const [selectedType, setSelectedType] = useState<KycDocumentType>('AADHAAR');
   const [number, setNumber] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [photo, setPhoto] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [editing, setEditing] = useState<CustomerKycDocument | null>(null);
 
   // Status & UI State
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [dragOverDoc, setDragOverDoc] = useState(false);
-  const [dragOverPhoto, setDragOverPhoto] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [copiedDocId, setCopiedDocId] = useState<string | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  // Modals for Rich Inspection / Preview
+  // Preview Modal State
   const [previewModal, setPreviewModal] = useState<{
     isOpen: boolean;
     url: string;
-    title: string;
+    documentName?: string;
     mimeType?: string;
     documentNumber?: string;
     documentType?: string;
     fileSize?: number;
   } | null>(null);
 
-  const [photoModalOpen, setPhotoModalOpen] = useState(false);
-  const [selectedLocalPhotoPreview, setSelectedLocalPhotoPreview] = useState<string | null>(null);
-
-  // Cleanup object URLs on change and unmount
+  // Cleanup object URLs on unmount or change
   useEffect(() => {
     return () => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
     };
-  }, [filePreviewUrl, photoPreviewUrl]);
+  }, [filePreviewUrl]);
 
-  // Handle local file selection with pre-upload instant preview
-  const handleDocFileSelect = (selected: File | null) => {
+  // Handle local file selection with instant thumbnail preview
+  const handleFileSelect = (selected: File | null) => {
     setError('');
     if (!selected) {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -204,7 +216,7 @@ export function LockerKycPanel({
     }
 
     if (selected.size > 5 * 1024 * 1024) {
-      setError('File exceeds 5 MB upload limit. Please select a compressed file.');
+      setError('File exceeds 5 MB upload limit. Please choose a compressed file.');
       return;
     }
 
@@ -222,31 +234,6 @@ export function LockerKycPanel({
     } else {
       setFilePreviewUrl(null);
     }
-  };
-
-  const handlePhotoSelect = (selected: File | null) => {
-    setError('');
-    if (!selected) {
-      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-      setPhoto(null);
-      setPhotoPreviewUrl(null);
-      return;
-    }
-
-    if (selected.size > 5 * 1024 * 1024) {
-      setError('Photo exceeds 5 MB upload limit.');
-      return;
-    }
-
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(selected.type)) {
-      setError('Customer photo must be an image (JPEG, PNG, or WebP).');
-      return;
-    }
-
-    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-    setPhoto(selected);
-    setPhotoPreviewUrl(URL.createObjectURL(selected));
   };
 
   // Inspect uploaded document via DocumentPreviewModal
@@ -267,7 +254,7 @@ export function LockerKycPanel({
       setPreviewModal({
         isOpen: true,
         url: resolvedUrl,
-        title: doc.documentName || `${doc.documentType} Document`,
+        documentName: doc.documentName || `${doc.documentType} Document`,
         mimeType: doc.mimeType,
         documentNumber: doc.documentNumber,
         documentType: doc.documentType,
@@ -278,22 +265,22 @@ export function LockerKycPanel({
     }
   };
 
-  // Inspect local pre-upload document file
+  // Inspect pre-upload file before saving
   const handlePreviewLocalFile = () => {
     if (!file) return;
     const url = filePreviewUrl || URL.createObjectURL(file);
     setPreviewModal({
       isOpen: true,
       url,
-      title: file.name,
+      documentName: file.name,
       mimeType: file.type,
       documentNumber: number || 'Pre-upload Document',
-      documentType: type,
+      documentType: selectedType,
       fileSize: file.size,
     });
   };
 
-  // Copy document number to clipboard
+  // Copy document number
   const handleCopyNumber = (id: string, num: string) => {
     navigator.clipboard.writeText(num.replace(/\s+/g, ''));
     setCopiedDocId(id);
@@ -303,14 +290,13 @@ export function LockerKycPanel({
   // Switch to replacement mode for an existing document
   const handleStartReplace = (doc: CustomerKycDocument) => {
     setEditing(doc);
-    setType(doc.documentType);
+    setSelectedType(doc.documentType);
     setNumber('');
     setFile(null);
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
     setError('');
     setNotice('');
-    setIsFormOpen(true);
   };
 
   const handleCancelReplace = () => {
@@ -322,7 +308,21 @@ export function LockerKycPanel({
     setError('');
   };
 
-  // Form submission: uploads and synchronizes with customerApi
+  // Select box to upload
+  const handleSelectBox = (boxType: KycDocumentType) => {
+    if (editing) {
+      setEditing(null);
+    }
+    setSelectedType(boxType);
+    setNumber('');
+    setFile(null);
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    setFilePreviewUrl(null);
+    setError('');
+    setNotice('');
+  };
+
+  // Submit KYC Document Upload
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerId || busy) return;
@@ -330,76 +330,53 @@ export function LockerKycPanel({
     setNotice('');
 
     try {
-      if (!file && !photo && !editing) {
-        throw new Error('Please select an ID proof document or customer photo to upload.');
+      if (!file) {
+        throw new Error('Please select an ID proof document (scan or photo) to upload.');
       }
 
-      // Validate ID number format
-      if ((file || editing) && !editing) {
-        if (!number.trim()) {
-          throw new Error('Please enter the ID number for this document.');
-        }
-        const formatErr = validateDocumentFormat(type, number);
-        if (formatErr) {
-          throw new Error(formatErr);
-        }
+      if (!number.trim()) {
+        throw new Error('Please enter the ID document number.');
+      }
+
+      const formatErr = validateDocumentFormat(selectedType, number);
+      if (formatErr) {
+        throw new Error(formatErr);
       }
 
       setBusy(true);
 
-      // 1. Upload photo if chosen
-      if (photo) {
-        const uploadedPhoto = await customerApi.uploadFile(photo, 'kyc');
-        await customerApi.updateCustomer(customerId, { photoUrl: uploadedPhoto.fileUrl });
+      // Upload file to secure vault storage
+      const uploadedDoc = await customerApi.uploadFile(file, 'kyc');
+
+      const inputPayload = {
+        documentType: selectedType,
+        documentNumber: number.trim(),
+        documentUrl: uploadedDoc.fileUrl,
+        documentName: uploadedDoc.fileName,
+        mimeType: file.type,
+        fileSize: uploadedDoc.size,
+      };
+
+      if (editing) {
+        await customerApi.updateKycDocument(customerId, editing._id, inputPayload);
+      } else {
+        await customerApi.addKycDocument(customerId, {
+          ...inputPayload,
+          isPrimary: documents.length === 0,
+        });
       }
 
-      // 2. Upload document and link to customer
-      if (file || editing) {
-        let uploadedDoc;
-        if (file) {
-          uploadedDoc = await customerApi.uploadFile(file, 'kyc');
-        }
-
-        const inputPayload = {
-          documentType: type,
-          ...(number.trim() ? { documentNumber: number.trim() } : {}),
-          ...(uploadedDoc
-            ? {
-                documentUrl: uploadedDoc.fileUrl,
-                documentName: uploadedDoc.fileName,
-                mimeType: file!.type,
-                fileSize: uploadedDoc.size,
-              }
-            : {}),
-        };
-
-        if (editing) {
-          await customerApi.updateKycDocument(customerId, editing._id, inputPayload);
-        } else {
-          await customerApi.addKycDocument(customerId, {
-            ...inputPayload,
-            documentNumber: number.trim(),
-            documentUrl: uploadedDoc!.fileUrl,
-            isPrimary: documents.length === 0,
-          });
-        }
-      }
-
-      // Reset form
+      // Reset
       setFile(null);
-      setPhoto(null);
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
       setFilePreviewUrl(null);
-      setPhotoPreviewUrl(null);
       setNumber('');
       setEditing(null);
-      setIsFormOpen(false);
 
       setNotice(
         editing
-          ? 'KYC document updated successfully. Pending branch verification.'
-          : 'KYC document saved successfully. Pending verification.'
+          ? 'KYC document updated successfully. Pending verification.'
+          : `${activeConfig.title} uploaded successfully. Pending verification.`
       );
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to save KYC documentation.');
@@ -429,123 +406,41 @@ export function LockerKycPanel({
     );
   }
 
-  const isVerified = kycStatus === 'VERIFIED';
-  const hasDocuments = documents.length > 0;
+  const activeConfig =
+    KYC_BOXES.find((b) => b.type === selectedType) || KYC_BOXES[0];
+  const activeExistingDoc = documents.find((d) => d.documentType === selectedType);
+  const isReplacingCurrent = editing && editing.documentType === selectedType;
 
   return (
     <div className="space-y-4 font-sans animate-in fade-in-50 duration-200">
-      {/* 1. Header & Tenant KYC Compliance Dossier Strip */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-white border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Avatar with click-to-preview */}
-          <div className="relative group shrink-0">
-            {photoUrl ? (
-              <img
-                src={photoUrl}
-                alt={customerName}
-                onClick={() => setPhotoModalOpen(true)}
-                className="w-12 h-12 rounded-xl object-cover border-2 border-emerald-600 shadow-xs cursor-pointer group-hover:opacity-85 transition-opacity"
-              />
-            ) : (
-              <div
-                onClick={() => setPhotoModalOpen(true)}
-                className="w-12 h-12 rounded-xl bg-emerald-50 border-2 border-emerald-200 text-emerald-800 flex items-center justify-center font-bold text-sm cursor-pointer shadow-xs"
-              >
-                {customerName.slice(0, 2).toUpperCase()}
-              </div>
-            )}
-            {photoUrl && (
-              <button
-                type="button"
-                onClick={() => setPhotoModalOpen(true)}
-                className="absolute inset-0 bg-slate-950/40 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer text-white"
-                title="View customer photo"
-              >
-                <Eye className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                {customerName}
-              </h3>
-              {customerCode && (
-                <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                  {customerCode}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 flex-wrap">
-              {customerPhone && <span>Mob: {customerPhone}</span>}
-              <span>•</span>
-              <span
-                className={`inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-full text-[10.5px] border ${
-                  isVerified
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                    : hasDocuments
-                    ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : 'bg-rose-50 border-rose-200 text-rose-800'
-                }`}
-              >
-                {isVerified ? (
-                  <>
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    Branch Verified KYC
-                  </>
-                ) : hasDocuments ? (
-                  <>
-                    <Shield className="w-3 h-3 text-amber-600" />
-                    Pending Branch Approval
-                  </>
-                ) : (
-                  <>
-                    <ShieldAlert className="w-3 h-3 text-rose-600" />
-                    No ID Proof Uploaded
-                  </>
-                )}
-              </span>
-            </div>
-          </div>
+      {/* 1. Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-100">
+        <div>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+            KYC & ID Documents
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Select a document box below to upload, view or replace customer identity proofs.
+          </p>
         </div>
-
-        {/* Quick Action Button for Photo */}
-        <div className="flex items-center gap-2 shrink-0">
-          {photoUrl && (
-            <button
-              type="button"
-              onClick={() => setPhotoModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
-            >
-              <Eye className="w-3.5 h-3.5 text-slate-500" />
-              View Photo
-            </button>
-          )}
-
-          {canManage && !isFormOpen && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setNumber('');
-                setFile(null);
-                setIsFormOpen(true);
-              }}
-              className="px-3 py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-            >
-              <FileUp className="w-3.5 h-3.5" />
-              Add KYC Document
-            </button>
-          )}
+        <div className="text-right">
+          <span className="text-[11px] font-semibold text-slate-500">
+            {documents.length > 0 ? (
+              <span className="text-emerald-700 font-bold">
+                ✓ {documents.length} Document{documents.length > 1 ? 's' : ''} on record
+              </span>
+            ) : (
+              <span className="text-amber-700 font-medium">No document uploaded yet</span>
+            )}
+          </span>
         </div>
       </div>
 
-      {/* Notice / Alerts */}
+      {/* 2. Feedback Alerts */}
       {notice && (
         <div
           role="status"
-          className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center justify-between gap-2 shadow-2xs"
+          className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center justify-between gap-2 shadow-2xs"
         >
           <span className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -554,7 +449,7 @@ export function LockerKycPanel({
           <button
             type="button"
             onClick={() => setNotice('')}
-            className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
+            className="text-emerald-700 hover:text-emerald-900 cursor-pointer p-0.5"
           >
             <X className="w-4 h-4" />
           </button>
@@ -564,7 +459,7 @@ export function LockerKycPanel({
       {error && (
         <div
           role="alert"
-          className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between gap-2 shadow-2xs"
+          className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between gap-2 shadow-2xs"
         >
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -573,7 +468,7 @@ export function LockerKycPanel({
           <button
             type="button"
             onClick={() => setError('')}
-            className="text-rose-700 hover:text-rose-900 cursor-pointer"
+            className="text-rose-700 hover:text-rose-900 cursor-pointer p-0.5"
           >
             <X className="w-4 h-4" />
           </button>
@@ -584,7 +479,7 @@ export function LockerKycPanel({
       {loading && (
         <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-2xl border border-slate-200">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-700 mx-auto mb-2" />
-          <p className="text-xs font-medium">Fetching verified KYC documents from vault ledger...</p>
+          <p className="text-xs font-medium">Loading verified documents from vault ledger...</p>
         </div>
       )}
 
@@ -602,147 +497,142 @@ export function LockerKycPanel({
         </div>
       )}
 
-      {/* 2. Uploaded Documents List */}
-      {!loading && !failed && documents.length > 0 && (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between px-1">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-              Verified Identity Documents On Record ({documents.length})
-            </h4>
-            <span className="text-[11px] text-slate-500 font-medium">
-              Statutory Vault Regulation Compliance
+      {/* 3. Document Boxes Grid (Replaces dropdown) */}
+      {!loading && !failed && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-700">
+              Identity Document Boxes
+            </label>
+            <span className="text-[11px] text-slate-500">
+              Click any box to upload or preview
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-2.5">
-            {documents.map((doc) => {
-              const DocIcon = getDocumentTypeIcon(doc.documentType);
-              const isVerifiedDoc = doc.verificationStatus === 'VERIFIED';
-              const isPending = doc.verificationStatus === 'PENDING';
-              const isRejected = doc.verificationStatus === 'REJECTED';
-              const isPdf =
-                doc.mimeType?.includes('pdf') ||
-                doc.documentUrl?.toLowerCase().includes('.pdf') ||
-                doc.documentName?.toLowerCase().endsWith('.pdf');
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {KYC_BOXES.map((box) => {
+              const BoxIcon = box.icon;
+              const doc = documents.find((d) => d.documentType === box.type);
+              const isUploaded = Boolean(doc);
+              const isSelected = selectedType === box.type;
+              const isEditingThis = editing?.documentType === box.type;
 
               return (
                 <div
-                  key={doc._id}
-                  className={`p-3.5 sm:p-4 rounded-2xl bg-white border transition-all shadow-2xs hover:shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                    editing?._id === doc._id
-                      ? 'border-emerald-600 ring-2 ring-emerald-500/20 bg-emerald-50/20'
-                      : 'border-slate-200 hover:border-slate-300'
+                  key={box.type}
+                  onClick={() => handleSelectBox(box.type)}
+                  className={`relative p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between select-none ${
+                    isUploaded
+                      ? isSelected
+                        ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20 shadow-xs'
+                        : 'border-emerald-200/90 bg-emerald-50/20 hover:border-emerald-400 hover:bg-emerald-50/40'
+                      : isSelected
+                      ? 'border-emerald-600 bg-emerald-50/30 ring-2 ring-emerald-500/20 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60 shadow-2xs'
                   }`}
                 >
-                  <div className="flex items-start gap-3 min-w-0">
+                  {/* Top: Icon + Status Pill */}
+                  <div className="flex items-start justify-between gap-1.5 mb-2">
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 border ${
-                        isVerifiedDoc
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                          : isPending
-                          ? 'bg-amber-50 border-amber-200 text-amber-700'
-                          : 'bg-rose-50 border-rose-200 text-rose-700'
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                        isUploaded
+                          ? 'bg-emerald-100/80 border-emerald-300 text-emerald-800'
+                          : isSelected
+                          ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                          : 'bg-slate-100 border-slate-200 text-slate-600'
                       }`}
                     >
-                      <DocIcon className="w-5 h-5" />
+                      <BoxIcon className="w-4 h-4" />
                     </div>
 
-                    <div className="min-w-0 space-y-0.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs sm:text-sm font-bold text-slate-900">
-                          {doc.documentType.replace(/_/g, ' ')}
-                        </span>
-                        {doc.isPrimary && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                            Primary
-                          </span>
-                        )}
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            isVerifiedDoc
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                              : isPending
-                              ? 'bg-amber-50 border-amber-200 text-amber-800'
-                              : 'bg-rose-50 border-rose-200 text-rose-800'
-                          }`}
-                        >
-                          {isVerifiedDoc
-                            ? '✓ Verified'
-                            : isPending
-                            ? 'Pending Verification'
-                            : 'Rejected'}
-                        </span>
-                      </div>
+                    {isUploaded ? (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                        <Check className="w-2.5 h-2.5" />
+                        Uploaded
+                      </span>
+                    ) : isSelected ? (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
+                        Pending
+                      </span>
+                    )}
+                  </div>
 
-                      {/* Document ID Number with 1-click copy */}
-                      <div className="flex items-center gap-2 pt-0.5">
-                        <span className="text-xs font-mono font-semibold text-slate-700">
+                  {/* Middle: Title & Format */}
+                  <div className="space-y-0.5 min-w-0">
+                    <h4 className="text-xs font-bold text-slate-900 truncate">
+                      {box.title}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 truncate">
+                      {box.issuer}
+                    </p>
+
+                    {/* Masked Doc Number if uploaded */}
+                    {doc && (
+                      <div className="flex items-center gap-1 pt-1">
+                        <span className="text-[11px] font-mono font-semibold text-slate-800 truncate">
                           {doc.maskedDocumentNumber || doc.documentNumber}
                         </span>
                         <button
                           type="button"
-                          onClick={() => handleCopyNumber(doc._id, doc.documentNumber)}
-                          className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyNumber(doc._id, doc.documentNumber);
+                          }}
+                          className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"
                           title="Copy ID number"
                         >
                           {copiedDocId === doc._id ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <Check className="w-3 h-3 text-emerald-600" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-3 h-3" />
                           )}
                         </button>
                       </div>
-
-                      {/* File Metadata */}
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-0.5 flex-wrap">
-                        <span className="truncate max-w-[200px]" title={doc.documentName}>
-                          {doc.documentName || 'Scanned ID Proof'}
-                        </span>
-                        {doc.fileSize ? <span>• {formatBytes(doc.fileSize)}</span> : null}
-                        <span>•</span>
-                        <span className="font-semibold text-slate-600">
-                          {isPdf ? 'PDF' : 'IMAGE'}
-                        </span>
-                        {doc.createdAt && (
-                          <>
-                            <span>•</span>
-                            <span>
-                              {new Date(doc.createdAt).toLocaleDateString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions for Document */}
-                  <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => handleInspectDocument(doc)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 text-slate-800 hover:text-emerald-900 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-emerald-700" />
-                      Preview Document
-                    </button>
-
-                    {canManage && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => handleStartReplace(doc)}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-                        Replace
-                      </button>
                     )}
                   </div>
+
+                  {/* Bottom: Action Buttons if uploaded */}
+                  {doc && (
+                    <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-emerald-100/80">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleInspectDocument(doc);
+                        }}
+                        className="flex-1 py-1 px-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-colors"
+                        title="Preview uploaded document"
+                      >
+                        <Eye className="w-3 h-3" />
+                        Preview
+                      </button>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartReplace(doc);
+                          }}
+                          className="py-1 px-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                          title="Replace this document"
+                        >
+                          <RefreshCw className="w-3 h-3 text-slate-500" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Bottom for non-uploaded: Simple upload trigger */}
+                  {!doc && (
+                    <div className="mt-2.5 pt-1.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                      <Plus className="w-3 h-3" />
+                      Upload
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -750,59 +640,30 @@ export function LockerKycPanel({
         </div>
       )}
 
-      {/* 3. Empty State Notice when no documents uploaded */}
-      {!loading && !failed && documents.length === 0 && !isFormOpen && (
-        <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/90 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-              <ShieldAlert className="w-5 h-5 text-amber-700" />
-            </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-amber-950">
-                No ID Proof Uploaded Yet
-              </h4>
-              <p className="text-xs text-amber-800 mt-0.5">
-                Bank vault regulations mandate at least one verified government ID (Aadhaar, PAN,
-                Passport, DL) on file for active locker tenancy.
-              </p>
-            </div>
-          </div>
-          {canManage && (
-            <button
-              type="button"
-              onClick={() => setIsFormOpen(true)}
-              className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors shrink-0"
-            >
-              <Upload className="w-4 h-4" />
-              Upload Now
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* 4. Enhanced Bank-Grade KYC Upload & Document Replacement Form */}
-      {canManage && (isFormOpen || documents.length === 0) && (
-        <div className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between">
+      {/* 4. Active Document Upload Box */}
+      {canManage && !loading && !failed && (
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-2xs overflow-hidden">
+          {/* Header of the Active Box */}
+          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
-                <FileUp className="w-4 h-4" />
+              <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <activeConfig.icon className="w-3.5 h-3.5" />
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-                  {editing
-                    ? `Replace ${editing.documentType.replace(/_/g, ' ')} Document`
-                    : 'Upload Customer KYC Documents'}
+                  {isReplacingCurrent
+                    ? `Replace ${activeConfig.title}`
+                    : `Upload ${activeConfig.title}`}
                 </h4>
-                <p className="text-[11px] text-slate-500">
-                  {editing
-                    ? 'Upload a replacement scan/photo. Existing file will be safely archived.'
-                    : 'Aadhaar, PAN, Passport, or DL scans accepted (JPEG, PNG, WebP, PDF up to 5 MB)'}
+                <p className="text-[10.5px] text-slate-500">
+                  {isReplacingCurrent
+                    ? 'Upload a new scan. The previous document will be replaced.'
+                    : `${activeConfig.hint} • Scans accepted in PDF, JPG, PNG, WebP`}
                 </p>
               </div>
             </div>
 
-            {editing && (
+            {isReplacingCurrent && (
               <button
                 type="button"
                 onClick={handleCancelReplace}
@@ -813,188 +674,110 @@ export function LockerKycPanel({
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Field 1: ID Document Type Selector */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Government ID Type <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={type}
-                    onChange={(e) => {
-                      setType(e.target.value as KycDocumentType);
-                      setError('');
-                    }}
-                    disabled={busy}
-                    className="w-full h-10 px-3.5 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all cursor-pointer"
-                  >
-                    {KYC_DOCUMENT_TYPES.map((docType) => (
-                      <option key={docType.type} value={docType.type}>
-                        {docType.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <span className="text-[10.5px] text-slate-500 mt-1 block">
-                  {type === 'AADHAAR' && 'UIDAI 12-digit biometric identity card'}
-                  {type === 'PAN' && 'Income Tax Dept 10-character alphanumeric PAN card'}
-                  {type === 'PASSPORT' && 'Republic of India Passport (8 alphanumeric characters)'}
-                  {type === 'VOTER_ID' && 'Election Commission of India EPIC identity card'}
-                  {type === 'DRIVING_LICENSE' && 'State Transport Authority Motor Driving License'}
-                  {type === 'OTHER' && 'Other official proof of identification'}
-                </span>
-              </div>
-
-              {/* Field 2: ID Number Input */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Document ID Number{' '}
-                  {editing ? (
-                    <span className="text-slate-400 font-normal">(optional to keep current)</span>
-                  ) : (
-                    <span className="text-rose-500">*</span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={number}
-                  onChange={(e) => {
-                    setNumber(e.target.value);
-                    setError('');
-                  }}
-                  disabled={busy}
-                  placeholder={
-                    editing
-                      ? 'Leave blank to preserve existing number'
-                      : type === 'AADHAAR'
-                      ? 'e.g. 5432 9876 1234'
-                      : type === 'PAN'
-                      ? 'e.g. ABCDE1234F'
-                      : 'Enter document number'
-                  }
-                  className="w-full h-10 px-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-mono font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all placeholder:font-sans placeholder:text-slate-400"
-                />
-                <span className="text-[10.5px] text-slate-500 mt-1 block">
-                  {type === 'AADHAAR' && 'Format: 12-digit Aadhaar number'}
-                  {type === 'PAN' && 'Format: 5 letters, 4 numbers, 1 letter'}
-                  {type === 'PASSPORT' && 'Format: 1 letter followed by 7 digits'}
-                  {type === 'VOTER_ID' && 'Format: 3 letters followed by 7 digits'}
-                </span>
-              </div>
+          <form onSubmit={handleSubmit} className="p-4 space-y-3.5">
+            {/* Field 1: Document Number Input */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {activeConfig.title} Number <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={number}
+                onChange={(e) => {
+                  setNumber(e.target.value.toUpperCase());
+                  setError('');
+                }}
+                disabled={busy}
+                placeholder={activeConfig.placeholder}
+                className="w-full h-10 px-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-mono font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all"
+              />
+              <span className="text-[10.5px] text-slate-500 mt-1 block">
+                {activeConfig.hint}
+              </span>
             </div>
 
-            {/* Field 3: Interactive File Upload Drag & Drop Zone */}
+            {/* Field 2: Scanned File Drag & Drop Box with Instant Preview */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700">
-                  Upload Scanned Document / Photo{' '}
-                  {editing ? (
-                    <span className="text-slate-400 font-normal">(optional)</span>
-                  ) : (
-                    <span className="text-rose-500">*</span>
-                  )}
-                </label>
-                {file && (
-                  <button
-                    type="button"
-                    onClick={handlePreviewLocalFile}
-                    className="text-xs font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 cursor-pointer"
-                  >
-                    <Eye className="w-3.5 h-3.5" /> Quick Preview
-                  </button>
-                )}
-              </div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Upload Scanned Document / Photo <span className="text-rose-500">*</span>
+              </label>
+
+              <input
+                id={fileInputId}
+                type="file"
+                accept=".pdf,image/jpeg,image/png,image/webp"
+                disabled={busy}
+                onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                className="hidden"
+              />
 
               {!file ? (
-                /* Empty Upload Dropzone */
                 <div
                   onDragOver={(e) => {
                     e.preventDefault();
-                    setDragOverDoc(true);
+                    setDragOver(true);
                   }}
-                  onDragLeave={() => setDragOverDoc(false)}
+                  onDragLeave={() => setDragOver(false)}
                   onDrop={(e) => {
                     e.preventDefault();
-                    setDragOverDoc(false);
-                    const dropped = e.dataTransfer.files?.[0];
-                    if (dropped) handleDocFileSelect(dropped);
+                    setDragOver(false);
+                    if (e.dataTransfer.files?.[0]) {
+                      handleFileSelect(e.dataTransfer.files[0]);
+                    }
                   }}
-                  className={`relative p-5 sm:p-6 rounded-2xl border-2 border-dashed transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
-                    dragOverDoc
-                      ? 'border-emerald-600 bg-emerald-50/50 scale-[0.99]'
-                      : 'border-slate-300 hover:border-emerald-600 hover:bg-slate-50/70 bg-slate-50/30'
+                  onClick={() => document.getElementById(fileInputId)?.click()}
+                  className={`p-5 rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center ${
+                    dragOver
+                      ? 'border-emerald-600 bg-emerald-50'
+                      : 'border-slate-300 hover:border-emerald-500 bg-slate-50/60 hover:bg-emerald-50/20'
                   }`}
-                  onClick={() => document.getElementById(docInputId)?.click()}
                 >
-                  <input
-                    id={docInputId}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                    className="hidden"
-                    onChange={(e) => handleDocFileSelect(e.target.files?.[0] || null)}
-                  />
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center mb-2 shadow-2xs">
-                    <FileUp className="w-6 h-6" />
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-2 shadow-2xs">
+                    <Upload className="w-5 h-5" />
                   </div>
-                  <h5 className="text-xs sm:text-sm font-bold text-slate-800">
-                    Click to browse or drag & drop document
-                  </h5>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Clear front & back scans accepted • Max file size: 5 MB
+                  <p className="text-xs font-bold text-slate-800">
+                    Click to browse or drag & drop {activeConfig.shortLabel} scan
                   </p>
-                  <div className="flex items-center gap-1.5 mt-2.5">
-                    {['PDF', 'JPG', 'PNG', 'WEBP'].map((fmt) => (
-                      <span
-                        key={fmt}
-                        className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700"
-                      >
-                        {fmt}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Clear front scan or photo • PDF, JPG, PNG, WebP up to 5 MB
+                  </p>
                 </div>
               ) : (
-                /* Selected File Pre-Upload Card with Live Preview */
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-emerald-300 shadow-2xs flex items-center justify-between gap-3">
+                /* Selected File Preview Box */
+                <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center justify-between gap-3 shadow-2xs">
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Thumbnail preview if image, or PDF badge */}
+                    {/* Thumbnail preview or PDF icon */}
                     {filePreviewUrl ? (
-                      <div
+                      <img
+                        src={filePreviewUrl}
+                        alt="Preview"
                         onClick={handlePreviewLocalFile}
-                        className="relative w-12 h-12 rounded-xl overflow-hidden border border-slate-200 shrink-0 group cursor-pointer shadow-xs"
-                      >
-                        <img
-                          src={filePreviewUrl}
-                          alt="Pre-upload document preview"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
-                          <Eye className="w-4 h-4" />
-                        </div>
-                      </div>
+                        className="w-12 h-12 rounded-lg object-cover border border-emerald-300 shadow-2xs cursor-pointer hover:opacity-85 transition-opacity shrink-0"
+                        title="Click to preview full size"
+                      />
                     ) : (
                       <div
                         onClick={handlePreviewLocalFile}
-                        className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex flex-col items-center justify-center shrink-0 cursor-pointer shadow-xs"
+                        className="w-12 h-12 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-800 flex flex-col items-center justify-center shrink-0 cursor-pointer shadow-2xs hover:bg-emerald-200 transition-colors"
+                        title="Click to preview PDF"
                       >
                         <FileText className="w-5 h-5" />
-                        <span className="text-[8.5px] font-bold">PDF</span>
+                        <span className="text-[9px] font-bold uppercase mt-0.5">PDF</span>
                       </div>
                     )}
 
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[240px]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 truncate max-w-[200px]">
                           {file.name}
-                        </p>
-                        <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                          Ready to upload
+                        </span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          {formatBytes(file.size)}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {formatBytes(file.size)} • {file.type.toUpperCase() || 'DOCUMENT'}
+                      <p className="text-[11px] text-emerald-800 mt-0.5 flex items-center gap-1 font-medium">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                        Ready to upload • Click preview to inspect
                       </p>
                     </div>
                   </div>
@@ -1003,16 +786,17 @@ export function LockerKycPanel({
                     <button
                       type="button"
                       onClick={handlePreviewLocalFile}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 hover:text-emerald-900 text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
+                      title="Inspect document full screen"
                     >
-                      <Eye className="w-3.5 h-3.5 text-slate-500" />
+                      <Eye className="w-3.5 h-3.5 text-emerald-700" />
                       Preview
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDocFileSelect(null)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
-                      title="Remove file and choose another"
+                      onClick={() => handleFileSelect(null)}
+                      className="p-1.5 rounded-lg border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-slate-500 hover:text-rose-700 cursor-pointer transition-colors"
+                      title="Remove selected file"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -1021,114 +805,14 @@ export function LockerKycPanel({
               )}
             </div>
 
-            {/* Field 4: Customer Profile Photo Upload (Optional) */}
-            {canUpdatePhoto && (
-              <div className="pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <Camera className="w-3.5 h-3.5 text-emerald-700" />
-                    Customer Facial Portrait Photo{' '}
-                    <span className="text-slate-400 font-normal">(optional profile photo)</span>
-                  </label>
-                  {photo && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (photoPreviewUrl) {
-                          setSelectedLocalPhotoPreview(photoPreviewUrl);
-                        }
-                      }}
-                      className="text-xs font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5" /> Preview Photo
-                    </button>
-                  )}
-                </div>
-
-                {!photo ? (
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOverPhoto(true);
-                    }}
-                    onDragLeave={() => setDragOverPhoto(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOverPhoto(false);
-                      const dropped = e.dataTransfer.files?.[0];
-                      if (dropped) handlePhotoSelect(dropped);
-                    }}
-                    onClick={() => document.getElementById(photoInputId)?.click()}
-                    className={`p-3.5 rounded-xl border border-dashed text-center flex items-center justify-between gap-3 cursor-pointer transition-all ${
-                      dragOverPhoto
-                        ? 'border-emerald-600 bg-emerald-50/50'
-                        : 'border-slate-300 hover:border-slate-400 bg-slate-50/40'
-                    }`}
-                  >
-                    <input
-                      id={photoInputId}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={(e) => handlePhotoSelect(e.target.files?.[0] || null)}
-                    />
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center">
-                        <Camera className="w-4 h-4" />
-                      </div>
-                      <div className="text-left">
-                        <span className="text-xs font-semibold text-slate-800 block">
-                          {photoUrl ? 'Click to change customer portrait' : 'Upload customer portrait'}
-                        </span>
-                        <span className="text-[10.5px] text-slate-500">
-                          Clear passport-style headshot (JPG, PNG, WebP)
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold text-emerald-800 hover:underline">
-                      Choose Photo
-                    </span>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-xl bg-slate-50 border border-emerald-300 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      {photoPreviewUrl && (
-                        <img
-                          src={photoPreviewUrl}
-                          alt="New portrait preview"
-                          className="w-10 h-10 rounded-xl object-cover border border-slate-200"
-                        />
-                      )}
-                      <div>
-                        <p className="text-xs font-bold text-slate-800 truncate max-w-[200px]">
-                          {photo.name}
-                        </p>
-                        <p className="text-[10.5px] text-slate-500">
-                          {formatBytes(photo.size)} • New portrait selected
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handlePhotoSelect(null)}
-                      className="p-1 rounded-md text-slate-400 hover:text-rose-600"
-                      title="Clear photo"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Form Action Controls */}
-            <div className="pt-2 flex items-center justify-end gap-2.5">
-              {editing && (
+            {/* Submit Button */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              {isReplacingCurrent && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={handleCancelReplace}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold cursor-pointer transition-colors"
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
@@ -1136,18 +820,22 @@ export function LockerKycPanel({
 
               <button
                 type="submit"
-                disabled={busy}
-                className="px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                disabled={busy || !file}
+                className="px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
               >
                 {busy ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving KYC Documentation...
+                    <span>Uploading to Vault...</span>
                   </>
                 ) : (
                   <>
                     <Upload className="w-4 h-4" />
-                    {editing ? 'Save Replacement Document' : 'Save & Submit KYC'}
+                    <span>
+                      {isReplacingCurrent
+                        ? `Save & Replace ${activeConfig.shortLabel}`
+                        : `Save & Upload ${activeConfig.shortLabel}`}
+                    </span>
                   </>
                 )}
               </button>
@@ -1156,43 +844,19 @@ export function LockerKycPanel({
         </div>
       )}
 
-      {/* 5. Rich Document Inspection & Preview Modal (DocumentPreviewModal) */}
-      {previewModal?.isOpen && (
+      {/* 5. Rich Document Inspection & Preview Modal */}
+      {previewModal && (
         <DocumentPreviewModal
           isOpen={previewModal.isOpen}
           onClose={() => setPreviewModal(null)}
           documentUrl={previewModal.url}
-          documentName={previewModal.title}
-          documentType={previewModal.documentType}
-          documentNumber={previewModal.documentNumber}
-          customerName={customerName}
-          customerCode={customerCode}
+          documentName={previewModal.documentName}
           mimeType={previewModal.mimeType}
+          customerName={customerName}
+          customerCode={customerCode}
+          documentNumber={previewModal.documentNumber}
+          documentType={previewModal.documentType}
           fileSize={previewModal.fileSize}
-        />
-      )}
-
-      {/* 6. Customer Photo Inspection Modal (CustomerPhotoPreviewModal) */}
-      {photoModalOpen && photoUrl && (
-        <CustomerPhotoPreviewModal
-          isOpen={photoModalOpen}
-          onClose={() => setPhotoModalOpen(false)}
-          photoUrl={photoUrl}
-          customerName={customerName}
-          customerCode={customerCode}
-          phone={customerPhone}
-        />
-      )}
-
-      {/* 7. Local Pre-Upload Photo Modal */}
-      {selectedLocalPhotoPreview && (
-        <CustomerPhotoPreviewModal
-          isOpen={Boolean(selectedLocalPhotoPreview)}
-          onClose={() => setSelectedLocalPhotoPreview(null)}
-          photoUrl={selectedLocalPhotoPreview}
-          customerName={customerName}
-          customerCode={customerCode}
-          phone={customerPhone}
         />
       )}
     </div>
