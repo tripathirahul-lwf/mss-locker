@@ -50,6 +50,7 @@ export function maskKycDocumentNumber(
   documentType: KycDocumentType | string,
   documentNumber: string | undefined | null
 ): string {
+  documentNumber = normalizeKycDocumentNumber(documentNumber);
   if (!documentNumber) return '';
 
   const docTypeUpper = documentType.toUpperCase();
@@ -63,4 +64,10 @@ export function maskKycDocumentNumber(
     default:
       return maskGeneric(documentNumber);
   }
+}
+
+/** Old generic uploads used labels as identity numbers. Never present those labels as IDs. */
+export function normalizeKycDocumentNumber(value: string | undefined | null): string {
+  const text = value?.trim() || '';
+  return /^(kyc[\s_-]*(document|scan[\s_-]*attached)|id[\s_-]*proof|document|attachment|n[\/\s]*a|not[\s_-]*(provided|recorded))$/i.test(text) ? '' : text;
 }

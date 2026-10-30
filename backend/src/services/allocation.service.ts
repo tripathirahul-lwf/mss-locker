@@ -42,18 +42,21 @@ export class LockerAllocationService {
   /** Read-only presentation: agreement dates are not evidence of payment. */
   private static async presentAllocations(records: any[]): Promise<any[]> {
     const invoices = await LockerInvoice.find({ allocationId: { $in: records.map(record => record._id) }, status: { $nin: ['CANCELLED', 'DRAFT'] } })
-      .select('allocationId billingPeriodEnd paymentStatus balanceAmount paidAmount totalAmount').lean();
+      .select('allocationId billingPeriodStart billingPeriodEnd paymentStatus balanceAmount paidAmount totalAmount').lean();
     return records.map(record => {
       const value = record.toObject ? record.toObject() : { ...record };
       const related = invoices.filter(invoice => String(invoice.allocationId) === String(value._id));
-      const settled = related.filter(invoice => invoice.paymentStatus === 'PAID' && invoice.balanceAmount <= 0 && invoice.paidAmount >= invoice.totalAmount && invoice.totalAmount > 0)
+      const settled = related.filter(invoice => invoice.paymentStatus === 'PAID' && invoice.balanceAmount <= 0 && invoice.paidAmount >= invoice.totalAmount && invoice.totalAmount >= 0)
         .sort((a,b) => new Date(b.billingPeriodEnd).getTime() - new Date(a.billingPeriodEnd).getTime());
       const planned = value.startDate ? calculateBillingPeriod(new Date(value.startDate), value.billingCycle || 'ANNUAL') : undefined;
+      const nextDue = value.nextRenewalDueDate || planned?.nextDueDate;
+      const targetEnd = nextDue ? new Date(nextDue).getTime() - 86400000 : NaN;
+      const coverageConfirmed = Number.isFinite(targetEnd) && settled.some(invoice => new Date(invoice.billingPeriodStart).getTime() <= targetEnd && new Date(invoice.billingPeriodEnd).getTime() >= targetEnd);
       return { ...value,
         endDate: value.endDate || planned?.periodEnd,
         nextRenewalDueDate: value.nextRenewalDueDate || planned?.nextDueDate,
         paidThroughDate: related.length ? settled[0]?.billingPeriodEnd : value.paidThroughDate,
-        paymentCoverageConfirmed: settled.length > 0,
+        paymentCoverageConfirmed: coverageConfirmed,
       };
     });
   }

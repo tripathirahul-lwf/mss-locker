@@ -87,3 +87,30 @@ test('audit CSV escapes every cell and neutralizes spreadsheet formulas', () => 
   for (const value of ['=1+1', '+SUM(1)', '-1+2', '@CMD', '\t =1']) assert.ok(auditCsvCell(value).startsWith('"\''));
   assert.equal(escapeAuditSearch('[x].*'), '\\[x\\]\\.\\*');
 });
+
+
+test('generic KYC placeholders are not masked as identity numbers', () => {
+  const { maskKycDocumentNumber, normalizeKycDocumentNumber } = require('../dist/utils/masking');
+  for (const value of ['KYC Document', 'KYC-SCAN-ATTACHED', 'document', 'attachment', 'N/A']) {
+    assert.equal(normalizeKycDocumentNumber(value), '');
+    assert.equal(maskKycDocumentNumber('OTHER', value), '');
+  }
+  assert.equal(maskKycDocumentNumber('AADHAAR', '704724216043'), 'XXXXXXXX6043');
+  assert.equal(normalizeKycDocumentNumber(' OTHER-1234 '), 'OTHER-1234');
+});
+
+
+test('test database connection never falls back to the configured database', async () => {
+  const mongoose = require('mongoose');
+  const previous = process.env.VITEST; const connect = mongoose.connect;
+  process.env.VITEST = 'true';
+  let called = false;
+  mongoose.connect = async () => { called = true; throw new Error('External connection must not run'); };
+  try {
+    const { connectDatabase } = require('../dist/config/database');
+    assert.equal(await connectDatabase(), false); assert.equal(called, false);
+  } finally {
+    mongoose.connect = connect;
+    if (previous === undefined) delete process.env.VITEST; else process.env.VITEST = previous;
+  }
+});

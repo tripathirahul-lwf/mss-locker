@@ -59,7 +59,7 @@ export function LockerKycPanel({ customerId, customerName = 'Customer', customer
         // Keep existing identity metadata when replacing only the attachment.
         await customerApi.updateKycDocument(customerId, existing._id, attachment);
       } else {
-        await customerApi.addKycDocument(customerId, { ...attachment, documentType: 'OTHER', documentNumber: 'KYC Document', isPrimary: documents.length === 0 });
+        await customerApi.addKycDocument(customerId, { ...attachment, documentType: 'OTHER', documentNumber: '', isPrimary: documents.length === 0 });
       }
       setNotice(existing ? 'KYC document updated successfully.' : 'KYC document uploaded successfully.');
     } catch (err: any) { setError(err.response?.data?.message || 'Could not upload the document. Please retry.'); }

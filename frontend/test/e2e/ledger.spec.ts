@@ -221,7 +221,7 @@ test('opening debt is labelled correctly with no fabricated paid-through or depo
   await expect(modal.getByText(/Opening rent payment overdue/)).toBeVisible();
   await expect(modal.getByText('No confirmed rent payment for this period', { exact: true })).toBeVisible();
   await expect(modal.getByText(/Locker Renewal Overdue/)).toHaveCount(0);
-  await expect(modal.getByText('Deposit held (recorded)', { exact: true }).locator('..')).toContainText('0.00');
+  await expect(modal.getByText('Security deposit', { exact: true }).locator('..')).toContainText('0.00');
   await expect(modal.getByRole('button', { name: /^Invoices/ })).toBeVisible();
 });
 
@@ -286,7 +286,7 @@ test('locker tabs distinguish failed billing, legacy KYC, lease rates and record
   await page.getByRole('button', { name: /Sign In/i }).click();
   await page.getByRole('button', { name: 'Open locker 123', exact: true }).press('Enter');
   const modal = page.getByRole('dialog', { name: 'Locker #123' });
-  await expect(modal.getByText('Total Annual Rent (inc. GST)').locator('..')).toContainText('0.00');
+  await expect(modal.getByText('Annual rent (+18% GST)').locator('..')).toContainText('0.00');
   await modal.getByRole('button', { name: /Invoices/ }).click();
   await expect(modal.getByText('Could not load invoices.', { exact: false })).toBeVisible();
   await expect(modal.getByText('No Invoices Recorded', { exact: true })).toHaveCount(0);

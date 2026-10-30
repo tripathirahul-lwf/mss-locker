@@ -7,7 +7,7 @@ import {
   UpdateKycDocumentInput,
   VerifyKycDocumentInput,
 } from '../validators/customer.validator';
-import { maskKycDocumentNumber } from '../utils/masking';
+import { maskKycDocumentNumber, normalizeKycDocumentNumber } from '../utils/masking';
 import { recordAuditLog } from '../utils/auditLogger';
 import { KycStatus, KYC_POLICY } from '../constants/customer.constants';
 import { StorageService } from './storage.service';
@@ -88,7 +88,9 @@ export class CustomerKycService {
     canViewSensitive: boolean
   ): Partial<ICustomerKycDocument> & { maskedDocumentNumber: string } {
     const obj = doc.toObject ? doc.toObject() : { ...doc };
-    const masked = maskKycDocumentNumber(doc.documentType, doc.documentNumber);
+    const number = normalizeKycDocumentNumber(doc.documentNumber);
+    obj.documentNumber = number;
+    const masked = maskKycDocumentNumber(doc.documentType, number);
 
     if (!canViewSensitive) {
       obj.documentNumber = masked;
@@ -147,7 +149,7 @@ export class CustomerKycService {
     const doc = new CustomerKycDocument({
       customerId: customer._id,
       documentType: input.documentType,
-      documentNumber: input.documentNumber.trim(),
+      documentNumber: normalizeKycDocumentNumber(input.documentNumber),
       documentUrl: input.documentUrl.trim(),
       documentName: input.documentName?.trim() || `${input.documentType} Document`,
       mimeType: input.mimeType || 'image/jpeg',
@@ -212,7 +214,7 @@ export class CustomerKycService {
 
     const typeChanged = input.documentType !== undefined && input.documentType !== doc.documentType;
     if (input.documentType) doc.documentType = input.documentType;
-    if (input.documentNumber) doc.documentNumber = input.documentNumber.trim();
+    if (input.documentNumber !== undefined) doc.documentNumber = normalizeKycDocumentNumber(input.documentNumber);
     replacedDocumentUrl = input.documentUrl && input.documentUrl.trim() !== doc.documentUrl ? doc.documentUrl : undefined;
     if (input.documentUrl) {
       StorageService.assertPrivateDocumentUrl(input.documentUrl.trim());
@@ -226,7 +228,7 @@ export class CustomerKycService {
     if (input.isPrimary !== undefined) doc.isPrimary = input.isPrimary;
 
     // Reset status to PENDING if document or file was replaced
-    if (typeChanged || input.documentNumber || input.documentUrl) {
+    if (typeChanged || input.documentNumber !== undefined || input.documentUrl) {
       doc.verificationStatus = 'PENDING';
       doc.verifiedAt = undefined;
       doc.verifiedBy = undefined;

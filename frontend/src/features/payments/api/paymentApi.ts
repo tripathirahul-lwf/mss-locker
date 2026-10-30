@@ -41,11 +41,11 @@ export const paymentApi = {
   /**
    * Get single payment dossier
    */
-  async getPaymentById(id: string): Promise<Payment> {
+  async getPaymentById(id: string, signal?: AbortSignal): Promise<Payment> {
     const response = await apiClient.get<{
       success: boolean;
       data: Payment;
-    }>(`/payments/${id}`);
+    }>(`/payments/${id}`, { signal });
     return response.data.data;
   },
 

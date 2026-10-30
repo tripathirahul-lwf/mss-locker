@@ -730,4 +730,30 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     expect(await User.countDocuments({ role: superRole._id, status: 'ACTIVE' })).toBe(1);
   });
 
+  it('presents old generic KYC placeholders as missing numbers and stores new generic uploads without invented IDs', async () => {
+    const { customer } = await tenancy('901', 100);
+    const legacy = await CustomerKycDocument.create({ customerId: customer._id, documentType: 'OTHER', documentNumber: 'KYC Document', documentUrl: '/uploads/kyc/legacy-label.png' });
+    for (const sensitive of [false, true]) {
+      const docs = await CustomerKycService.getKycDocuments(String(customer._id), sensitive);
+      expect(docs[0].documentNumber).toBe(''); expect(docs[0].maskedDocumentNumber).toBe('');
+    }
+    expect((await CustomerKycDocument.findById(legacy._id))?.documentNumber).toBe('KYC Document');
+    const input = addKycDocumentSchema.parse({ documentType: 'OTHER', documentUrl: '/uploads/kyc/no-number.png' });
+    const added = await CustomerKycService.addKycDocument(String(customer._id), input, actor.userId);
+    expect(added.documentNumber).toBe(''); expect(added.maskedDocumentNumber).toBe('');
+    expect(addKycDocumentSchema.safeParse({ documentType: 'AADHAAR', documentUrl: '/uploads/kyc/no-number.png' }).success).toBe(false);
+  });
+
+  it('an older paid invoice does not confirm an advanced renewal period', async () => {
+    const completed = await AllotmentService.complete(await allotment('902'), actor);
+    const allocation = await LockerAllocation.findById(completed.allocation!._id);
+    const first = (await LockerAllocationService.getLockerAllocations(String(allocation!.lockerId))).currentAllocation;
+    expect(first.paymentCoverageConfirmed).toBe(true);
+    const advanced = new Date(allocation!.nextRenewalDueDate!); advanced.setUTCFullYear(advanced.getUTCFullYear() + 1);
+    await LockerAllocation.updateOne({ _id: allocation!._id }, { nextRenewalDueDate: advanced });
+    const result = (await LockerAllocationService.getLockerAllocations(String(allocation!.lockerId))).currentAllocation;
+    expect(result.paymentCoverageConfirmed).toBe(false);
+    expect(result.paidThroughDate).toBeTruthy();
+  });
+
 });

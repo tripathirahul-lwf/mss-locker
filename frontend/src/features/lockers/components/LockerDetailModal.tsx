@@ -1,3 +1,4 @@
+import { OccupiedLockerSummary, occupiedHealth, money } from './OccupiedLockerSummary';
 import { LockerCustomerProfileModal } from './LockerCustomerProfileModal';
 import { LockerClosureFlow } from './LockerClosureFlow';
 import { AllocationWizardModal } from '../../allocations/components/AllocationWizardModal';
@@ -90,6 +91,8 @@ export function LockerDetailModal({
   const canRecordPayment = usePermission('payments.create');
   const canGenerateRenewal = usePermission('renewals.create');
   const canAllocate = usePermission('allocations.create');
+  const canViewPayments = usePermission('payments.view');
+  const canViewIdNumber = usePermission('customers.view_sensitive');
   const canViewAllocations = usePermission('allocations.view');
   const canViewInvoices = usePermission('renewals.view');
   const canViewKyc = usePermission('customers.kyc.view');
@@ -121,6 +124,7 @@ export function LockerDetailModal({
   const [isSavingKey, setIsSavingKey] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
+  const closeCallback = useRef(onClose); closeCallback.current = onClose;
   const sizeDefinition = LOCKER_SIZES.find((item) => item.code === locker.size);
 
   // Status flags
@@ -183,6 +187,23 @@ export function LockerDetailModal({
     });
   }, [lockerInvoices]);
 
+  const { data: lockerPayments = [], isLoading: paymentsLoading, isError: paymentsError, refetch: retryPayments } = useQuery({
+    queryKey: ['locker-payments', locker._id], queryFn: () => paymentApi.getLockerPayments(locker._id), enabled: Boolean(currentAlloc?._id) && isOccupied && canViewPayments,
+  });
+  const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
+  const [receiptError, setReceiptError] = useState('');
+  const receiptController = useRef<AbortController | null>(null);
+  const [revealedIdentityKey, setRevealedIdentityKey] = useState<string | null>(null);
+  const openReceipt = async (payment: Payment) => {
+    receiptController.current?.abort();
+    const controller = new AbortController(); receiptController.current = controller; setLoadingReceiptId(payment._id); setReceiptError('');
+    try { const result = await paymentApi.getPaymentById(payment._id, controller.signal); if (!controller.signal.aborted) setViewingReceiptPayment(result); }
+    catch (error: any) { if (!controller.signal.aborted) setReceiptError(error.response?.data?.message || 'Could not load this receipt. Please retry.'); }
+    finally { if (receiptController.current === controller) { receiptController.current = null; setLoadingReceiptId(null); } }
+  };
+
+  useEffect(() => () => { receiptController.current?.abort(); receiptController.current = null; }, [locker._id]);
+
   // 3. KYC Documents Query (Fetched for the tenant)
   const { data: kycDocs = [], isLoading: isKycLoading, isError: isKycError, refetch: refetchKyc } = useQuery<CustomerKycDocument[]>({
     queryKey: ['customer-kyc', tenantId],
@@ -208,7 +229,7 @@ export function LockerDetailModal({
   const [submittingRefundId, setSubmittingRefundId] = useState<string | null>(null);
   const submittingRefundRef = useRef(false);
   const [settlementError, setSettlementError] = useState('');
-  const refreshSettlement = async () => { await Promise.all(['deposit-summary', 'locker-refunds', 'locker-allocations', 'lockers', 'locker-stats', 'locker-closures'].map(key => queryClient.invalidateQueries({ queryKey: [key] }))); };
+  const refreshSettlement = async () => { await Promise.all(['deposit-summary', 'locker-refunds', 'locker-payments', 'locker-allocations', 'lockers', 'locker-stats', 'locker-closures'].map(key => queryClient.invalidateQueries({ queryKey: [key] }))); };
 
   // Child Modals State
   const [recordingPaymentInvoiceId, setRecordingPaymentInvoiceId] = useState<string | null>(null);
@@ -292,13 +313,13 @@ export function LockerDetailModal({
       if (hasChildModal.current) return;
       const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
       if (dialogs[dialogs.length - 1] !== dialogRef.current) return;
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+      if (event.key === 'Escape') { event.preventDefault(); closeCallback.current(); }
       if (event.key === 'Tab') {
-        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]') || []);
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]') || []).filter(control => control.getClientRects().length > 0);
         if (!controls.length) return;
         const first = controls[0], last = controls[controls.length - 1];
-        if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
       }
     };
     const frame = requestAnimationFrame(() => dialogRef.current?.focus());
@@ -310,7 +331,7 @@ export function LockerDetailModal({
       window.removeEventListener('keydown', onKeyDown);
       if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, [onClose]);
+  }, []);
 
   // Copy Key Number
   const handleCopyKey = () => {
@@ -394,14 +415,19 @@ export function LockerDetailModal({
       : Math.round(totalAnnualRent / 1.18 * 100) / 100;
   const gstAmount = Math.max(0, Math.round((totalAnnualRent - baseRent) * 100) / 100);
   const deposit = currentAlloc?.depositSnapshot ?? locker.securityDeposit ?? sizeDefinition?.defaultDeposit ?? 0;
-  const depositLabel = !currentAlloc && isOccupied ? !canViewAllocations ? 'Restricted' : allocationError ? 'Unavailable' : allocationLoading ? 'Loading...' : 'No active allotment' : currentAlloc ? !canViewDeposits ? 'Restricted' : depositSummary ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(depositSummary.netDepositHeld) : depositError ? 'Unavailable' : 'Loading...' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(deposit);
+  const depositLabel = !currentAlloc && isOccupied ? !canViewAllocations ? 'Restricted' : allocationError ? 'Unavailable' : allocationLoading ? 'Loading...' : 'No active allotment' : currentAlloc ? !canViewDeposits ? 'Restricted' : depositError ? 'Unavailable' : depositSummary ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(depositSummary.netDepositHeld) : 'Loading...' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(deposit);
   const totalMoveInPayable = totalAnnualRent + deposit;
 
   // Opening rent, renewal and historical tenancy invoices are distinct.
   const unpaidInvoice = invoices.filter(inv => {
     const allocationId = typeof inv.allocationId === 'string' ? inv.allocationId : inv.allocationId?._id;
-    return allocationId === currentAlloc?._id && !['CANCELLED','DRAFT'].includes(inv.status) && inv.balanceAmount > 0 && inv.paymentStatus !== 'PAID';
+    return allocationId === currentAlloc?._id && !['CANCELLED','DRAFT'].includes(inv.status) && inv.balanceAmount > 0 ;
   }).sort((a,b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+
+  const health = occupiedHealth(currentAlloc || undefined, invoices, canViewAllocations && !allocationLoading && !allocationError && canViewInvoices && !invoicesLoading && !invoicesError);
+  const identityDoc = [...kycDocs].filter(doc => doc.isActive !== false && doc.documentNumber?.trim() && !/^(kyc[\s_-]*(document|scan[\s_-]*attached)|attachment|document)$/i.test(doc.documentNumber.trim())).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))[0];
+  const identityKey = identityDoc ? `${tenantId}:${identityDoc._id}:${identityDoc.documentNumber}` : null;
+  const identityRevealed = Boolean(identityKey && revealedIdentityKey === identityKey);
 
   const modalContent = (
     <div className="fixed inset-0 z-[100] flex h-[100dvh] w-screen items-center justify-center bg-slate-950/70 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150 overflow-y-auto font-sans">
@@ -410,8 +436,8 @@ export function LockerDetailModal({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="locker-dossier-title"
-        className="flex max-h-[94dvh] w-full max-w-2xl sm:max-w-3xl flex-col overflow-hidden bg-white shadow-2xl rounded-2xl sm:rounded-3xl border border-slate-200 my-auto animate-in zoom-in-95 duration-150"
+        aria-label={`Locker #${locker.lockerNumber}`}
+        className={`flex max-h-[94dvh] w-full max-w-2xl ${isOccupied ? 'sm:max-w-6xl' : 'sm:max-w-3xl'} flex-col overflow-hidden bg-white shadow-2xl rounded-2xl sm:rounded-3xl border border-slate-200 my-auto animate-in zoom-in-95 duration-150`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Toast Alert Inside Modal */}
@@ -434,7 +460,14 @@ export function LockerDetailModal({
           </div>
         )}
 
-        {/* 1. Refined Bank Header */}
+        {isOccupied ? <div className="shrink-0 bg-white px-5 pb-3 pt-5 sm:px-8 sm:pt-7">
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 id="locker-dossier-title" aria-label={`Locker #${locker.lockerNumber}`} className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Locker {locker.lockerNumber}</h2>
+            <p className="mt-2 break-words text-sm text-slate-600 sm:text-base">Size {locker.size} &bull; {formatRackTitle(locker.rackNumber)} &bull; Key {canViewSensitive ? locker.masterKeyReference || 'Not assigned' : 'Restricted'}</p></div>
+            <div className="flex flex-wrap justify-end gap-2"><span aria-label="Payment and renewal status" className={`rounded-full px-3 py-1.5 text-xs font-bold sm:text-sm ${health.style}`}>{health.label}</span>
+            {canUpdate && onEdit && <button type="button" aria-label="Edit" onClick={() => { onClose(); onEdit(locker); }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Edit3 className="h-4 w-4" /></button>}
+            <button type="button" onClick={onClose} aria-label="Close modal" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+          </div>
+        </div> : <>        {/* 1. Refined Bank Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-white border-b border-slate-200/90">
           <div className="flex items-center gap-3.5 min-w-0">
             <div
@@ -507,6 +540,9 @@ export function LockerDetailModal({
           </div>
         </div>
 
+</>}
+
+        {(!isOccupied || activeTab !== 'details') && <>
         {/* 2. Sub-Navigation Tabs */}
         <div className="flex items-center border-b border-slate-200 px-4 sm:px-6 bg-slate-50/50 overflow-x-auto select-none gap-1 sm:gap-2">
           <button
@@ -608,7 +644,9 @@ export function LockerDetailModal({
         </div>
 
         {/* 3. Modal Body Content */}
-        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1 space-y-3.5">
+        </>}
+
+        <div className={`p-4 sm:p-5 overflow-y-auto min-h-0 flex-1 space-y-3.5 ${isOccupied ? 'sm:px-8 sm:pb-7' : ''}`}>
           {/* TAB 1: DETAILS */}
           {allocationLoading && <p role="status">Loading allotment...</p>}
           {allocationError && <p role="alert">Could not load the current allotment. <button type="button" onClick={() => retryAllocation()}>Retry</button></p>}
@@ -854,342 +892,24 @@ export function LockerDetailModal({
                 </>
               )}
 
-              {/* --- SCENARIO B: OCCUPIED LOCKER --- */}
-              {isOccupied && (
-                <>
-                  {/* Customer Allotment Dossier Card */}
-                  <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3">
-                    {/* Header: Clean title + Click-to-copy Agreement pill */}
-                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-emerald-800" />
-                        <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
-                          Active Allottee Dossier
-                        </h3>
-                      </div>
-
-                      {currentAlloc?.allocationCode && (
-                        <button
-                          type="button"
-                          onClick={() => handleCopyAllocCode(currentAlloc.allocationCode)}
-                          className="group font-mono text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1.5 transition cursor-pointer"
-                          title="Click to copy Agreement #"
-                        >
-                          <span>Agreement #{currentAlloc.allocationCode}</span>
-                          {copiedAllocCode ? (
-                            <Check className="w-3 h-3 text-emerald-600" />
-                          ) : (
-                            <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* 4-Column Grid: Customer, Phone, Allotment, Renewal */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      {/* Box 1: Customer Name & ID */}
-                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
-                        <span className="text-[11px] font-medium text-slate-500">Customer Name</span>
-                        {tenantId ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setProfileOpen(true);
-                            }}
-                            className="font-bold text-slate-900 text-sm hover:text-emerald-800 text-left transition flex items-center gap-1.5 group cursor-pointer"
-                            title="View Customer Profile"
-                          >
-                            <span>{tenant?.fullName || 'Active Allottee'}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-700 transition opacity-0 group-hover:opacity-100" />
-                          </button>
-                        ) : (
-                          <p className="font-bold text-slate-900 text-sm">
-                            {tenant?.fullName || 'Active Allottee'}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal">
-                          {tenant?.customerCode && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopyCode(tenant.customerCode)}
-                              className="group inline-flex items-center gap-1 font-mono hover:text-slate-800 transition cursor-pointer"
-                              title="Click to copy Customer ID"
-                            >
-                              <span>ID: {tenant.customerCode}</span>
-                              {copiedCode ? (
-                                <Check className="w-3 h-3 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600" />
-                              )}
-                            </button>
-                          )}
-                          {tenant?.city && (
-                            <>
-                              <span>&bull;</span>
-                              <span>{tenant.city}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Box 2: Phone & Contact */}
-                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
-                        <span className="text-[11px] font-medium text-slate-500">Phone & Contact</span>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-900 font-mono text-xs">
-                            {tenant?.phone || '—'}
-                          </span>
-                          {tenant?.phone && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopyPhone(tenant.phone)}
-                              className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                              title="Copy Phone"
-                            >
-                              {copiedPhone ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                        {tenant?.email ? (
-                          <p className="text-[11px] text-slate-500 truncate font-sans">
-                            {tenant.email}
-                          </p>
-                        ) : (tenant as any)?.alternatePhone ? (
-                          <p className="text-[11px] text-slate-500">
-                            Alt: {(tenant as any).alternatePhone}
-                          </p>
-                        ) : null}
-                      </div>
-
-                      {/* Box 3: Allotment Started */}
-                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
-                        <span className="text-[11px] font-medium text-slate-500">Allotment Started</span>
-                        <p className="font-semibold text-slate-900">
-                          {formatDate(currentAlloc?.startDate)}
-                        </p>
-                        <p className="text-[10.5px] text-slate-500">
-                          Plan: {currentAlloc?.billingCycle === 'ANNUAL' ? '1 Year Annual' : currentAlloc?.billingCycle || 'Annual'}
-                        </p>
-                      </div>
-
-                      {/* Box 4: Next Renewal Due */}
-                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100 space-y-1">
-                        <span className="text-[11px] font-medium text-slate-500">Next Renewal Due</span>
-                        <p className="font-semibold text-slate-900">
-                          {(() => {
-                            const due =
-                              currentAlloc?.nextRenewalDueDate ||
-                              currentAlloc?.endDate ||
-                              (locker as any)?.nextRenewalDueDate;
-                            if (due) return formatDate(due);
-                            if (currentAlloc?.startDate) {
-                              const d = new Date(currentAlloc.startDate);
-                              if (!isNaN(d.getTime())) {
-                                const cycle = (currentAlloc.billingCycle || 'ANNUAL').toUpperCase();
-                                let monthsToAdd = 12;
-                                if (cycle.includes('HALF') || cycle === '6 MONTHS') monthsToAdd = 6;
-                                else if (cycle.includes('QUARTER') || cycle === '3 MONTHS') monthsToAdd = 3;
-                                else if (cycle.includes('MONTH') || cycle === '1 MONTH') monthsToAdd = 1;
-                                d.setMonth(d.getMonth() + monthsToAdd);
-                                return formatDate(d);
-                              }
-                            }
-                            return '—';
-                          })()}
-                        </p>
-                        {currentAlloc && (
-                          <p className="text-[10.5px] text-slate-500">
-                            {currentAlloc.paymentCoverageConfirmed ? `Paid up to: ${formatDate(currentAlloc.paidThroughDate)}` : 'No confirmed rent payment for this period'}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Renewal Notice (Calm Due Notice if upcoming, High-Priority Alert if overdue) */}
-                  {unpaidInvoice && (() => {
-                    const businessDay = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
-                    const todayTime = Date.parse(businessDay(new Date()));
-                    const dueDateTime = Date.parse(businessDay(new Date(unpaidInvoice.dueDate)));
-                    const isOverdue = dueDateTime < todayTime;
-                    const diffDays = Math.round(Math.abs(dueDateTime - todayTime) / 86400000);
-                    const invoiceLabel = unpaidInvoice.invoiceType === 'NEW_ALLOCATION' ? 'Opening rent payment' : unpaidInvoice.invoiceType === 'RENEWAL' ? 'Renewal payment' : 'Invoice payment';
-                    const dueDateFormatted = formatDate(unpaidInvoice.dueDate);
-
-                    return (
-                      <div
-                        className={`p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs border ${
-                          isOverdue
-                            ? 'bg-rose-50/90 border-rose-200 text-rose-950'
-                            : 'bg-amber-50/70 border-amber-200/90 text-amber-950'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 border ${
-                              isOverdue
-                                ? 'bg-rose-100 border-rose-200 text-rose-700'
-                                : 'bg-amber-100 border-amber-200 text-amber-700'
-                            }`}
-                          >
-                            {isOverdue ? <AlertTriangle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs sm:text-sm font-bold">
-                                {invoiceLabel} {isOverdue ? 'overdue' : 'due'}: ₹{unpaidInvoice.balanceAmount.toLocaleString('en-IN')}
-                              </span>
-                              <span
-                                className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${
-                                  isOverdue
-                                    ? 'bg-rose-200/60 text-rose-900 border-rose-300'
-                                    : 'bg-amber-200/60 text-amber-900 border-amber-300'
-                                }`}
-                              >
-                                {diffDays === 0 ? 'Due today' : isOverdue ? `Overdue by ${diffDays} days` : `Due in ${diffDays} days`}
-                              </span>
-                            </div>
-                            <span className="text-[11.5px] font-normal block mt-0.5 opacity-90">
-                              Invoice #{unpaidInvoice.invoiceNumber} due on {dueDateFormatted} &bull; Total Tariff ₹{unpaidInvoice.totalAmount?.toLocaleString('en-IN')}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setViewingInvoice(unpaidInvoice)}
-                            className="h-8 rounded-xl bg-white border-slate-300 text-slate-800 hover:bg-slate-50 text-xs font-semibold px-3 shadow-2xs cursor-pointer"
-                          >
-                            <FileText className="w-3.5 h-3.5 mr-1 text-slate-500" />
-                            <span>View Invoice</span>
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Specs & Caution Deposit Summary */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-2 text-xs">
-                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 font-bold text-slate-700">
-                        <div className="flex items-center gap-1.5">
-                          <Layers className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Vault Location & Specs</span>
-                        </div>
-                        <span className="text-[11px] font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
-                          Size {locker.size}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Dimensions</span>
-                        <span className="font-mono text-slate-800">
-                          {sizeDefinition?.dimensions || '159 x 210 x 492 mm'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Rack & Compartment</span>
-                        <span className="font-semibold text-slate-800">
-                          {formatRackTitle(locker.rackNumber)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Vault Location</span>
-                        <span className="text-slate-700 font-medium">
-                          {formatSectionTitle(locker.section, locker.rackNumber)} &bull; {locker.floor || 'Ground Floor'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5 items-center">
-                        <span className="text-slate-500">Key Reference</span>
-                        <div className="flex items-center gap-1.5 font-mono text-slate-800">
-                          <span>
-                            {sensitiveRevealed
-                              ? locker.masterKeyReference || 'Not Assigned'
-                              : locker.masterKeyReference
-                              ? '••••••'
-                              : 'Not Assigned'}
-                          </span>
-                          {locker.masterKeyReference && canViewSensitive && (
-                            <button
-                              type="button"
-                              onClick={() => setSensitiveRevealed(!sensitiveRevealed)}
-                              className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                              title={sensitiveRevealed ? 'Hide Key' : 'Reveal Key'}
-                            >
-                              {sensitiveRevealed ? (
-                                <EyeOff className="h-3.5 w-3.5" />
-                              ) : (
-                                <Eye className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          )}
-                          {locker.masterKeyReference && (
-                            <button
-                              type="button"
-                              onClick={handleCopyKey}
-                              className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                              title="Copy Key Reference"
-                            >
-                              {copiedKey ? (
-                                <Check className="h-3.5 w-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-2 text-xs">
-                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 font-bold text-slate-700">
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Security Deposit</span>
-                        </div>
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                          Refundable deposit
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Deposit held (recorded)</span>
-                        <span className="font-bold text-slate-900 font-mono text-xs">
-                          {depositLabel}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Annual Base Tariff</span>
-                        <span className="font-semibold text-slate-800 tabular-nums">
-                          ₹{baseRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">GST (18%)</span>
-                        <span className="font-semibold text-slate-800 tabular-nums">
-                          ₹{gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5 border-t border-dashed border-slate-200 pt-1">
-                        <span className="text-slate-700 font-semibold">Total Annual Rent (inc. GST)</span>
-                        <span className="font-bold text-slate-900 tabular-nums">
-                          ₹{totalAnnualRent.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / yr
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Billing Schedule</span>
-                        <span className="font-semibold text-slate-700">
-                          {currentAlloc?.billingCycle === 'ANNUAL' ? '1 Year Annual' : currentAlloc?.billingCycle || 'Annual'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
+              {isOccupied && (currentAlloc ? <OccupiedLockerSummary
+                allocation={currentAlloc} annualRent={currentAlloc.annualRent ?? currentAlloc.rentSnapshot} deposit={depositLabel} depositNote={!canViewDeposits ? 'Deposit balance restricted' : depositError ? 'Could not load deposit balance' : !depositSummary ? 'Loading deposit ledger...' : depositSummary.netDepositHeld < 0 ? 'Ledger needs review' : depositSummary.totalDepositReceived === 0 ? `No collection recorded. Required: ${money(depositSummary.requiredDeposit)}` : depositSummary.netDepositHeld === 0 ? 'Collected deposit has been settled' : 'Deposit held (recorded)'}
+                identity={!canViewKyc ? 'Restricted' : isKycLoading ? 'Loading...' : isKycError ? 'Unavailable' : identityDoc ? identityRevealed && canViewIdNumber ? identityDoc.documentNumber : identityDoc.maskedDocumentNumber || 'ID on file' : kycDocs.length ? 'Documents on file' : 'Not recorded'}
+                identityControl={identityDoc && !isKycError && !isKycLoading && canViewIdNumber ? <button type="button" className="font-semibold text-emerald-800 underline" onClick={() => setRevealedIdentityKey(value => value === identityKey ? null : identityKey)}>{identityRevealed ? 'Hide ID number' : 'Show ID number'}</button> : undefined}
+                invoices={invoices} payments={lockerPayments}
+                historyState={!canViewInvoices ? 'restricted' : invoicesLoading ? 'loading' : invoicesError ? 'error' : 'ready'}
+                receiptState={!canViewPayments ? 'restricted' : paymentsLoading ? 'loading' : paymentsError ? 'error' : 'ready'}
+                canReceipt={canViewPayments} canRenew={canViewInvoices && !invoicesLoading && !invoicesError && !unpaidInvoice && canGenerateRenewal && ['All good', 'Due soon', 'Renewal overdue'].includes(health.label)}
+                canKyc={canViewKyc} canClose={canCloseLocker} canPay={canRecordPayment && health.label !== 'Billing needs review'} unpaid={unpaidInvoice}
+                loadingReceiptId={loadingReceiptId} receiptError={receiptError} onReceipt={payment => void openReceipt(payment)}
+                onRenew={() => setRenewingAllocation(currentAlloc)} onKyc={() => setActiveTab('kyc')} onCloseLocker={() => setClosureOpen(true)}
+                onPay={setRecordingPaymentInvoiceId} onInvoice={setViewingInvoice} onRetry={() => void retryInvoices()} onRetryReceipts={() => void retryPayments()}
+                secondary={<div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-600">
+                  {canViewInvoices && <button type="button" onClick={() => setActiveTab('receipts')} className="underline">Invoices</button>}
+                  {canViewDeposits && <button type="button" onClick={() => setActiveTab('refunds')} className="underline">Deposit &amp; Refunds</button>}
+                  {tenantId && <button type="button" onClick={() => setProfileOpen(true)} className="underline">Customer Profile</button>}
+                </div>}
+              /> : <p role="status" className="rounded-xl bg-amber-50 p-4 text-amber-950">No active allotment is recorded for this occupied locker. Review the allocation before taking payment or renewal actions.</p>)}
 
               {/* --- SCENARIO C: MAINTENANCE / DAMAGED / BLOCKED --- */}
               {isMaintenance && (
@@ -1484,65 +1204,11 @@ export function LockerDetailModal({
               </Button>
             )}
 
-            {isOccupied && (
-              <>
-                {/* Close locker action */}
-                {canCloseLocker && currentAlloc && <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setClosureOpen(true);
-                  }}
-                  className="rounded-xl border-slate-300 text-slate-700 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50/50 font-semibold text-xs h-9 px-3 cursor-pointer"
-                  title="Close this locker"
-                  aria-label="Close Locker"
-                >
-                  <Undo2 className="h-3.5 w-3.5 mr-1" />
-                  <span className="hidden sm:inline">Close Locker</span>
-                </Button>}
-
-                {/* Proactive Lease Renewal button if no unpaid invoice */}
-                {!invoicesLoading && !invoicesError && canViewInvoices && !unpaidInvoice && canGenerateRenewal && currentAlloc && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setRenewingAllocation(currentAlloc)}
-                    className="rounded-xl border-slate-300 text-slate-800 font-semibold text-xs h-9 px-3 hover:bg-slate-100 cursor-pointer inline-flex items-center gap-1"
-                    title="Generate Next Lease Renewal"
-                  >
-                    <RotateCw className="h-3.5 w-3.5 text-slate-600" />
-                    <span>Renew Lease</span>
-                  </Button>
-                )}
-
-                {/* Primary CTA: Record Payment if unpaid invoice exists */}
-                {unpaidInvoice && canRecordPayment && (
-                  <Button
-                    size="sm"
-                    onClick={() => setRecordingPaymentInvoiceId(unpaidInvoice._id)}
-                    className="rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs h-9 px-4 shadow-2xs gap-1.5 cursor-pointer"
-                  >
-                    <CreditCard className="h-3.5 w-3.5" />
-                    <span>Record Payment (₹{unpaidInvoice.balanceAmount.toLocaleString('en-IN')})</span>
-                  </Button>
-                )}
-
-                {tenantId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setProfileOpen(true);
-                    }}
-                    className="rounded-xl border-slate-300 text-slate-700 font-semibold text-xs h-9 px-3 hover:bg-slate-100 cursor-pointer"
-                  >
-                    <User className="h-3.5 w-3.5 mr-1" />
-                    <span>Customer Profile</span>
-                  </Button>
-                )}
-              </>
-            )}
-
+            {isOccupied && activeTab !== 'details' && <>
+              {canCloseLocker && currentAlloc && <Button variant="outline" aria-label="Close Locker" onClick={() => setClosureOpen(true)}>Close locker</Button>}
+              {unpaidInvoice && canRecordPayment && health.label !== 'Billing needs review' && <Button onClick={() => setRecordingPaymentInvoiceId(unpaidInvoice._id)}>Record Payment ({money(unpaidInvoice.balanceAmount)})</Button>}
+              {tenantId && <Button variant="outline" onClick={() => setProfileOpen(true)}>Customer Profile</Button>}
+            </>}
             {isMaintenance && canUpdate && (
               <Button
                 size="sm"
@@ -1584,7 +1250,8 @@ export function LockerDetailModal({
             setIsSubmittingRenewal(true);
             try {
               await renewalApi.generateRenewal(data);
-              queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
+              queryClient.invalidateQueries({ queryKey: ['locker-payments', locker._id] });
+            queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
               queryClient.invalidateQueries({ queryKey: ['locker-allocations', locker._id] });
               setRenewingAllocation(null);
               setNotice('Renewal invoice generated successfully.');
@@ -1611,6 +1278,7 @@ export function LockerDetailModal({
           onClose={() => setRecordingPaymentInvoiceId(null)}
           onSubmit={async (data, idempotencyKey) => {
             const p = await paymentApi.recordPayment(data, idempotencyKey);
+            queryClient.invalidateQueries({ queryKey: ['locker-payments', locker._id] });
             queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
             queryClient.invalidateQueries({ queryKey: ['lockers'] });
             queryClient.invalidateQueries({ queryKey: ['locker-allocations', locker._id] });

@@ -38,6 +38,12 @@ async function main() {
   const oldCustomer = await Customer.create({ customerCode: 'HISTORY-123', fullName: 'Opening Due Customer', phone: '9876511123' });
   const start = new Date(); start.setUTCDate(start.getUTCDate()-10); start.setUTCHours(0,0,0,0);
   await LockerAllocationService.createAllocation({ customerId: String(oldCustomer._id), lockerId: String(oldLocker._id), startDate: start.toISOString(), billingCycle: 'ANNUAL', allocationType: 'NEW' }, {});
+  const referenceLocker = await Locker.create({ lockerNumber: '77', lockerCode: 'TEST-77', size: 'A', rackNumber: 'Rack 7', annualRent: 3540, securityDeposit: 6000 });
+  const { AllotmentService } = await import('../src/services/allotment.service');
+  const { allotmentSchema } = await import('../src/validators/allotment.validator');
+  const referenceAllotment = await AllotmentService.complete(allotmentSchema.parse({ requestId: crypto.randomUUID(), cashReceived: true, receiptDate: new Date().toISOString().slice(0, 10), lockerId: String(referenceLocker._id), customer: { fullName: 'Reference Customer', phone: '9823507801' }, keyNumber: 'K-1007', startDate: new Date().toISOString().slice(0, 10), billingCycle: 'ANNUAL', annualRent: 3540, annualBaseRent: 3000, securityDeposit: 6000, receiptNumber: 'REFERENCE-77' }), { userId: String(auditOperator._id), username: auditOperator.username });
+  const { CustomerKycDocument } = await import('../src/models/CustomerKycDocument');
+  await CustomerKycDocument.create({ customerId: (await Customer.findOne({ fullName: 'Reference Customer' }))!._id, documentType: 'AADHAAR', documentNumber: '704724216043', documentUrl: '/uploads/kyc/browser-fixture-reference.png', documentName: 'reference-id.png', mimeType: 'image/png', isPrimary: true, isActive: true, verificationStatus: 'PENDING' });
   const { app } = await import('../src/app');
   const server = app.listen(25099, '127.0.0.1', () => console.log('Browser test API ready'));
   const stop = async () => { server.close(); await mongoose.disconnect(); await replica.stop(); process.exit(0); };

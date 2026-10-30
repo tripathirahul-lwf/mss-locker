@@ -41,7 +41,8 @@ const customerKycDocumentSchema = new Schema<ICustomerKycDocument>(
     },
     documentNumber: {
       type: String,
-      required: true,
+      default: '',
+      required: function(this: ICustomerKycDocument) { return this.documentType !== 'OTHER'; },
       trim: true,
     },
     documentUrl: {

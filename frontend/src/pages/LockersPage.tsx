@@ -312,7 +312,7 @@ export function LockersPage() {
       {notice && (
         <div
           role="status"
-          className="fixed right-4 top-20 z-[110] flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-3.5 text-xs font-semibold text-emerald-800 shadow-xl"
+          className="fixed right-4 top-20 z-[90] flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-3.5 text-xs font-semibold text-emerald-800 shadow-xl"
         >
           <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
           <span>{notice}</span>

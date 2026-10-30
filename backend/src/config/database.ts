@@ -53,6 +53,9 @@ export const connectDatabase = async (): Promise<boolean> => {
     return true;
   }
 
+  // Tests explicitly own their disposable connection; never fall back to the configured database.
+  if (env.NODE_ENV === 'test' || process.env.VITEST) return false;
+
   if (isConnecting) {
     return false;
   }
@@ -91,11 +94,12 @@ mongoose.connection.on('disconnected', () => {
 });
 
 // Periodic background auto-reconnect attempt every 15 seconds if in degraded state
-setInterval(async () => {
-  if (mongoose.connection.readyState === 0) {
-    await connectDatabase();
-  }
-}, 15000);
+if (env.NODE_ENV !== 'test' && !process.env.VITEST) {
+  const reconnectTimer = setInterval(async () => {
+    if (mongoose.connection.readyState === 0) await connectDatabase();
+  }, 15000);
+  reconnectTimer.unref();
+}
 
 export const disconnectDatabase = async (): Promise<void> => {
   if (mongoose.connection.readyState !== 0) {

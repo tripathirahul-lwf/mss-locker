@@ -1,3 +1,4 @@
+import { normalizeKycDocumentNumber } from '../utils/masking';
 import { z } from 'zod';
 import { isValidPhone } from '../utils/phone';
 
@@ -94,7 +95,7 @@ export const checkDuplicateCustomerSchema = z.object({
 
 export const addKycDocumentSchema = z.object({
   documentType: z.enum(['AADHAAR', 'PAN', 'PASSPORT', 'DRIVING_LICENSE', 'VOTER_ID', 'OTHER']),
-  documentNumber: z.string().trim().max(100).optional().default('KYC-SCAN-ATTACHED'),
+  documentNumber: z.string().trim().max(100).optional().default('').transform(normalizeKycDocumentNumber),
   documentUrl: z.string().trim().min(1, 'Document file upload is required'),
   documentName: z.string().trim().max(200).optional(),
   mimeType: z.string().trim().optional().default('image/jpeg'),
@@ -102,11 +103,11 @@ export const addKycDocumentSchema = z.object({
   expiryDate: z.string().optional(),
   remarks: z.string().trim().max(500).optional().default(''),
   isPrimary: z.boolean().optional().default(false),
-});
+}).superRefine((input, ctx) => { if (input.documentType !== 'OTHER' && !input.documentNumber) ctx.addIssue({ code: 'custom', path: ['documentNumber'], message: 'ID number is required for this document type' }); });
 
 export const updateKycDocumentSchema = z.object({
   documentType: z.enum(['AADHAAR', 'PAN', 'PASSPORT', 'DRIVING_LICENSE', 'VOTER_ID', 'OTHER']).optional(),
-  documentNumber: z.string().trim().min(1).max(100).optional(),
+  documentNumber: z.string().trim().max(100).transform(normalizeKycDocumentNumber).optional(),
   documentUrl: z.string().trim().optional(),
   documentName: z.string().trim().max(200).optional(),
   mimeType: z.string().trim().optional(),
