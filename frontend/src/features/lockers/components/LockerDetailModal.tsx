@@ -1,3 +1,4 @@
+import { LockerKycPanel } from './LockerKycPanel';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -62,6 +63,7 @@ import { InvoiceDetailModal } from '../../renewals/components/InvoiceDetailModal
 
 interface LockerDetailModalProps {
   locker: Locker;
+  initialTab?: 'details' | 'kyc';
   onClose: () => void;
   onEdit?: (locker: Locker) => void;
   onAllocate?: (locker: Locker) => void;
@@ -69,6 +71,7 @@ interface LockerDetailModalProps {
 
 export function LockerDetailModal({
   locker,
+  initialTab = 'details',
   onClose,
   onEdit,
   onAllocate,
@@ -82,7 +85,7 @@ export function LockerDetailModal({
   const canGenerateRenewal = usePermission('renewals.create');
   const canAllocate = usePermission('allocations.create');
 
-  const [activeTab, setActiveTab] = useState<'details' | 'receipts' | 'kyc' | 'refunds'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'receipts' | 'kyc' | 'refunds'>(initialTab);
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -143,6 +146,8 @@ export function LockerDetailModal({
   const currentAlloc = lockerAllocData?.currentAllocation;
   const tenant = currentAlloc?.customerId;
   const tenantId = tenant?._id;
+  const canViewDeposits = usePermission('deposits.view');
+  const { data: depositSummary, isError: depositError } = useQuery({ queryKey: ['deposit-summary', currentAlloc?._id], queryFn: () => depositApi.getDepositSummary(currentAlloc!._id), enabled: Boolean(currentAlloc?._id) && canViewDeposits });
 
   // 2. Billing & Invoices Query
   const { data: lockerInvoices } = useQuery({
@@ -161,7 +166,7 @@ export function LockerDetailModal({
   }, [lockerInvoices]);
 
   // 3. KYC Documents Query (Fetched for the tenant)
-  const { data: kycDocs = [] } = useQuery<CustomerKycDocument[]>({
+  const { data: kycDocs = [], isLoading: isKycLoading, isError: isKycError, refetch: refetchKyc } = useQuery<CustomerKycDocument[]>({
     queryKey: ['customer-kyc', tenantId],
     queryFn: () => customerApi.getKycDocuments(tenantId!),
     enabled: Boolean(tenantId),
@@ -297,6 +302,7 @@ export function LockerDetailModal({
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+      timeZone: 'Asia/Kolkata',
     });
   };
 
@@ -339,17 +345,17 @@ export function LockerDetailModal({
   const baseRent =
     isDefaultSizeRent && sizeDefinition?.baseRent
       ? sizeDefinition.baseRent
-      : locker.securityDeposit
-      ? Math.round(locker.securityDeposit / 2)
       : Math.round(totalAnnualRent / 1.18);
   const gstAmount = Math.max(0, totalAnnualRent - baseRent);
-  const deposit = locker.securityDeposit || sizeDefinition?.defaultDeposit || 0;
+  const deposit = currentAlloc?.depositSnapshot ?? locker.securityDeposit ?? sizeDefinition?.defaultDeposit ?? 0;
+  const depositLabel = currentAlloc ? !canViewDeposits ? 'Restricted' : depositSummary ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(depositSummary.netDepositHeld) : depositError ? 'Unavailable' : 'Loading...' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(deposit);
   const totalMoveInPayable = totalAnnualRent + deposit;
 
-  // Unpaid balance
-  const unpaidInvoice = invoices.find(
-    (inv) => inv.balanceAmount > 0 && inv.paymentStatus !== 'PAID'
-  );
+  // Opening rent, renewal and historical tenancy invoices are distinct.
+  const unpaidInvoice = invoices.filter(inv => {
+    const allocationId = typeof inv.allocationId === 'string' ? inv.allocationId : inv.allocationId?._id;
+    return allocationId === currentAlloc?._id && !['CANCELLED','DRAFT'].includes(inv.status) && inv.balanceAmount > 0 && inv.paymentStatus !== 'PAID';
+  }).sort((a,b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
   const modalContent = (
     <div className="fixed inset-0 z-[100] flex h-screen w-screen items-center justify-center bg-slate-950/70 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150 overflow-y-auto font-sans">
@@ -476,7 +482,7 @@ export function LockerDetailModal({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>Receipts</span>
+            <span>Invoices</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
                 activeTab === 'receipts'
@@ -539,7 +545,7 @@ export function LockerDetailModal({
                     : 'bg-slate-200/80 text-slate-600'
                 }`}
               >
-                ₹{deposit.toLocaleString('en-IN')}
+                {depositLabel}
               </span>
             ) : (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-200/70 text-slate-600">
@@ -941,9 +947,9 @@ export function LockerDetailModal({
                             return '—';
                           })()}
                         </p>
-                        {(currentAlloc?.paidThroughDate || currentAlloc?.endDate) && (
+                        {currentAlloc && (
                           <p className="text-[10.5px] text-slate-500">
-                            Paid up to: {formatDate(currentAlloc.paidThroughDate || currentAlloc.endDate)}
+                            {currentAlloc.paymentCoverageConfirmed ? `Paid up to: ${formatDate(currentAlloc.paidThroughDate)}` : 'No confirmed rent payment for this period'}
                           </p>
                         )}
                       </div>
@@ -952,10 +958,12 @@ export function LockerDetailModal({
 
                   {/* Renewal Notice (Calm Due Notice if upcoming, High-Priority Alert if overdue) */}
                   {unpaidInvoice && (() => {
-                    const todayTime = new Date().setHours(0, 0, 0, 0);
-                    const dueDateTime = new Date(unpaidInvoice.dueDate).setHours(0, 0, 0, 0);
+                    const businessDay = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+                    const todayTime = Date.parse(businessDay(new Date()));
+                    const dueDateTime = Date.parse(businessDay(new Date(unpaidInvoice.dueDate)));
                     const isOverdue = dueDateTime < todayTime;
-                    const diffDays = Math.round(Math.abs(dueDateTime - todayTime) / (1000 * 60 * 60 * 24));
+                    const diffDays = Math.round(Math.abs(dueDateTime - todayTime) / 86400000);
+                    const invoiceLabel = unpaidInvoice.invoiceType === 'NEW_ALLOCATION' ? 'Opening rent payment' : unpaidInvoice.invoiceType === 'RENEWAL' ? 'Renewal payment' : 'Invoice payment';
                     const dueDateFormatted = formatDate(unpaidInvoice.dueDate);
 
                     return (
@@ -979,7 +987,7 @@ export function LockerDetailModal({
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs sm:text-sm font-bold">
-                                {isOverdue ? 'Locker Renewal Overdue' : 'Upcoming Renewal Notice'}: ₹{unpaidInvoice.balanceAmount.toLocaleString('en-IN')}
+                                {invoiceLabel} {isOverdue ? 'overdue' : 'due'}: ₹{unpaidInvoice.balanceAmount.toLocaleString('en-IN')}
                               </span>
                               <span
                                 className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${
@@ -988,7 +996,7 @@ export function LockerDetailModal({
                                     : 'bg-amber-200/60 text-amber-900 border-amber-300'
                                 }`}
                               >
-                                {isOverdue ? `Overdue by ${diffDays} days` : `Due in ${diffDays} days`}
+                                {diffDays === 0 ? 'Due today' : isOverdue ? `Overdue by ${diffDays} days` : `Due in ${diffDays} days`}
                               </span>
                             </div>
                             <span className="text-[11.5px] font-normal block mt-0.5 opacity-90">
@@ -1088,16 +1096,16 @@ export function LockerDetailModal({
                       <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 font-bold text-slate-700">
                         <div className="flex items-center gap-1.5">
                           <Shield className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Caution Escrow Deposit</span>
+                          <span>Security Deposit</span>
                         </div>
                         <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                          100% Refundable
+                          Refundable deposit
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">
-                        <span className="text-slate-500">Deposit In Escrow</span>
+                        <span className="text-slate-500">Deposit held (recorded)</span>
                         <span className="font-bold text-slate-900 font-mono text-xs">
-                          ₹{deposit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          {depositLabel}
                         </span>
                       </div>
                       <div className="flex justify-between py-0.5">
@@ -1269,226 +1277,21 @@ export function LockerDetailModal({
             </div>
           )}
 
-          {/* TAB 3: KYC COMPLIANCE */}
           {activeTab === 'kyc' && (
-            <div className="space-y-4">
-              {kycDocs.length === 0 ? (
-                <>
-                  {tenant?.kycStatus === 'VERIFIED' ? (
-                    <div className="py-4 text-center">
-                      <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 max-w-xl mx-auto text-left space-y-2.5 shadow-2xs">
-                        <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
-                          <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0" />
-                          <span>KYC Verified Compliance Record</span>
-                        </div>
-                        <p className="text-xs text-emerald-900 font-normal leading-relaxed">
-                          Customer identity and address verification has been officially verified for{' '}
-                          <span className="font-semibold">{tenant?.fullName}</span>{' '}
-                          ({tenant?.customerCode || 'Registered Client'}) under safe-deposit box regulatory compliance mandates.
-                        </p>
-                        <div className="pt-2 border-t border-emerald-200/70 flex items-center justify-between text-[11px] text-emerald-800">
-                          <span>Physical proof verified in bank records</span>
-                          {tenantId && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                onClose();
-                                navigate(`/customers/${tenantId}`);
-                              }}
-                              className="h-7 text-xs font-semibold bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100/50 cursor-pointer"
-                            >
-                              <span>Manage in Profile &rarr;</span>
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : !tenantId ? (
-                    <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 border border-slate-200/90 space-y-4 shadow-2xs text-left">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
-                            <ShieldCheck className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-bold text-slate-900 text-sm">
-                                Mandatory Allotment Compliance Norms
-                              </h4>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100/80 text-emerald-800 border border-emerald-200">
-                                RBI / IBA Norms
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              Locker #{locker.lockerNumber} is vacant. The following 4 statutory proofs must be collected during customer onboarding.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="shrink-0 self-start sm:self-center">
-                          <span className="text-[11px] font-medium text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                            Verified in Allotment Wizard
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 transition-colors shadow-2xs space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800 flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 font-mono text-[10.5px] font-bold flex items-center justify-center border border-emerald-200/60">
-                                01
-                              </span>
-                              <span>Identity Proof (POI)</span>
-                            </span>
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                              Mandatory
-                            </span>
-                          </div>
-                          <p className="text-[11.5px] text-slate-600 pl-7 leading-relaxed">
-                            Officially Valid Documents (OVD): Aadhaar Card, Passport, Voter ID, or Driving License with clear photograph.
-                          </p>
-                        </div>
-
-                        <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 transition-colors shadow-2xs space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800 flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 font-mono text-[10.5px] font-bold flex items-center justify-center border border-emerald-200/60">
-                                02
-                              </span>
-                              <span>Address Proof (POA)</span>
-                            </span>
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                              Mandatory
-                            </span>
-                          </div>
-                          <p className="text-[11.5px] text-slate-600 pl-7 leading-relaxed">
-                            Recent utility bill, bank account passbook, or registered agreement (not older than 3 months).
-                          </p>
-                        </div>
-
-                        <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 transition-colors shadow-2xs space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800 flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 font-mono text-[10.5px] font-bold flex items-center justify-center border border-emerald-200/60">
-                                03
-                              </span>
-                              <span>Specimen Signature & Photos</span>
-                            </span>
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                              Mandatory
-                            </span>
-                          </div>
-                          <p className="text-[11.5px] text-slate-600 pl-7 leading-relaxed">
-                            Two recent passport-size photographs and physical ink specimen card for the vault master access register.
-                          </p>
-                        </div>
-
-                        <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 transition-colors shadow-2xs space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800 flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 font-mono text-[10.5px] font-bold flex items-center justify-center border border-emerald-200/60">
-                                04
-                              </span>
-                              <span>Nomination Facility (DA-1)</span>
-                            </span>
-                            <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                              Recommended
-                            </span>
-                          </div>
-                          <p className="text-[11.5px] text-slate-600 pl-7 leading-relaxed">
-                            Statutory Form DA-1 safe deposit nominee declaration under the Banking Companies (Nomination) Rules.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
-                        <span className="flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span>Click <strong>Allocate Locker</strong> below to choose a customer and verify proofs.</span>
-                        </span>
-                        <span className="text-[11px] font-mono text-slate-400 shrink-0">
-                          COMPARTMENT #{locker.lockerNumber} • VACANT
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-4 text-center">
-                      <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 max-w-xl mx-auto text-left space-y-2.5 shadow-2xs">
-                        <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
-                          <AlertCircle className="w-5 h-5 text-amber-700 shrink-0" />
-                          <span>KYC Documents Pending</span>
-                        </div>
-                        <p className="text-xs text-amber-900 font-normal leading-relaxed">
-                          This customer has not yet uploaded digitized identity verification proofs.
-                        </p>
-                        {tenantId && (
-                          <div className="pt-2 border-t border-amber-200/70 flex justify-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                onClose();
-                                navigate(`/customers/${tenantId}`);
-                              }}
-                              className="h-7 text-xs font-semibold bg-white border-amber-300 text-amber-900 hover:bg-amber-100/50 cursor-pointer"
-                            >
-                              <span>Upload KYC Documents &rarr;</span>
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {kycDocs.map((doc) => (
-                    <div
-                      key={doc._id}
-                      className="p-3.5 rounded-2xl border border-slate-200/90 bg-slate-50/60 flex flex-col justify-between gap-3 shadow-2xs"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                            {doc.documentType}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              doc.verificationStatus === 'VERIFIED'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {doc.verificationStatus}
-                          </span>
-                        </div>
-                        <p className="font-mono text-xs text-slate-600">
-                          {doc.maskedDocumentNumber || doc.documentNumber}
-                        </p>
-                        {doc.verifiedAt && (
-                          <p className="text-[10.5px] text-slate-400 font-normal">
-                            Verified on {new Date(doc.verifiedAt).toLocaleDateString('en-IN')}
-                          </p>
-                        )}
-                      </div>
-
-                      {doc.documentUrl && (
-                        <a
-                          href={doc.documentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold shadow-2xs transition"
-                        >
-                          <Eye className="h-3.5 w-3.5 text-emerald-700" />
-                          <span>View Document</span>
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <LockerKycPanel
+              customerId={tenantId}
+              customerName={tenant?.fullName}
+              customerCode={tenant?.customerCode}
+              customerPhone={tenant?.phone}
+              photoUrl={tenant?.photoUrl}
+              kycStatus={tenant?.kycStatus}
+              documents={kycDocs}
+              loading={isKycLoading}
+              failed={isKycError}
+              onRetry={() => {
+                void refetchKyc();
+              }}
+            />
           )}
 
           {/* TAB 4: DEPOSIT & ESCROW */}
@@ -1503,12 +1306,12 @@ export function LockerDetailModal({
                     </span>
                   </div>
                   <span className="text-2xl font-bold text-slate-900 mt-1 block font-mono">
-                    ₹{deposit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {depositLabel}
                   </span>
                   <span className="text-xs text-emerald-800 font-medium">
                     {deposit > 0
                       ? isOccupied
-                        ? 'Held in Bank Escrow Account • 100% Refundable on Key Surrender'
+                        ? 'Held in Bank Escrow Account • Refundable deposit on Key Surrender'
                         : `Standard Escrow Mandate for Size ${locker.size} • Payable at Allotment`
                       : 'No Caution Deposit Required'}
                   </span>
@@ -1517,7 +1320,7 @@ export function LockerDetailModal({
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Escrow Status:</span>
                     <span className={`font-semibold ${isOccupied ? 'text-emerald-800' : 'text-slate-600'}`}>
-                      {isOccupied ? 'Active Escrow' : 'Unallocated (Vacant)'}
+                      {isOccupied ? (depositSummary?.netDepositHeld ? 'Deposit held' : 'No deposit recorded') : 'Unallocated (Vacant)'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-3">
@@ -1540,7 +1343,7 @@ export function LockerDetailModal({
                   </p>
                   <p className="text-[11px] text-slate-500">
                     {isOccupied
-                      ? 'Caution deposit remains safely held in bank custody escrow until locker surrender or tenancy closure.'
+                      ? depositSummary?.netDepositHeld ? 'Recorded deposit balance is available for settlement through the closure workflow.' : 'No security deposit collection is recorded for this allotment.'
                       : `Standard cautionary deposit of ₹${deposit.toLocaleString('en-IN')} will be collected and held in escrow once this vacant locker is allocated.`}
                   </p>
                 </div>
@@ -1607,7 +1410,7 @@ export function LockerDetailModal({
 
             {isOccupied && (
               <>
-                {/* Surrender Locker button */}
+                {/* Close locker action */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1616,10 +1419,10 @@ export function LockerDetailModal({
                     navigate(`/closures?lockerId=${locker._id}`);
                   }}
                   className="rounded-xl border-slate-300 text-slate-700 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50/50 font-semibold text-xs h-9 px-3 cursor-pointer"
-                  title="Initiate Surrender / Closure"
+                  title="Close this locker"
                 >
                   <Undo2 className="h-3.5 w-3.5 mr-1" />
-                  <span className="hidden sm:inline">Surrender</span>
+                  <span className="hidden sm:inline">Close Locker</span>
                 </Button>
 
                 {/* Proactive Lease Renewal button if no unpaid invoice */}
