@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { isAllowedOrigin } from '../utils/origin';
 import { env } from '../config/env';
 import { errorResponse } from '../utils/apiResponse';
 
@@ -6,10 +7,12 @@ import { errorResponse } from '../utils/apiResponse';
 export const verifyBrowserOrigin = (req: Request, res: Response, next: NextFunction): void => {
   const origin = req.get('origin');
   const referer = req.get('referer');
-  const expected = env.CLIENT_URL.replace(/\/$/, '');
 
   // Non-browser clients without cookie credentials are not subject to browser CSRF.
   if (!origin && !referer) {
+    if (req.cookies?.vault_refresh_token || req.cookies?.['__Host-vault_refresh_token']) {
+      res.status(403).json(errorResponse('Browser origin required for cookie-authenticated changes.')); return;
+    }
     next();
     return;
   }
@@ -22,20 +25,7 @@ export const verifyBrowserOrigin = (req: Request, res: Response, next: NextFunct
     return;
   }
 
-  let allowed = false;
-
-  if (candidate) {
-    if (
-      env.CLIENT_URL === '*' ||
-      candidate === expected ||
-      candidate.endsWith('.vercel.app') ||
-      candidate.endsWith('.onrender.com') ||
-      candidate === 'https://mss-locker.vercel.app' ||
-      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(candidate)
-    ) {
-      allowed = true;
-    }
-  }
+  const allowed = candidate && isAllowedOrigin(candidate, env.CLIENT_URL, env.NODE_ENV);
 
   if (!allowed) {
     res.status(403).json(errorResponse('Cross-site request rejected.'));

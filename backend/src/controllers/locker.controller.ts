@@ -150,6 +150,7 @@ export class LockerController {
   ): Promise<void> {
     try {
       const input = updateLockerSchema.parse(req.body);
+      if (input.masterKeyReference !== undefined && !LockerController.canViewSensitive(req)) throw Object.assign(new Error('Sensitive locker permission is required to change key references.'), { statusCode: 403 });
       const ipAddress =
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
@@ -162,6 +163,7 @@ export class LockerController {
         ipAddress,
         userAgent
       );
+      if (!LockerController.canViewSensitive(req)) delete locker.masterKeyReference;
       res.json(successResponse('Locker updated successfully', locker));
     } catch (error) {
       next(error);

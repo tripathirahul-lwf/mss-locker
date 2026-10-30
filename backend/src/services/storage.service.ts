@@ -93,6 +93,45 @@ export class StorageService {
     return cloudinary.utils.private_download_url(ref.publicId, ref.format || '', { resource_type: ref.resourceType, type: ref.deliveryType, expires_at: Math.floor(Date.now() / 1000) + expiresInSeconds });
   }
 
+  // Keep authenticated browser requests on our origin. Cloudinary's download
+  // endpoint does not support credentialed cross-origin XHR after a redirect.
+  static async readPrivateFile(token: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    const url = this.getPrivateDownloadUrl(token);
+    const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw Object.assign(new Error('Document storage could not retrieve this file. Please retry.'), { statusCode: 502 });
+    }
+    let mimeType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const maxBytes = 5 * 1024 * 1024;
+    if ((!this.isValidMimeType(mimeType) && mimeType !== 'application/octet-stream') || Number(response.headers.get('content-length')) > maxBytes) {
+      await response.body?.cancel();
+      throw Object.assign(new Error('Document storage returned an unsupported file.'), { statusCode: 502 });
+    }
+    if (!response.body) throw Object.assign(new Error('Document storage returned an empty file.'), { statusCode: 502 });
+    const reader = response.body.getReader();
+    const chunks: Buffer[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBytes) {
+          await reader.cancel();
+          throw Object.assign(new Error('Document exceeds the preview size limit.'), { statusCode: 502 });
+        }
+        chunks.push(Buffer.from(value));
+      }
+    } finally { reader.releaseLock(); }
+    const buffer = Buffer.concat(chunks);
+    if (mimeType === 'application/octet-stream') {
+      mimeType = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].find(type => this.hasValidSignature(buffer, type)) || mimeType;
+    }
+    if (!this.hasValidSignature(buffer, mimeType)) throw Object.assign(new Error('Document storage returned an invalid file.'), { statusCode: 502 });
+    return { buffer, mimeType };
+  }
+
   static assertPrivateDocumentUrl(fileUrl: string): void {
     if (fileUrl.startsWith('/uploads/kyc/')) return; // legacy records/imports
     const match = fileUrl.match(/^\/api\/upload\/private\/cloud\/([^/?#]+)$/);

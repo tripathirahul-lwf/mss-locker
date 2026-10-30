@@ -129,23 +129,23 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden my-8">
+      <div className="relative w-full max-w-xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden my-8">
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+        <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <UserCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Refund Authorization (Maker-Checker)</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-lg font-semibold text-slate-900">Refund Authorization (Maker-Checker)</h3>
+              <p className="text-xs text-slate-600">
                 Review financial context and approve or reject refund claim
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -153,22 +153,22 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
 
         {/* Content */}
         {loading ? (
-          <div className="p-12 text-center text-slate-400">
+          <div className="p-12 text-center text-slate-600">
             <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             Loading refund details...
           </div>
         ) : !refund || !summary ? (
-          <div className="p-8 text-center text-rose-400">Failed to load refund request.</div>
+          <div className="p-8 text-center text-rose-700">Failed to load refund request.</div>
         ) : (
           <div className="p-6 space-y-5">
             {/* Error banner */}
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-800 flex items-center justify-between">
                 <span>{errorMessage}</span>
                 <button
                   type="button"
                   onClick={() => setErrorMessage(null)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-slate-600 hover:text-slate-900"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -177,8 +177,8 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
 
             {/* Maker-Checker self-approval warning */}
             {isSelfRequester && (
-              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start space-x-2.5">
-                <ShieldAlert className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-800 flex items-start space-x-2.5">
+                <ShieldAlert className="w-5 h-5 text-rose-700 flex-shrink-0 mt-0.5" />
                 <div>
                   <div className="font-semibold text-rose-200">Maker-Checker Policy Restriction</div>
                   <div>
@@ -189,34 +189,34 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
             )}
 
             {/* Request Snapshot */}
-            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <span className="text-slate-500 block">Refund #</span>
-                <span className="font-mono font-semibold text-cyan-400">
+                <span className="font-mono font-semibold text-cyan-800">
                   {refund.refundNumber}
                 </span>
-                <span className="text-[11px] text-slate-400 block mt-0.5">
+                <span className="text-[11px] text-slate-600 block mt-0.5">
                   Requested by {refund.requestedBy?.name || 'Staff'}
                 </span>
               </div>
               <div>
                 <span className="text-slate-500 block">Customer & Locker</span>
-                <span className="font-semibold text-white truncate block">
+                <span className="font-semibold text-slate-900 truncate block">
                   {refund.customerId?.fullName}
                 </span>
-                <span className="text-slate-400">Locker {refund.lockerId?.lockerNumber}</span>
+                <span className="text-slate-600">Locker {refund.lockerId?.lockerNumber}</span>
               </div>
               <div>
                 <span className="text-slate-500 block">Requested Amount</span>
-                <span className="font-bold text-white text-sm">
+                <span className="font-bold text-slate-900 text-sm">
                   ₹{refund.requestedAmount.toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
 
             {/* Reason */}
-            <div className="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800 text-xs">
-              <span className="text-slate-400 font-semibold block mb-1">Reason for Claim:</span>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span className="text-slate-600 font-semibold block mb-1">Reason for Claim:</span>
               <p className="text-slate-200">{refund.reason}</p>
             </div>
 
@@ -224,19 +224,19 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
             {isRejecting ? (
               <div className="space-y-3 p-4 rounded-xl bg-rose-500/5 border border-rose-500/20">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-rose-400 uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-rose-700 uppercase tracking-wider">
                     Rejection Details
                   </span>
                   <button
                     type="button"
                     onClick={() => setIsRejecting(false)}
-                    className="text-xs text-slate-400 hover:text-white"
+                    className="text-xs text-slate-600 hover:text-slate-900"
                   >
                     Back to Approval
                   </button>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-300 mb-1">
+                  <label className="block text-xs text-slate-700 mb-1">
                     Mandatory Rejection Reason *
                   </label>
                   <textarea
@@ -245,7 +245,7 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     placeholder="Provide reason for rejecting this refund claim..."
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-rose-500/40 text-xs text-white outline-none"
+                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-rose-500/40 text-xs text-slate-900 outline-none"
                   />
                 </div>
                 <div className="flex justify-end space-x-2 pt-2">
@@ -263,31 +263,31 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
               <div className="space-y-4">
                 {/* Approved Amount */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Approved Amount (₹) *
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 font-semibold">
                       ₹
                     </span>
                     <input
                       type="number"
-                      step="any"
+                      step="0.01"
                       required
-                      min="1"
+                      min="0.01"
                       value={approvedAmount}
                       onChange={(e) => setApprovedAmount(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-cyan-500 text-base font-bold text-white outline-none"
+                      className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-slate-300 focus:border-cyan-500 text-base font-bold text-slate-900 outline-none"
                     />
                   </div>
-                  <span className="text-[11px] text-slate-400 block mt-1">
+                  <span className="text-[11px] text-slate-600 block mt-1">
                     Max Allowable Headroom: ₹{maxHeadroom.toLocaleString('en-IN')}
                   </span>
                 </div>
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Approval Remarks / Notes (Optional)
                   </label>
                   <input
@@ -295,16 +295,16 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
                     value={approvalNotes}
                     onChange={(e) => setApprovalNotes(e.target.value)}
                     placeholder="e.g. Approved per customer inspection report"
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-white outline-none"
+                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-cyan-500 text-xs text-slate-900 outline-none"
                   />
                 </div>
 
                 {/* Actions */}
-                <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+                <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => setIsRejecting(true)}
-                    className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-medium transition-all"
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 border border-rose-500/20 text-xs font-medium transition-all"
                   >
                     Reject Claim
                   </button>
@@ -313,7 +313,7 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all"
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-all"
                     >
                       Cancel
                     </button>

@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Customer, ICustomer } from '../models/Customer';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { Sequence } from '../models/Sequence';
@@ -343,7 +343,8 @@ export class CustomerService {
       throw new Error('Invalid customer ID');
     }
 
-    const customer = await Customer.findById(id);
+    return mongoose.connection.transaction(async () => {
+    const customer = await Customer.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, timestamps: false });
     if (!customer) {
       throw new Error('Customer not found');
     }
@@ -353,11 +354,11 @@ export class CustomerService {
       const currentUpdated = new Date(customer.updatedAt).toISOString();
       const expectedUpdated = new Date(input.expectedUpdatedAt).toISOString();
       if (currentUpdated !== expectedUpdated) {
-        throw new Error(
-          'Conflict: Customer record has been modified by another operator. Please refresh and try again.'
-        );
+        throw Object.assign(new Error('Conflict: Customer record has been modified by another operator. Please refresh and try again.'), { statusCode: 409 });
       }
     }
+
+    if (input.isActive === false && await LockerAllocation.exists({ customerId: id, status: { $in: ['ACTIVE', 'RESERVED'] } })) throw Object.assign(new Error('Close active allotments before deactivating this customer.'), { statusCode: 409 });
 
     const changedFields: string[] = [];
     const previousStatus = customer.status;
@@ -453,6 +454,7 @@ export class CustomerService {
     });
 
     return customer;
+    });
   }
 
   /**

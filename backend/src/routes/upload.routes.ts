@@ -34,6 +34,8 @@ router.delete(
 // Direct GET access is required for browser <img>, <iframe> and window.open compatibility.
 router.get(
   '/private/cloud/:token',
+  authenticate,
+  requireAnyPermission(PERMISSIONS.CUSTOMERS_KYC_VIEW, PERMISSIONS.PAYMENTS_VIEW),
   UploadController.downloadPrivateCloudFile
 );
 

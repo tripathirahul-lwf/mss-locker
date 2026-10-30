@@ -1,3 +1,4 @@
+import { escapeHtmlFields } from '../utils/html';
 import mongoose, { ClientSession, Types } from 'mongoose';
 import { Payment, IPayment } from '../models/Payment';
 import { LockerInvoice } from '../models/LockerInvoice';
@@ -10,7 +11,7 @@ import {
   DIGITAL_PAYMENT_METHODS,
 } from '../constants/payment.constants';
 import { generatePaymentNumber, generateReceiptNumber } from '../utils/paymentCalculator';
-import { determineDueStatus } from '../utils/billingCalculator';
+import { calculateBillingPeriod, determineDueStatus } from '../utils/billingCalculator';
 import { normalizeMoney } from '../utils/money';
 
 export interface RecordPaymentInput {
@@ -111,8 +112,8 @@ export class PaymentService {
           nextDue.setDate(nextDue.getDate() + 1);
           allocation.nextRenewalDueDate = nextDue;
         } else {
-          const nextDue = allocation.startDate ? new Date(allocation.startDate) : new Date();
-          allocation.nextRenewalDueDate = nextDue;
+          allocation.paidThroughDate = undefined;
+          allocation.nextRenewalDueDate = calculateBillingPeriod(new Date(allocation.startDate), allocation.billingCycle).nextDueDate;
         }
         await allocation.save({ session });
       }
@@ -145,6 +146,12 @@ export class PaymentService {
       throw Object.assign(new Error('Cheque number, bank name and cheque date are required.'), { statusCode: 400 });
     }
 
+    const assertReplay = (payment: any) => {
+      const existingInvoiceId = payment.invoiceId?._id ?? payment.invoiceId;
+      if (String(existingInvoiceId) !== input.invoiceId || payment.paymentPurpose !== 'INVOICE_PAYMENT' || payment.amount !== amount || payment.paymentMethod !== input.paymentMethod || payment.paymentStatus !== 'COMPLETED') {
+        throw Object.assign(new Error('Idempotency key belongs to a different or cancelled invoice payment.'), { statusCode: 409 });
+      }
+    };
     // Idempotency Check
     if (idempotencyKey && idempotencyKey.trim()) {
       const existing = await Payment.findOne({ idempotencyKey: idempotencyKey.trim() })
@@ -153,6 +160,7 @@ export class PaymentService {
         .populate('invoiceId', 'invoiceNumber totalAmount balanceAmount');
 
       if (existing) {
+        assertReplay(existing);
         return existing;
       }
     }
@@ -161,6 +169,15 @@ export class PaymentService {
     let paymentId: Types.ObjectId | undefined;
     try {
     await session.withTransaction(async () => {
+    const initialInvoice = await LockerInvoice.findById(input.invoiceId).session(session);
+    if (!initialInvoice) throw Object.assign(new Error('Invoice not found'), { statusCode: 404 });
+    const allocation = await LockerAllocation.findOneAndUpdate({ _id: initialInvoice.allocationId }, { $inc: { __v: 1 } }, { new: true, session, timestamps: false });
+    // The shared allocation lock serializes payments, reversals and closure.
+    if (idempotencyKey?.trim()) {
+      const existing = await Payment.findOne({ idempotencyKey: idempotencyKey.trim() }).session(session);
+      if (existing) { assertReplay(existing); paymentId = existing._id; return; }
+    }
+    if (!allocation || allocation.status === 'CLOSED') throw Object.assign(new Error('Cannot collect payment for a closed or missing allotment.'), { statusCode: 409 });
     // Authoritative live invoice check. The no-op update acquires a write lock so
     // concurrent payments cannot both approve against the same stale balance.
     const invoice = await LockerInvoice.findOneAndUpdate(
@@ -174,10 +191,11 @@ export class PaymentService {
       throw error;
     }
 
-    if (invoice.status === 'CANCELLED') {
-      const error: any = new Error('Cannot record payment against a cancelled invoice');
-      error.statusCode = 400;
-      throw error;
+    if (['CANCELLED', 'DRAFT'].includes(invoice.status)) {
+      throw Object.assign(new Error('Cannot record payment against a draft or cancelled invoice.'), { statusCode: 409 });
+    }
+    if (invoice.paymentStatus === 'PAID' || invoice.balanceAmount <= 0) {
+      throw Object.assign(new Error('Invoice is already fully paid.'), { statusCode: 409 });
     }
 
     // Calculate live outstanding balance from completed payments
@@ -294,6 +312,10 @@ export class PaymentService {
     let result: IPayment | undefined;
     try {
       await session.withTransaction(async () => {
+    const existing = await Payment.findById(paymentId).session(session);
+    if (!existing) throw Object.assign(new Error('Payment transaction not found'), { statusCode: 404 });
+    const allocation = await LockerAllocation.findOneAndUpdate({ _id: existing.allocationId }, { $inc: { __v: 1 } }, { new: true, session, timestamps: false });
+    if (!allocation || allocation.status === 'CLOSED') throw Object.assign(new Error('Cannot reverse a payment after allotment closure.'), { statusCode: 409 });
     const payment = await Payment.findOneAndUpdate(
       { _id: paymentId, paymentStatus: { $ne: 'CANCELLED' } },
       { $set: { updatedAt: new Date() } },
@@ -303,6 +325,10 @@ export class PaymentService {
       const error: any = new Error('Payment transaction not found');
       error.statusCode = 404;
       throw error;
+    }
+
+    if (payment.paymentPurpose !== 'INVOICE_PAYMENT') {
+      throw Object.assign(new Error('Deposit and refund receipts must be reversed through their dedicated ledger workflow.'), { statusCode: 409 });
     }
 
     payment.paymentStatus = 'CANCELLED';
@@ -529,7 +555,7 @@ export class PaymentService {
    * Generates a clean, professional, black-and-white print-ready HTML receipt voucher
    */
   async generatePaymentReceiptHtml(paymentId: string, autoPrint: boolean = false): Promise<string> {
-    const payment: any = await this.getPaymentById(paymentId);
+    const payment: any = escapeHtmlFields(await this.getPaymentById(paymentId));
     if (!payment) {
       const error: any = new Error('Payment not found');
       error.statusCode = 404;

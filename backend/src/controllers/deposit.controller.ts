@@ -1,3 +1,4 @@
+import { serviceErrorStatus } from '../utils/serviceErrorStatus';
 import { Request, Response } from 'express';
 import { depositService } from '../services/deposit.service';
 import { DepositTransaction } from '../models/DepositTransaction';
@@ -9,7 +10,7 @@ export class DepositController {
       const summary = await depositService.getDepositSummary(id);
       res.json({ success: true, data: summary });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -83,7 +84,7 @@ export class DepositController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -98,7 +99,7 @@ export class DepositController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -120,7 +121,7 @@ export class DepositController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -130,7 +131,7 @@ export class DepositController {
       const result = await depositService.getClosureFinancialReadiness(id);
       res.json({ success: true, data: result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 }

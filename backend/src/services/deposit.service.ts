@@ -162,6 +162,10 @@ export class DepositService {
     idempotencyKey?: string
   ) {
     const amount = normalizeMoney(input.amount, 'Deposit amount');
+    const references: Record<string, string | undefined> = { UPI: input.upiReference || input.transactionReference, BANK_TRANSFER: input.bankReference || input.transactionReference, CARD: input.transactionReference, OTHER: input.transactionReference };
+    if (!['CASH', 'CHEQUE'].includes(input.paymentMethod) && !references[input.paymentMethod]?.trim()) throw Object.assign(new Error('A transaction reference is required for this deposit payment method.'), { statusCode: 400 });
+    if (input.paymentMethod === 'CHEQUE' && (!input.chequeNumber?.trim() || !input.bankName?.trim() || !input.chequeDate)) throw Object.assign(new Error('Cheque number, bank name and cheque date are required.'), { statusCode: 400 });
+
 
     const session = await mongoose.startSession();
     let result: any;
@@ -177,21 +181,13 @@ export class DepositService {
 
     const summary = await this.getDepositSummary(allocation._id, session);
 
-    // Overcollection check
-    if (
-      summary.totalDepositReceived + amount > summary.requiredDeposit &&
-      !input.allowOverride
-    ) {
-      const excess = summary.totalDepositReceived + amount - summary.requiredDeposit;
-      throw new Error(
-        `Deposit amount exceeds required deposit by ₹${excess.toLocaleString('en-IN')}. Override permission and reason required.`
-      );
-    }
-
     // Idempotency check if header passed
     if (idempotencyKey) {
       const existingPayment = await Payment.findOne({ idempotencyKey }).session(session).lean();
       if (existingPayment) {
+        if (String(existingPayment.allocationId) !== String(allocation._id) || existingPayment.paymentPurpose !== 'SECURITY_DEPOSIT' || existingPayment.amount !== amount || existingPayment.paymentMethod !== input.paymentMethod || existingPayment.paymentStatus !== 'COMPLETED') {
+          throw Object.assign(new Error('Idempotency key belongs to a different or cancelled deposit payment.'), { statusCode: 409 });
+        }
         const existingTx = await DepositTransaction.findOne({
           paymentId: existingPayment._id,
         }).session(session).lean();
@@ -204,6 +200,19 @@ export class DepositService {
       }
     }
 
+    // Overcollection check
+    if (
+      summary.totalDepositReceived + amount > summary.requiredDeposit &&
+      !input.allowOverride
+    ) {
+      const excess = summary.totalDepositReceived + amount - summary.requiredDeposit;
+      throw new Error(
+        `Deposit amount exceeds required deposit by ₹${excess.toLocaleString('en-IN')}. Override permission and reason required.`
+      );
+    }
+
+    if (allocation.status !== 'ACTIVE') throw Object.assign(new Error('Deposit collection requires an active allotment.'), { statusCode: 409 });
+    if (input.allowOverride && (!input.overrideReason || input.overrideReason.trim().length < 5)) throw Object.assign(new Error('Deposit override requires a justification of at least 5 characters.'), { statusCode: 400 });
     // 1. Create Payment record for receipt/financial audit
     const paymentNumber = await generatePaymentNumber();
     const receiptNumber = await generateReceiptNumber();
@@ -291,6 +300,7 @@ export class DepositService {
    */
   async adjustDeposit(input: AdjustDepositInput, userId: string) {
     const amount = normalizeMoney(input.amount, 'Adjustment amount');
+    if (!['DEPOSIT_ADJUSTMENT_ADD', 'DEPOSIT_ADJUSTMENT_DEDUCT'].includes(input.transactionType)) throw Object.assign(new Error('Only deposit addition or deduction adjustments are allowed.'), { statusCode: 400 });
 
     if (!input.reason || input.reason.trim().length < 3) {
       throw new Error('Valid justification reason is required for deposit adjustments');
@@ -306,6 +316,8 @@ export class DepositService {
     if (!allocation) {
       throw new Error('Locker allocation not found');
     }
+
+    if (allocation.status !== 'ACTIVE') throw Object.assign(new Error('Deposit adjustment requires an active allotment.'), { statusCode: 409 });
 
     const currentSummary = await this.getDepositSummary(allocation._id, session);
 
@@ -388,10 +400,14 @@ export class DepositService {
       throw new Error('Deposit transaction not found');
     }
 
+    const allocation = await LockerAllocation.findOneAndUpdate({ _id: tx.allocationId }, { $inc: { __v: 1 } }, { new: true, session, timestamps: false });
+    if (!allocation || allocation.status === 'CLOSED') throw Object.assign(new Error('Cannot reverse a deposit after allotment closure.'), { statusCode: 409 });
+    if (['REFUND_ISSUED', 'REFUND_REVERSAL'].includes(tx.transactionType)) throw Object.assign(new Error('Refund payouts require a dedicated refund reversal; ledger cancellation is not allowed.'), { statusCode: 409 });
+
     // Balance check: if cancelling a deposit/credit, ensure net held won't fall below already refunded/pending amount
     if (['DEPOSIT_RECEIVED', 'DEPOSIT_ADJUSTMENT_ADD', 'LEGACY_IMPORT'].includes(tx.transactionType)) {
       const summary = await this.getDepositSummary(tx.allocationId, session);
-      if (summary.netDepositHeld - tx.amount < 0) {
+      if (summary.netDepositHeld - summary.pendingRefundAmount - tx.amount < 0) {
         throw new Error(
           'Cannot cancel this deposit transaction because subsequent refunds or deductions depend on this balance. Reversal workflow is required.'
         );

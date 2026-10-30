@@ -184,3 +184,14 @@
 .vault-allotment-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:22px 26px;}
 .vault-allotment-footer{display:flex;flex-wrap:wrap;gap:12px;flex-shrink:0;padding:16px 26px;border-top:1px solid var(--vault-border);background:white;}
 @media(max-width:560px){.vault-allotment-body{padding:18px;}.vault-allotment-footer{padding:14px 18px;}.vault-allotment-footer>button{flex:1;}}
+
+
+@media print {
+  body:has([data-audit-print="true"]) { overflow: visible !important; }
+  body > div:has([data-audit-print="true"]) { position: static !important; height: auto !important; overflow: visible !important; background: none !important; }
+  body:has([data-audit-print="true"]) * { visibility: hidden; }
+  body [data-audit-print="true"], body [data-audit-print="true"] * { visibility: visible; }
+  body [data-audit-print="true"] { position: absolute; inset: 0 auto auto 0; width: 100%; max-height: none !important; overflow: visible !important; box-shadow: none !important; }
+  body [data-audit-print="true"] * { max-height: none !important; overflow: visible !important; }
+  body [data-audit-print="true"] button, body [data-audit-print="true"] select, body [data-audit-print="true"] nav { display: none !important; }
+}

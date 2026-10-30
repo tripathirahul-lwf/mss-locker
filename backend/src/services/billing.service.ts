@@ -1,3 +1,4 @@
+import { escapeHtmlFields } from '../utils/html';
 import { Types } from 'mongoose';
 import QRCode from 'qrcode';
 import { LockerInvoice } from '../models/LockerInvoice';
@@ -457,10 +458,10 @@ export class BillingService {
    * Generate clean printable HTML for invoice
    */
   async generateInvoiceHtml(invoiceId: string, autoPrint = false): Promise<string> {
-    const invoice: any = await this.getInvoiceById(invoiceId);
+    const invoice: any = escapeHtmlFields(await this.getInvoiceById(invoiceId));
     if (!invoice) throw Object.assign(new Error('Invoice not found'), { statusCode: 404 });
 
-    const [settings, payments] = await Promise.all([
+    const [rawSettings, rawPayments] = await Promise.all([
       (await import('../models/SystemSetting')).SystemSetting.findOne({ key: 'GLOBAL' }).lean(),
       (await import('../models/Payment')).Payment.find({ invoiceId: invoice._id, paymentStatus: 'COMPLETED' })
         .select('receiptNumber paymentDate paymentMethod amount transactionReference bankReference upiReference chequeNumber billNumber')
@@ -468,6 +469,8 @@ export class BillingService {
         .lean(),
     ]);
 
+    const settings = escapeHtmlFields(rawSettings);
+    const payments = escapeHtmlFields(rawPayments);
     const customer = invoice.customerId || {};
     const locker = invoice.lockerId || {};
     const allocation = invoice.allocationId || {};

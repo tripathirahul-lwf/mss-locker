@@ -1,3 +1,4 @@
+import { CompleteAllotmentModal } from './CompleteAllotmentModal';
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -34,7 +35,7 @@ interface AllocationWizardModalProps {
   isSubmitting: boolean;
 }
 
-export function AllocationWizardModal({
+function ReservationWizardModal({
   mode = 'allocate',
   preSelectedLocker = null,
   preSelectedCustomer = null,
@@ -52,8 +53,6 @@ export function AllocationWizardModal({
   const initialBaseRent =
     isDefaultSizeRent && initialSizeDef?.baseRent
       ? initialSizeDef.baseRent
-      : preSelectedLocker?.securityDeposit
-      ? Math.round(preSelectedLocker.securityDeposit / 2)
       : Math.round(initialTotalRent / 1.18);
   const initialGst = Math.max(0, initialTotalRent - initialBaseRent);
 
@@ -69,7 +68,7 @@ export function AllocationWizardModal({
   );
 
   // Plan & Dates & Allocation Type
-  const [rentalPlan, setRentalPlan] = useState<'1 Year' | '6 Months' | '3 Months' | '1 Month'>(
+  const [rentalPlan, setRentalPlan] = useState<'1 Year' | '3 Years' | '6 Months' | '3 Months' | '1 Month'>(
     '1 Year'
   );
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
@@ -186,8 +185,6 @@ export function AllocationWizardModal({
     const base =
       isDefaultSizeRent && sizeDef?.baseRent
         ? sizeDef.baseRent
-        : l.securityDeposit
-        ? Math.round(l.securityDeposit / 2)
         : Math.round(totalRent / 1.18);
     const gst = Math.max(0, totalRent - base);
     setRentAmount(base);
@@ -289,6 +286,7 @@ export function AllocationWizardModal({
       // Step 3: Map rental plan to BillingCycle enum
       const billingCycleMap: Record<string, BillingCycle> = {
         '1 Year': 'ANNUAL',
+        '3 Years': 'TRIENNIAL',
         '6 Months': 'HALF_YEARLY',
         '3 Months': 'QUARTERLY',
         '1 Month': 'MONTHLY',
@@ -298,7 +296,8 @@ export function AllocationWizardModal({
 
       const startD = new Date(startDate);
       let monthsToAdd = 12;
-      if (cycle === 'HALF_YEARLY') monthsToAdd = 6;
+      if (cycle === 'TRIENNIAL') monthsToAdd = 36;
+      else if (cycle === 'HALF_YEARLY') monthsToAdd = 6;
       else if (cycle === 'QUARTERLY') monthsToAdd = 3;
       else if (cycle === 'MONTHLY') monthsToAdd = 1;
       const endD = new Date(startD);
@@ -340,7 +339,8 @@ export function AllocationWizardModal({
     const startD = new Date(startDate);
     if (isNaN(startD.getTime())) return null;
     let monthsToAdd = 12;
-    if (rentalPlan === '6 Months') monthsToAdd = 6;
+    if (rentalPlan === '3 Years') monthsToAdd = 36;
+    else if (rentalPlan === '6 Months') monthsToAdd = 6;
     else if (rentalPlan === '3 Months') monthsToAdd = 3;
     else if (rentalPlan === '1 Month') monthsToAdd = 1;
     const endD = new Date(startD);
@@ -355,12 +355,13 @@ export function AllocationWizardModal({
     };
   }, [startDate, rentalPlan]);
 
-  const totalRentWithGst = (Number(rentAmount) || 0) + (Number(gstAmount) || 0);
+  const totalRentWithGst = ((Number(rentAmount) || 0) + (Number(gstAmount) || 0)) * (rentalPlan === '3 Years' ? 3 : 1);
   const totalInitialPayable = totalRentWithGst + (Number(securityDeposit) || 0);
 
   const termLabel =
     rentalPlan === '1 Year'
       ? '1st Year Rent'
+      : rentalPlan === '3 Years' ? '3 Years Rent'
       : rentalPlan === '6 Months'
       ? '6 Months Rent'
       : rentalPlan === '3 Months'
@@ -370,6 +371,7 @@ export function AllocationWizardModal({
   const grossRentLabel =
     rentalPlan === '1 Year'
       ? '1st Year Rent (Gross)'
+      : rentalPlan === '3 Years' ? '3 Years Rent (Gross)'
       : rentalPlan === '6 Months'
       ? 'Half-Yearly Rent (Gross)'
       : rentalPlan === '3 Months'
@@ -638,6 +640,7 @@ export function AllocationWizardModal({
                     onChange={(e) => setRentalPlan(e.target.value as any)}
                     className="w-full h-11 pl-4 pr-10 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 cursor-pointer appearance-none transition shadow-xs"
                   >
+                    <option value="3 Years">3 Years</option>
                     <option value="1 Year">1 Year (Annual)</option>
                     <option value="6 Months">6 Months (Half-Yearly)</option>
                     <option value="3 Months">3 Months (Quarterly)</option>
@@ -712,7 +715,7 @@ export function AllocationWizardModal({
                     id="alloc-gst-amount"
                     className="w-full h-11 pl-11 pr-4 text-sm font-bold text-slate-800 bg-slate-100/80 border border-slate-200 rounded-xl flex items-center tabular-nums shadow-xs select-all"
                   >
-                    {Number(gstAmount || 0).toLocaleString('en-IN')}
+                    {(Number(gstAmount || 0) * (rentalPlan === '3 Years' ? 3 : 1)).toLocaleString('en-IN')}
                   </div>
                 </div>
               </div>
@@ -783,7 +786,7 @@ export function AllocationWizardModal({
                     Base Rent
                   </span>
                   <span className="text-sm font-bold text-slate-900 tabular-nums">
-                    ₹ {Number(rentAmount || 0).toLocaleString('en-IN')}
+                    ₹ {(Number(rentAmount || 0) * (rentalPlan === '3 Years' ? 3 : 1)).toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div className="text-slate-300 font-light text-sm select-none">+</div>
@@ -792,7 +795,7 @@ export function AllocationWizardModal({
                     GST (18%)
                   </span>
                   <span className="text-sm font-bold text-slate-900 tabular-nums">
-                    ₹ {Number(gstAmount || 0).toLocaleString('en-IN')}
+                    ₹ {(Number(gstAmount || 0) * (rentalPlan === '3 Years' ? 3 : 1)).toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div className="text-slate-300 font-light text-sm select-none">=</div>
@@ -1120,4 +1123,8 @@ export function AllocationWizardModal({
   );
 
   return createPortal(modalContent, document.body);
+}
+
+export function AllocationWizardModal(props: AllocationWizardModalProps) {
+  return props.mode === 'reserve' ? <ReservationWizardModal {...props} /> : <CompleteAllotmentModal locker={props.preSelectedLocker} customer={props.preSelectedCustomer} onClose={props.onClose} />;
 }

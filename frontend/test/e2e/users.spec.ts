@@ -1,0 +1,100 @@
+import { test, expect } from '@playwright/test';
+async function openStaff(page: any, viewer = false) {
+  await page.goto('/login');
+  await page.getByLabel('Username or Email').fill(viewer ? 'staff-viewer' : 'browser-test');
+  await page.getByLabel('Password', { exact: true }).fill(viewer ? 'ViewerTest123!' : 'BrowserTest123!');
+  await page.getByRole('button', { name: /Sign In/i }).click();
+  await page.getByRole('button', { name: 'Staff', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Staff & User Management' })).toBeVisible();
+}
+
+test('staff full-history counts, create/edit, password reset and account status work in dialogs', async ({ page }, testInfo) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await openStaff(page);
+  await page.getByLabel('Search staff', { exact: true }).fill('UI Staff Fixture');
+  await expect(page.getByRole('button', { name: /Total Staff Accounts/ })).toContainText('18');
+  await expect(page.getByRole('button', { name: /Active Operators/ })).toContainText('14');
+  await expect(page.getByRole('button', { name: /Suspended \/ Locked/ })).toContainText('4');
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByText(/Showing page/)).toContainText('2');
+  await expect(page.getByRole('button', { name: /Active Operators/ })).toContainText('14');
+  await page.getByRole('button', { name: /Suspended \/ Locked/ }).click();
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5);
+  await page.getByLabel('Staff status filter').selectOption('ALL');
+  await page.getByLabel('Search staff', { exact: true }).fill('');
+  await page.getByRole('button', { name: 'Add Staff User', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Staff account dialog' });
+  await expect(dialog.getByLabel('Role *', { exact: true })).toHaveValue('');
+  const username = `browser-staff-${testInfo.project.name}`;
+  await dialog.getByLabel('Full Name *', { exact: true }).fill('Browser Staff New');
+  await dialog.getByLabel('Username', { exact: true }).fill(username);
+  await dialog.getByLabel('Phone number', { exact: true }).fill('+44 2079460958');
+  await dialog.getByLabel('Email Address *', { exact: true }).fill(`${username}@example.test`);
+  await dialog.getByLabel('Role *', { exact: true }).selectOption({ label: 'Staff Viewer' });
+  await dialog.getByLabel('Temporary password', { exact: true }).fill('weakpass');
+  await dialog.getByRole('button', { name: 'Create Staff Account', exact: true }).click();
+  await expect(dialog).toContainText('uppercase, lowercase and a number');
+  await dialog.getByRole('button', { name: 'Generate Password', exact: true }).click();
+  const generated = await dialog.getByLabel('Temporary password').inputValue();
+  expect(generated).toMatch(/[A-Z]/); expect(generated).toMatch(/[a-z]/); expect(generated).toMatch(/[0-9]/); expect(generated).toHaveLength(16);
+  await dialog.getByRole('button', { name: 'Create Staff Account', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByLabel('Search staff', { exact: true }).fill(username);
+  const row = page.getByRole('row').filter({ hasText: username }); await expect(row).toHaveCount(1);
+  await row.getByRole('button', { name: 'Edit Profile', exact: true }).click();
+  await expect(dialog.getByLabel('Phone number', { exact: true })).toHaveValue('+44 2079460958');
+  await dialog.getByLabel('Full Name', { exact: true }).fill('Updated Browser Staff');
+  await dialog.getByRole('button', { name: 'Save Profile Changes', exact: true }).click();
+  await expect(dialog).toBeHidden(); await expect(row).toContainText('Updated Browser Staff');
+  await row.getByRole('button', { name: 'Reset Password', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Generate Strong', exact: true }).click();
+  await expect(dialog.getByLabel('New password', { exact: true })).toHaveAttribute('type', 'password');
+  await dialog.getByRole('button', { name: 'Confirm Password Reset', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await row.getByRole('button', { name: 'Deactivate Account', exact: true }).click();
+  await dialog.getByRole('button', { name: /Confirm|Suspend/, exact: false }).last().click();
+  await expect(dialog).toBeHidden(); await expect(row).toContainText('INACTIVE');
+  await row.getByRole('button', { name: 'Reactivate Account', exact: true }).click();
+  await dialog.getByRole('button', { name: /Confirm|Reactivate/, exact: false }).last().click();
+  await expect(dialog).toBeHidden(); await expect(row).toContainText('ACTIVE');
+  expect(page.url()).toContain('/users'); expect(errors).toEqual([]);
+});
+
+test('staff viewer has no mutation access and dialogs trap and restore keyboard focus', async ({ page }) => {
+  await openStaff(page, true);
+  await expect(page.getByRole('button', { name: 'Add Staff User', exact: true })).toHaveCount(0);
+  await page.getByLabel('Search staff', { exact: true }).fill('browser-test');
+  const row = page.getByRole('row').filter({ hasText: 'browser-test' });
+  await expect(row.getByRole('button', { name: 'Edit Profile', exact: true })).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Reset Password', exact: true })).toHaveCount(0);
+  const inspect = row.getByRole('button', { name: 'Inspect Operator Profile', exact: true });
+  await inspect.click();
+  const dialog = page.getByRole('dialog', { name: 'Staff account dialog' });
+  await expect(dialog.getByRole('button', { name: 'Reset Password', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Edit Profile', exact: true })).toBeDisabled();
+  await page.keyboard.press('Shift+Tab'); await expect(dialog.getByRole('button', { name: 'Done', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(dialog).toBeHidden(); await expect(inspect).toBeFocused();
+});
+
+
+test('staff request failures show retry controls and self security fields stay protected', async ({ page }) => {
+  let failDirectory = true, failRoles = true;
+  await page.route('**/api/users?*', async route => { if (failDirectory) await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Staff directory temporarily unavailable' }) }); else await route.continue(); });
+  await page.route('**/api/users/assignable-roles', async route => { if (failRoles) await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Roles temporarily unavailable' }) }); else await route.continue(); });
+  await openStaff(page);
+  await expect(page.getByRole('button', { name: 'Add Staff User', exact: true })).toBeDisabled();
+  await expect(page.getByText('Staff directory unavailable. Use Retry above.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Could not load assignable roles.', { exact: false })).toBeVisible();
+  failDirectory = false; failRoles = false;
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await page.getByRole('button', { name: 'Retry roles', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Add Staff User', exact: true })).toBeEnabled();
+  await page.getByLabel('Search staff', { exact: true }).fill('browser-test');
+  const row = page.getByRole('row').filter({ hasText: 'browser-test' });
+  await expect(row.getByRole('button', { name: 'Deactivate Account', exact: true })).toHaveCount(0);
+  await row.getByRole('button', { name: 'Edit Profile', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Staff account dialog' });
+  await expect(dialog.getByLabel('Account status', { exact: true })).toBeDisabled();
+  await expect(dialog.getByLabel('Assigned role', { exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape'); await expect(dialog).toBeHidden();
+});

@@ -12,7 +12,7 @@ test('money values are normalized to paise precision', () => {
 });
 
 test('invalid money values are rejected', () => {
-  for (const value of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 'bad']) {
+  for (const value of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 'bad', true, [100], {}, '', '  ', 0.001]) {
     assert.throws(() => normalizeMoney(value));
   }
 });
@@ -45,4 +45,45 @@ test('private cloud asset references reject tampering', () => {
 test('invoice totals are rendered in Indian numbering words', () => {
   assert.equal(amountInWords(1400), 'Rupees One Thousand Four Hundred Only');
   assert.equal(amountInWords(125000.5), 'Rupees One Lakh Twenty Five Thousand and Fifty Paise Only');
+});
+
+
+test('private document reads return bytes rather than a browser redirect', async () => {
+  const originalFetch = global.fetch;
+  const originalUrl = StorageService.getPrivateDownloadUrl;
+  const png = await sharp({ create: { width: 1, height: 1, channels: 3, background: '#ffffff' } }).png().toBuffer();
+  try {
+    StorageService.getPrivateDownloadUrl = () => 'https://api.cloudinary.com/signed-test';
+    global.fetch = async () => new Response(png, { headers: { 'Content-Type': 'image/png' } });
+    const result = await StorageService.readPrivateFile('test-token');
+    assert.deepEqual(result.buffer, png);
+    assert.equal(result.mimeType, 'image/png');
+    global.fetch = async () => new Response(Buffer.from('%PDF-1.4\ndocument\n%%EOF'), { headers: { 'Content-Type': 'application/octet-stream' } });
+    assert.equal((await StorageService.readPrivateFile('test-token')).mimeType, 'application/pdf');
+    global.fetch = async () => new Response('<html>error</html>', { headers: { 'Content-Type': 'text/html' } });
+    await assert.rejects(StorageService.readPrivateFile('test-token'), /unsupported/);
+    global.fetch = async () => new Response('unavailable', { status: 503 });
+    await assert.rejects(StorageService.readPrivateFile('test-token'), /could not retrieve/);
+  } finally {
+    global.fetch = originalFetch;
+    StorageService.getPrivateDownloadUrl = originalUrl;
+  }
+});
+
+
+test('financial API errors distinguish uncertain commits from validation conflicts', () => {
+  const { serviceErrorStatus } = require('../dist/utils/serviceErrorStatus');
+  assert.equal(serviceErrorStatus({ name: 'MongoNetworkError' }), 503);
+  assert.equal(serviceErrorStatus({ name: 'MongoServerError', errorLabels: ['UnknownTransactionCommitResult'] }), 503);
+  assert.equal(serviceErrorStatus({ code: 11000 }), 409);
+  assert.equal(serviceErrorStatus({ statusCode: 409 }), 409);
+  assert.equal(serviceErrorStatus({ name: 'ValidationError' }), 400);
+});
+
+
+test('audit CSV escapes every cell and neutralizes spreadsheet formulas', () => {
+  const { auditCsvCell, escapeAuditSearch } = require('../dist/utils/auditPresentation');
+  assert.equal(auditCsvCell('comma, quote"\nline'), '"comma, quote""\nline"');
+  for (const value of ['=1+1', '+SUM(1)', '-1+2', '@CMD', '\t =1']) assert.ok(auditCsvCell(value).startsWith('"\''));
+  assert.equal(escapeAuditSearch('[x].*'), '\\[x\\]\\.\\*');
 });

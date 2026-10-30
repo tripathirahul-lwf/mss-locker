@@ -95,7 +95,7 @@ CLIENT_URL=http://localhost:5173
 ## 🛠️ Local Development Setup
 
 ### 1. Prerequisites
-- Node.js (v18 or higher)
+- Node.js (v22.12 or higher)
 - npm or pnpm or yarn
 - MongoDB instance (local or MongoDB Atlas connection string)
 
@@ -220,3 +220,9 @@ npm run preview      # Preview production build locally
 ## Production operations
 
 Core financial and lifecycle workflows require a MongoDB replica set. Payments are manual counter entries only; no payment gateway integration is present. Before deployment, follow the environment, rollout, backup/restore, security, reconciliation, and incident-response checklist in [docs/PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md).
+
+## Marudhar reference implementation
+
+The locker-first ledger now includes combined transactional allotment, one/three-year tenure, KYC attachments, the Rs 50 opening KYC charge, separate rent/deposit receipts, and strengthened origin/session protection. See [implementation and verification notes](docs/MARUDHAR_REFERENCE_AUDIT.md) for flows, tests, limits and deployment configuration.
+
+Run `npm run test:e2e` for the isolated desktop/mobile browser tests. Install the test browser once with `cd frontend` then `npx playwright install chromium`. Run `npm run audit` to check both dependency trees. `npm run build` builds both application packages.

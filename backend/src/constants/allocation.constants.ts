@@ -18,6 +18,7 @@ export type AllocationType = typeof ALLOCATION_TYPE[keyof typeof ALLOCATION_TYPE
 
 export const BILLING_CYCLE = {
   ANNUAL: 'ANNUAL',
+  TRIENNIAL: 'TRIENNIAL',
   HALF_YEARLY: 'HALF_YEARLY',
   QUARTERLY: 'QUARTERLY',
   MONTHLY: 'MONTHLY',

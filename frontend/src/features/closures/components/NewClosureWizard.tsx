@@ -38,6 +38,7 @@ interface NewClosureWizardProps {
   onSuccess: () => void;
   initialLockerId?: string;
   initialAllocationId?: string;
+  lockTarget?: boolean;
 }
 
 const STEPS = [
@@ -77,6 +78,7 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
   onSuccess,
   initialLockerId,
   initialAllocationId,
+  lockTarget = false,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [maxStepReached, setMaxStepReached] = useState<number>(1);
@@ -135,7 +137,15 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
     }
 
     const resolveInitialTarget = async () => {
-      if (initialLockerId) {
+      if (lockTarget && initialAllocationId) {
+        setLoadingAllocations(true);
+        try {
+          const allocation = await allocationApi.getAllocationById(initialAllocationId);
+          setSelectedAllocation(allocation);
+          setAllocations([allocation]);
+        } catch { setError('Could not load this locker allotment. Close and retry.'); }
+        finally { setLoadingAllocations(false); }
+      } else if (initialLockerId) {
         try {
           const res = await allocationApi.getLockerAllocations(initialLockerId);
           if (res?.currentAllocation) {
@@ -165,11 +175,11 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
     };
 
     resolveInitialTarget();
-  }, [isOpen, initialLockerId, initialAllocationId]);
+  }, [isOpen, initialLockerId, initialAllocationId, lockTarget]);
 
-  // Search active allocations
+  // A closure opened from a locker stays scoped to that agreement.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || lockTarget) return;
 
     const fetchAllocations = async () => {
       setLoadingAllocations(true);
@@ -189,7 +199,7 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
 
     const timer = setTimeout(fetchAllocations, 250);
     return () => clearTimeout(timer);
-  }, [allocSearch, isOpen]);
+  }, [allocSearch, isOpen, lockTarget]);
 
   // Fetch readiness when allocation is selected and navigating to Step 3
   useEffect(() => {
@@ -202,6 +212,18 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
         .finally(() => setLoadingReadiness(false));
     }
   }, [selectedAllocation, currentStep, checklist]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (event: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
+      const own = document.querySelector('[aria-labelledby="new-closure-title"]');
+      if (dialogs[dialogs.length - 1] !== own) return;
+      if (event.key === 'Escape') { event.preventDefault(); if (!submitting) onClose(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, submitting, onClose]);
 
   if (!isOpen) return null;
 
@@ -311,7 +333,7 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
                 id="new-closure-title"
                 className="text-base sm:text-lg font-bold text-slate-900 leading-tight"
               >
-                Initiate Locker Surrender & Closure
+                Close Locker
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Step {currentStep} of 5 &bull; {STEPS[currentStep - 1].title} —{' '}
@@ -322,7 +344,8 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close surrender wizard"
+            aria-label="Close closure wizard"
+            disabled={submitting}
             className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/70 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -430,6 +453,7 @@ export const NewClosureWizard: React.FC<NewClosureWizardProps> = ({
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
+                    disabled={lockTarget}
                     value={allocSearch}
                     onChange={(e) => setAllocSearch(e.target.value)}
                     placeholder="Search by customer name, phone, locker #, or allocation code..."

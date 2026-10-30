@@ -17,6 +17,7 @@ export interface IUser extends Document {
   status: UserStatus;
   lastLoginAt?: Date;
   lastLoginIp?: string;
+  tokenVersion: number;
   failedLoginAttempts: number;
   lockedUntil?: Date;
   createdBy?: Types.ObjectId;
@@ -85,6 +86,7 @@ const userSchema = new Schema<IUser>(
     lastLoginIp: {
       type: String,
     },
+    tokenVersion: { type: Number, default: 0 },
     failedLoginAttempts: {
       type: Number,
       default: 0,

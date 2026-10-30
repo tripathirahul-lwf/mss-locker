@@ -1,3 +1,5 @@
+import { Payment } from '../models/Payment';
+import { Customer } from '../models/Customer';
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { StorageService } from '../services/storage.service';
@@ -73,8 +75,15 @@ export class UploadController {
 
   static async downloadPrivateCloudFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const fileUrl = `/api/upload/private/cloud/${req.params.token}`;
+      const canViewKyc = req.user?.isSuperAdmin || req.user?.permissions.includes('customers.kyc.view');
+      const canViewReceipt = req.user?.permissions.includes('payments.view') && await Payment.exists({ proofUrl: fileUrl });
+      if (!canViewKyc && !canViewReceipt) { res.status(403).json(errorResponse('Document access permission required.')); return; }
       res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-      res.redirect(302, StorageService.getPrivateDownloadUrl(String(req.params.token)));
+      const file = await StorageService.readPrivateFile(String(req.params.token));
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', 'inline');
+      res.type(file.mimeType).send(file.buffer);
     } catch (error) { next(error); }
   }
 
@@ -82,7 +91,7 @@ export class UploadController {
     try {
       const fileUrl = typeof req.body?.fileUrl === 'string' ? req.body.fileUrl : '';
       StorageService.assertPrivateDocumentUrl(fileUrl);
-      if (await CustomerKycDocument.exists({ documentUrl: fileUrl, isActive: true })) {
+      if (await CustomerKycDocument.exists({ documentUrl: fileUrl, isActive: true }) || await Payment.exists({ proofUrl: fileUrl }) || await Customer.exists({ photoUrl: fileUrl })) {
         throw Object.assign(new Error('Attached KYC documents must be removed through the customer document workflow.'), { statusCode: 409 });
       }
       await StorageService.deleteFile(fileUrl);

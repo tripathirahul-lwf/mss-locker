@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { User } from '../types/auth';
+import { User, RoleListItem } from '../types/auth';
 
 export interface GetUsersQuery {
   search?: string;
@@ -11,6 +11,7 @@ export interface GetUsersQuery {
 
 export interface GetUsersResponse {
   users: User[];
+  summary: { total: number; active: number; administrative: number; restricted: number };
   pagination: {
     page: number;
     limit: number;
@@ -41,6 +42,9 @@ export interface UpdateUserData {
 }
 
 export const userService = {
+  async getAssignableRoles(): Promise<{ roles: RoleListItem[] }> {
+    const response = await apiClient.get('/users/assignable-roles'); return response.data.data;
+  },
   async getUsers(query: GetUsersQuery = {}, signal?: AbortSignal): Promise<GetUsersResponse> {
     const params = new URLSearchParams();
     if (query.search) params.append('search', query.search);

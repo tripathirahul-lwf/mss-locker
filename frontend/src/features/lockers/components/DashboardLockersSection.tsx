@@ -86,16 +86,19 @@ export const DashboardLockersSection = forwardRef<
   const [sortOrder, setSortOrderState] = useState<'asc' | 'desc'>(() => (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc');
 
   // Helper to sync single parameter to URL query without losing others
+  const pendingParams = useRef(new URLSearchParams(searchParams));
+  useEffect(() => { pendingParams.current = new URLSearchParams(searchParams); }, [searchParams]);
   const updateUrlParam = useCallback((key: string, value: string | undefined | null) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
+    const next = new URLSearchParams(pendingParams.current);
+    {
       if (value === undefined || value === null || value === '' || (key === 'status' && value === 'ALL') || (key === 'page' && value === '1') || (key === 'view' && value === 'cards')) {
         next.delete(key);
       } else {
         next.set(key, value);
       }
-      return next;
-    }, { replace: true });
+      pendingParams.current = next;
+      setSearchParams(next, { replace: true });
+    }
   }, [setSearchParams]);
 
   const setStatusParam = useCallback((newStatus: string) => {
@@ -112,12 +115,13 @@ export const DashboardLockersSection = forwardRef<
     localStorage.setItem('dashboard_locker_view', newView);
   }, [updateUrlParam]);
 
+  const pageRef = useRef(page);
+  pageRef.current = page;
   const setPage = useCallback((pageAction: number | ((prev: number) => number)) => {
-    setPageState((prev) => {
-      const newPage = typeof pageAction === 'function' ? pageAction(prev) : pageAction;
-      updateUrlParam('page', newPage > 1 ? String(newPage) : null);
-      return newPage;
-    });
+    const newPage = typeof pageAction === 'function' ? pageAction(pageRef.current) : pageAction;
+    pageRef.current = newPage;
+    setPageState(newPage);
+    updateUrlParam('page', newPage > 1 ? String(newPage) : null);
   }, [updateUrlParam]);
 
   const setSearch = useCallback((newSearch: string) => {
@@ -140,18 +144,21 @@ export const DashboardLockersSection = forwardRef<
     updateUrlParam('sortBy', newSortBy);
   }, [updateUrlParam]);
 
+  const sortOrderRef = useRef(sortOrder);
+  sortOrderRef.current = sortOrder;
   const setSortOrder = useCallback((newOrderAction: 'asc' | 'desc' | ((prev: 'asc' | 'desc') => 'asc' | 'desc')) => {
-    setSortOrderState((prev) => {
-      const newOrder = typeof newOrderAction === 'function' ? newOrderAction(prev) : newOrderAction;
-      updateUrlParam('sortOrder', newOrder);
-      return newOrder;
-    });
+    const newOrder = typeof newOrderAction === 'function' ? newOrderAction(sortOrderRef.current) : newOrderAction;
+    sortOrderRef.current = newOrder;
+    setSortOrderState(newOrder);
+    updateUrlParam('sortOrder', newOrder);
   }, [updateUrlParam]);
 
   // Notice toast
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Modals state
+  const [detailTab, setDetailTab] = useState<'details' | 'kyc'>('details');
   const [viewingLocker, setViewingLocker] = useState<Locker | null>(null);
   const [allocatingLocker, setAllocatingLocker] = useState<Locker | null>(null);
   const [editingLocker, setEditingLocker] = useState<Locker | null>(null);
@@ -183,7 +190,7 @@ export const DashboardLockersSection = forwardRef<
   // Translate status selection into API query
   let apiStatus: string | undefined = undefined;
   let apiOpStatus: string | undefined = undefined;
-  let apiIsActive: boolean | undefined = undefined;
+  let apiIsActive: boolean | undefined = true;
 
   if (statusParam === 'CLOSED') {
     apiIsActive = false;
@@ -205,9 +212,10 @@ export const DashboardLockersSection = forwardRef<
     rackNumber,
     isActive: apiIsActive,
     compact: true,
+    ...(statusParam === 'VACANT' ? { operationalStatus: 'ACTIVE', isActive: true } : {}),
     sortBy,
     sortOrder,
-  }), [page, limit, viewMode, search, size, apiStatus, apiOpStatus, rackNumber, apiIsActive, sortBy, sortOrder]);
+  }), [page, limit, viewMode, search, size, apiStatus, apiOpStatus, rackNumber, apiIsActive, sortBy, sortOrder, statusParam]);
 
   // Queries
   const {
@@ -271,8 +279,15 @@ export const DashboardLockersSection = forwardRef<
     });
 
   const handleViewLocker = useCallback(async (locker: Locker) => {
-    setViewingLocker(await loadLockerDetail(locker));
-  }, []);
+    setDetailTab('details');
+    setDetailError(null);
+    if (locker.status === 'VACANT' && locker.operationalStatus === 'ACTIVE' && locker.isActive && canAllocate) {
+      setAllocatingLocker(locker);
+      return;
+    }
+    try { setViewingLocker(await loadLockerDetail(locker)); }
+    catch { setDetailError('Locker details could not be loaded. Please try again.'); }
+  }, [canAllocate, queryClient]);
 
   const handleAllocateLocker = useCallback((locker: Locker) => {
     setAllocatingLocker(locker);
@@ -321,7 +336,8 @@ export const DashboardLockersSection = forwardRef<
   const endIndex = Math.min(page * limit, totalLockers);
 
   return (
-    <section ref={sectionRef} className="space-y-4 pt-2">
+    <section ref={sectionRef} className="vault-directory space-y-4 pt-2">
+      {detailError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{detailError}<button type="button" className="ml-3 underline" onClick={() => setDetailError(null)}>Dismiss</button></div>}
       {/* Floating Notice Toast */}
       {notice && (
         <div
@@ -342,7 +358,7 @@ export const DashboardLockersSection = forwardRef<
       )}
 
       {/* Main Section Header Card */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="vault-directory-heading bg-white border border-slate-200/90 rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 flex-wrap">
           <h2 className="text-xl font-bold tracking-tight text-slate-900">
             Vault Lockers Directory
@@ -377,21 +393,21 @@ export const DashboardLockersSection = forwardRef<
       </div>
 
       {/* Integrated Filter & View Control Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+      <div className="vault-directory-controls bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
         {/* Upper Tier: Status Filter Pills + View Switcher */}
-        <div className="p-3 sm:px-4 sm:py-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="vault-status-row p-3 sm:px-4 sm:py-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Status Selection Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] pb-1 lg:pb-0">
             {[
               {
                 key: 'ALL',
-                label: 'All Lockers',
+                label: 'All',
                 count: lockerStats?.total ?? 0,
                 dotColor: 'bg-slate-400',
               },
               {
                 key: 'VACANT',
-                label: 'Available',
+                label: 'Vacant',
                 count: lockerStats?.availableForAllocation ?? lockerStats?.vacant ?? 0,
                 dotColor: 'bg-emerald-500',
               },
@@ -399,15 +415,13 @@ export const DashboardLockersSection = forwardRef<
                 key: 'OCCUPIED',
                 label: 'Occupied',
                 count: lockerStats?.occupied ?? 0,
-                dotColor: 'bg-rose-500',
+                dotColor: 'bg-emerald-500',
               },
-              {
-                key: 'RENEWAL_DUE',
-                label: 'Renewal Due',
-                count: lockerStats?.renewalDue ?? 0,
-                dotColor: 'bg-amber-500',
-                show: (lockerStats?.renewalDue ?? 0) > 0,
-              },
+              { key: 'DUE_SOON', label: 'Due Soon', count: lockerStats?.dueSoon ?? 0, dotColor: 'bg-amber-500' },
+              { key: 'OVERDUE', label: 'Overdue', count: lockerStats?.overdue ?? 0, dotColor: 'bg-red-500' },
+              { key: 'KYC_PENDING', label: 'KYC Pending', count: lockerStats?.kycPending ?? 0, dotColor: 'bg-amber-500' },
+              { key: 'KYC_DONE', label: 'KYC Done', count: lockerStats?.kycDone ?? 0, dotColor: 'bg-emerald-500' },
+              { key: 'CLOSED_RECORDS', label: 'Closed', count: undefined, dotColor: 'bg-slate-500' },
               {
                 key: 'RESERVED',
                 label: 'Reserved',
@@ -431,10 +445,11 @@ export const DashboardLockersSection = forwardRef<
                     key={item.key}
                     type="button"
                     onClick={() => {
+                      if (item.key === 'CLOSED_RECORDS') { navigate('/closed-lockers'); return; }
                       setStatusParam(item.key);
                       setPage(1);
                     }}
-                    className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
+                    className={`vault-filter-pill ${isSelected ? 'is-selected' : ''} h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
                       isSelected
                         ? 'bg-slate-900 text-white shadow-2xs font-bold'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
@@ -453,7 +468,7 @@ export const DashboardLockersSection = forwardRef<
                           : 'bg-slate-100 text-slate-600'
                       }`}
                     >
-                      {item.count.toLocaleString('en-IN')}
+                      {item.count?.toLocaleString('en-IN')}
                     </span>
                   </button>
                 );
@@ -461,7 +476,7 @@ export const DashboardLockersSection = forwardRef<
           </div>
 
           {/* View Switcher: Cards, Table, Racks */}
-          <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 shrink-0 self-start lg:self-auto">
+          <div className="vault-view-switcher flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 shrink-0 self-start lg:self-auto">
             <button
               type="button"
               onClick={() => setViewMode('cards')}
@@ -507,7 +522,7 @@ export const DashboardLockersSection = forwardRef<
         </div>
 
         {/* Lower Tier: Search, Size, Sort, and Pagination */}
-        <div className="border-t border-slate-100 bg-slate-50/50 p-2.5 sm:px-4 sm:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+        <div className="vault-search-row border-t border-slate-100 bg-slate-50/50 p-2.5 sm:px-4 sm:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
           {/* Search Box */}
           <div className="relative flex-1 min-w-[220px] max-w-md">
             {isFetching && localSearch ? (
@@ -517,7 +532,7 @@ export const DashboardLockersSection = forwardRef<
             )}
             <input
               type="text"
-              placeholder="Search locker #, rack, or tenant..."
+              placeholder="Search locker no., name, phone or key no."
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -558,7 +573,7 @@ export const DashboardLockersSection = forwardRef<
                 }}
                 className="w-full h-8 text-xs font-semibold text-slate-700 bg-transparent border-0 outline-none focus:outline-none cursor-pointer appearance-none pr-5"
               >
-                <option value="ALL">Size: All</option>
+                <option value="ALL">All Sizes</option>
                 {LOCKER_SIZES.map((s) => (
                   <option key={s.code} value={s.code}>
                     Size {s.code}
@@ -658,7 +673,7 @@ export const DashboardLockersSection = forwardRef<
         </div>
       ) : isListLoading ? (
         /* Loading Skeletons */
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 items-stretch gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
@@ -688,12 +703,17 @@ export const DashboardLockersSection = forwardRef<
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 items-stretch gap-4">
               {lockers.map((locker) => (
                 <LockerModernCard
                   key={locker._id}
                   locker={locker}
                   onView={handleViewLocker}
+                  onKyc={async locker => {
+                    setDetailError(null);
+                    try { setDetailTab('kyc'); setViewingLocker(await loadLockerDetail(locker)); }
+                    catch { setDetailError('KYC details could not be loaded. Please try again.'); }
+                  }}
                   onAllocate={handleAllocateLocker}
                   canAllocate={canAllocate}
                 />
@@ -795,6 +815,7 @@ export const DashboardLockersSection = forwardRef<
       {viewingLocker && (
         <LockerDetailModal
           locker={viewingLocker}
+          initialTab={detailTab}
           onClose={() => setViewingLocker(null)}
           onEdit={(locker) => {
             setEditingLocker(locker);

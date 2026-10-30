@@ -53,6 +53,7 @@ export class CustomerKycController {
         ipAddress,
         userAgent
       );
+      if (!CustomerKycController.canViewSensitive(req)) doc.documentNumber = doc.maskedDocumentNumber;
       res.status(201).json(successResponse('KYC document added successfully', doc));
     } catch (error) {
       next(error);
@@ -65,6 +66,7 @@ export class CustomerKycController {
     next: NextFunction
   ): Promise<void> {
     try {
+      await CustomerKycService.assertDocumentBelongsToCustomer(req.params.kycId as string, req.params.id as string);
       const input = updateKycDocumentSchema.parse(req.body);
       const ipAddress =
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
@@ -78,6 +80,7 @@ export class CustomerKycController {
         ipAddress,
         userAgent
       );
+      if (!CustomerKycController.canViewSensitive(req)) doc.documentNumber = doc.maskedDocumentNumber;
       res.json(successResponse('KYC document updated successfully', doc));
     } catch (error) {
       next(error);
@@ -90,6 +93,7 @@ export class CustomerKycController {
     next: NextFunction
   ): Promise<void> {
     try {
+      await CustomerKycService.assertDocumentBelongsToCustomer(req.params.kycId as string, req.params.id as string);
       const input = verifyKycDocumentSchema.parse(req.body);
       const ipAddress =
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
@@ -103,6 +107,7 @@ export class CustomerKycController {
         ipAddress,
         userAgent
       );
+      if (!CustomerKycController.canViewSensitive(req)) doc.documentNumber = doc.maskedDocumentNumber;
       res.json(successResponse('KYC verification status updated', doc));
     } catch (error) {
       next(error);
@@ -115,6 +120,7 @@ export class CustomerKycController {
     next: NextFunction
   ): Promise<void> {
     try {
+      await CustomerKycService.assertDocumentBelongsToCustomer(req.params.kycId as string, req.params.id as string);
       const ipAddress =
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];

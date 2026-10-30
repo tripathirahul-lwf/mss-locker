@@ -1,3 +1,4 @@
+import { escapeHtmlFields } from '../utils/html';
 import mongoose, { ClientSession, Types } from 'mongoose';
 import {
   LockerClosure,
@@ -359,7 +360,7 @@ export class LockerClosureService {
       return closure;
     }
 
-    const allocation = await LockerAllocation.findById(closure.allocationId).session(session);
+    const allocation = await LockerAllocation.findOneAndUpdate({ _id: closure.allocationId }, { $set: { updatedAt: new Date() } }, { new: true, session });
     if (!allocation) {
       const error: any = new Error('Linked allocation not found');
       error.statusCode = 404;
@@ -378,6 +379,11 @@ export class LockerClosureService {
       const error: any = new Error('Linked locker not found');
       error.statusCode = 404;
       throw error;
+    }
+
+    const readiness = await closureReadinessService.getReadiness(allocation._id, closure.physicalChecklist);
+    if (!readiness.checklistComplete || (!readiness.isFinanciallyCleared && !closure.overrideFinancial)) {
+      throw Object.assign(new Error(`Closure readiness changed after approval: ${readiness.blockers.join(' ')}`), { statusCode: 409 });
     }
 
     const actualClosureDate = new Date();
@@ -722,7 +728,7 @@ export class LockerClosureService {
    * Generates a clean black-and-white print-ready A4 Tenancy Closure Certificate & Statement
    */
   async generateClosureStatementHtml(closureId: string, autoPrint = false): Promise<string> {
-    const closure: any = await this.getClosureById(closureId);
+    const closure: any = escapeHtmlFields(await this.getClosureById(closureId));
     if (!closure) {
       throw new Error('Closure not found');
     }

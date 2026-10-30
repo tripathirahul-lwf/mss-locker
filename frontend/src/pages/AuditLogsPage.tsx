@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -68,13 +68,13 @@ function getActionSeverity(action: string): {
   badgeLabel: string;
 } {
   const upper = (action || '').toUpperCase();
-  if (upper.includes('FAILED') || upper.includes('REJECTED') || upper.includes('DEACTIVATED') || upper.includes('CANCELLED')) {
+  if (upper.includes('FAILED') || upper.includes('REJECTED') || upper.includes('DEACTIVATED') || upper.includes('CANCELLED') || upper.includes('DENIED')) {
     return {
       variant: 'destructive',
       bg: 'bg-rose-50',
       text: 'text-rose-800',
       border: 'border-rose-200',
-      badgeLabel: 'Security Notice / Failed',
+      badgeLabel: 'Rejected / Cancelled / Failed',
     };
   }
   if (upper.includes('PASSWORD') || upper.includes('OVERRIDDEN') || upper.includes('REMOVED')) {
@@ -100,7 +100,7 @@ function getActionSeverity(action: string): {
     bg: 'bg-emerald-50',
     text: 'text-emerald-800',
     border: 'border-emerald-200',
-    badgeLabel: 'Verified & Normal',
+    badgeLabel: 'Recorded Event',
   };
 }
 
@@ -109,6 +109,8 @@ function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+  if (!Number.isFinite(diffInSeconds)) return 'Unknown time';
+  if (diffInSeconds < 0) return 'Future timestamp';
   if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
   const diffInMinutes = Math.floor(diffInSeconds / 60);
   if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
@@ -116,24 +118,23 @@ function formatRelativeTime(dateString: string): string {
   if (diffInHours < 24) return `${diffInHours}h ago`;
   const diffInDays = Math.floor(diffInHours / 24);
   if (diffInDays < 30) return `${diffInDays}d ago`;
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  return date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
 }
 
 function formatIpAddress(ip?: string): string {
-  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.includes('127.0.0.1')) {
-    return '127.0.0.1 (This Computer / Local Machine)';
-  }
+  if (!ip) return 'Not recorded';
   const cleaned = ip.replace(/^::ffff:/, '');
-  if (cleaned.startsWith('192.168.') || cleaned.startsWith('10.') || cleaned.startsWith('172.')) {
-    return `${cleaned} (Branch Counter Network)`;
-  }
-  return `${cleaned} (Authorized Network)`;
+  if (cleaned === '127.0.0.1' || cleaned === '::1') return `${cleaned} (Loopback)`;
+  const octets = cleaned.split('.').map(Number);
+  if (octets.length === 4 && (octets[0] === 10 || octets[0] === 192 && octets[1] === 168 || octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)) return `${cleaned} (Private network)`;
+  return cleaned;
 }
 
 function parseUserAgent(ua?: string) {
-  if (!ua) return { os: 'Windows PC', browser: 'Web Browser', device: 'Workstation' };
-  let os = 'Windows PC';
+  if (!ua) return { os: 'Not recorded', browser: 'Not recorded', device: 'Not recorded' };
+  let os = 'Unknown platform';
   if (ua.includes('Windows NT 10.0') || ua.includes('Windows')) os = 'Windows PC';
+  else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'Apple iPad / iPhone';
   else if (ua.includes('Mac OS X')) os = 'Apple Mac';
   else if (ua.includes('Android')) os = 'Android Tablet / Phone';
   else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'Apple iPad / iPhone';
@@ -182,8 +183,8 @@ function getHumanFriendlyEventInfo(log: AuditLogItem): {
     return {
       friendlyTitle: `Failed sign-in attempt on account '${log.actorUsername || 'staff'}'`,
       categoryLabel: 'Security & Access Alert',
-      whatHappened: `An attempt was made to sign in to this account with an incorrect password. The system rejected access.`,
-      dataImpact: 'Access Blocked: No unauthorized session was created. Counter remains fully secure.',
+      whatHappened: `A sign-in attempt was rejected. Check the recorded details for the reason.`,
+      dataImpact: 'This event records a failed sign-in attempt.',
       icon: AlertTriangle,
       iconBg: 'bg-rose-100',
       iconColor: 'text-rose-800',
@@ -195,7 +196,7 @@ function getHumanFriendlyEventInfo(log: AuditLogItem): {
       friendlyTitle: `${operator} signed out of the system`,
       categoryLabel: 'Staff Session Ended',
       whatHappened: `The operator safely closed their session and logged out of the application.`,
-      dataImpact: 'Session Ended: All temporary credentials and active tokens were safely cleared.',
+      dataImpact: 'A sign-out event was recorded for this session.',
       icon: Lock,
       iconBg: 'bg-slate-100',
       iconColor: 'text-slate-800',
@@ -252,10 +253,10 @@ function getHumanFriendlyEventInfo(log: AuditLogItem): {
 
   if (action.includes('KYC_VERIFIED')) {
     return {
-      friendlyTitle: `Customer KYC verified and approved`,
+      friendlyTitle: `KYC document verified`,
       categoryLabel: 'Regulatory Compliance & KYC',
       whatHappened: `${operator} reviewed and verified the customer's identity and address proof documents.`,
-      dataImpact: 'Compliance Cleared: Customer is now authorized for locker custody.',
+      dataImpact: 'Document verification recorded. Overall customer KYC may still require other documents.',
       icon: UserCheck,
       iconBg: 'bg-emerald-100',
       iconColor: 'text-emerald-800',
@@ -276,10 +277,10 @@ function getHumanFriendlyEventInfo(log: AuditLogItem): {
 
   if (action.includes('ALLOCATION_CREATED') || action.includes('LOCKER_RESERVED')) {
     return {
-      friendlyTitle: `Locker allocated to customer`,
+      friendlyTitle: action === 'LOCKER_RESERVED' ? 'Locker reserved for customer' : 'Locker allocated to customer',
       categoryLabel: 'Locker Allocation & Tenancy',
-      whatHappened: `${operator} assigned a safe-deposit locker to a verified customer and created an active agreement.`,
-      dataImpact: 'Locker Occupied: Locker status changed to Occupied and annual billing cycle initiated.',
+      whatHappened: `${operator} recorded a locker agreement. The recorded action distinguishes reservation from active allotment.`,
+      dataImpact: action === 'LOCKER_RESERVED' ? 'Locker reserved; this event does not confirm an active tenancy or rent payment.' : 'Allotment recorded; payment and KYC are tracked separately.',
       icon: KeyRound,
       iconBg: 'bg-emerald-100',
       iconColor: 'text-emerald-800',
@@ -300,10 +301,10 @@ function getHumanFriendlyEventInfo(log: AuditLogItem): {
 
   if (action.includes('REFUND_APPROVED') || action.includes('REFUND_PAID')) {
     return {
-      friendlyTitle: `Locker security deposit refund processed`,
+      friendlyTitle: action === 'REFUND_APPROVED' ? 'Refund request approved' : 'Refund payout recorded',
       categoryLabel: 'Settlement & Deposit Refunds',
-      whatHappened: `${operator} approved or disbursed the caution money refund following locker surrender.`,
-      dataImpact: 'Settlement Complete: Security deposit balance debited and returned to customer.',
+      whatHappened: action === 'REFUND_APPROVED' ? `${operator} approved the refund request.` : `${operator} recorded the refund disbursement.`,
+      dataImpact: action === 'REFUND_APPROVED' ? 'Approval reserves the refund. No payout is confirmed by this event.' : 'Refund payment recorded. Check the ledger for any remaining balance.',
       icon: CreditCard,
       iconBg: 'bg-emerald-100',
       iconColor: 'text-emerald-800',
@@ -326,7 +327,7 @@ function getHumanFriendlyEventInfo(log: AuditLogItem): {
     friendlyTitle: log.description || `System action: ${action}`,
     categoryLabel: log.entityType || log.module || 'System Event',
     whatHappened: log.description || `The operator performed action '${action}' in the system.`,
-    dataImpact: 'Audit Record: Recorded permanently in the tamper-proof ledger.',
+    dataImpact: 'Recorded audit event. No additional data change is inferred.',
     icon: ShieldCheck,
     iconBg: 'bg-emerald-100',
     iconColor: 'text-emerald-800',
@@ -343,6 +344,8 @@ interface AuditDetailModalProps {
 }
 
 function AuditDetailModal({ log, onClose, onPrev, onNext, hasPrev, hasNext }: AuditDetailModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [copyError, setCopyError] = useState('');
   const [copiedId, setCopiedId] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
   const [showTechnical, setShowTechnical] = useState(false);
@@ -350,40 +353,50 @@ function AuditDetailModal({ log, onClose, onPrev, onNext, hasPrev, hasNext }: Au
   const clientInfo = parseUserAgent(log.userAgent);
   const humanInfo = getHumanFriendlyEventInfo(log);
   const IconComponent = humanInfo.icon;
+  const callbacks = useRef({ onClose, onPrev, onNext, hasPrev, hasNext });
+  callbacks.current = { onClose, onPrev, onNext, hasPrev, hasNext };
 
   useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const frame = requestAnimationFrame(() => dialogRef.current?.focus());
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft' && hasPrev && onPrev) onPrev();
-      if (e.key === 'ArrowRight' && hasNext && onNext) onNext();
+      if (e.key === 'Tab') {
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') || []);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (first && e.shiftKey && (document.activeElement === dialogRef.current || document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (last && !e.shiftKey && (document.activeElement === dialogRef.current || document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      }
+      if (e.key === 'Escape') { e.preventDefault(); callbacks.current.onClose(); }
+      if (e.key === 'ArrowLeft' && callbacks.current.hasPrev && callbacks.current.onPrev) callbacks.current.onPrev();
+      if (e.key === 'ArrowRight' && callbacks.current.hasNext && callbacks.current.onNext) callbacks.current.onNext();
     };
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      cancelAnimationFrame(frame);
+      if (previousFocus?.isConnected) previousFocus.focus();
       document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose, onPrev, onNext, hasPrev, hasNext]);
+  }, []);
 
   const handleCopyId = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(log._id);
-    setCopiedId(true);
+    navigator.clipboard.writeText(log._id).then(() => setCopiedId(true)).catch(() => setCopyError('Could not copy the event ID.'));
     setTimeout(() => setCopiedId(false), 2000);
   };
 
   const handleCopyJson = () => {
-    navigator.clipboard.writeText(JSON.stringify(log.metadata || {}, null, 2));
-    setCopiedJson(true);
+    navigator.clipboard.writeText(JSON.stringify({ ...(log.details || {}), ...(log.metadata || {}) }, null, 2)).then(() => setCopiedJson(true)).catch(() => setCopyError('Could not copy the event data.'));
     setTimeout(() => setCopiedJson(false), 2000);
   };
 
-  const operatorName = log.actorUserId?.name || log.performedBy?.name || log.actorUsername || 'Super Administrator';
-  const operatorUsername = log.actorUsername || log.actorUserId?.username || log.performedBy?.username || 'superadmin';
-  const metadataEntries = Object.entries(log.metadata || {});
+  const operatorName = log.actorUserId?.name || log.performedBy?.name || log.actorUsername || 'Unknown operator';
+  const operatorUsername = log.actorUserId?.username || log.performedBy?.username || log.actorUsername || 'Not recorded';
+  const metadataEntries = Object.entries({ ...(log.details || {}), ...(log.metadata || {}) });
 
   const modalContent = (
     <div
@@ -391,9 +404,11 @@ function AuditDetailModal({ log, onClose, onPrev, onNext, hasPrev, hasNext }: Au
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl max-h-[92vh] overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900"
+        ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Audit event details" data-audit-print="true"
+        className="relative w-full max-w-2xl max-h-[92dvh] overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
+        {copyError && <p role="alert" className="bg-red-50 p-3 text-sm text-red-700">{copyError}</p>}
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -522,7 +537,7 @@ function AuditDetailModal({ log, onClose, onPrev, onNext, hasPrev, hasNext }: Au
           {metadataEntries.length > 0 && (
             <div className="space-y-2">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
-                Recorded Data Changes ({metadataEntries.length})
+                Recorded Event Data ({metadataEntries.length})
               </span>
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100">
                 {metadataEntries.map(([key, val]) => (
@@ -596,7 +611,7 @@ function AuditDetailModal({ log, onClose, onPrev, onNext, hasPrev, hasNext }: Au
                   </div>
                   <pre className="max-h-40 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-3 font-mono text-[10.5px] text-emerald-400">
                     {metadataEntries.length > 0
-                      ? JSON.stringify(log.metadata, null, 2)
+                      ? JSON.stringify(Object.fromEntries(metadataEntries), null, 2)
                       : JSON.stringify({ message: 'No extended mutation payload recorded for this action.' }, null, 2)}
                   </pre>
                 </div>
@@ -644,59 +659,32 @@ export function AuditLogsPage() {
   const [limit, setLimit] = useState(25);
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [actionFilter, setActionFilter] = useState<string | undefined>();
+  const [mutationsOnly, setMutationsOnly] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const outside = (event: PointerEvent) => { if (!exportMenuRef.current?.contains(event.target as Node)) setExportMenuOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setExportMenuOpen(false); };
+    document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [exportMenuOpen]);
+  const exportRef = useRef(false);
 
-  // Compute startDate based on dateRange
-  const startDate = useMemo(() => {
-    if (dateRange === 'ALL') return undefined;
-    const now = new Date();
-    if (dateRange === 'TODAY') {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return today.toISOString();
-    }
-    if (dateRange === '24H') {
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    }
-    if (dateRange === '7D') {
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    }
-    if (dateRange === '30D') {
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    }
-    return undefined;
-  }, [dateRange]);
-
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['audit-logs', page, limit, debouncedSearch, activeTab, startDate],
-    queryFn: ({ signal }) =>
-      auditService.list(
-        {
-          page,
-          limit,
-          search: debouncedSearch || undefined,
-          module: activeTab === 'ALL' ? undefined : activeTab,
-          startDate,
-        },
-        signal
-      ),
+  const filters = { search: debouncedSearch || undefined, category: activeTab, severity: severityFilter, period: dateRange, action: actionFilter, mutationsOnly: mutationsOnly || undefined };
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+    queryKey: ['audit-logs', page, limit, debouncedSearch, activeTab, severityFilter, dateRange, actionFilter, mutationsOnly],
+    queryFn: ({ signal }) => auditService.list({ page, limit, ...filters }, signal),
     staleTime: 10_000,
     refetchInterval: liveStream ? 10_000 : false,
   });
-
-  const rawLogs = data?.logs || [];
-  const pagination = data?.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 };
-
-  // Filter logs by severity if selected
-  const logs = useMemo(() => {
-    if (severityFilter === 'ALL') return rawLogs;
-    return rawLogs.filter((log) => {
-      const sev = getActionSeverity(log.action);
-      if (severityFilter === 'SUCCESS') return sev.variant === 'success';
-      if (severityFilter === 'INFO') return sev.variant === 'info';
-      if (severityFilter === 'WARNING') return sev.variant === 'warning';
-      if (severityFilter === 'DANGER') return sev.variant === 'destructive';
-      return true;
-    });
-  }, [rawLogs, severityFilter]);
+  const logs = data?.logs || [];
+  const rawLogs = logs;
+  const pagination = data?.pagination || { page: 1, limit, total: 0, totalPages: 1 };
+  useEffect(() => { if (data && page > data.pagination.totalPages) setPage(data.pagination.totalPages); }, [data, page]);
+  useEffect(() => { setPage(1); setSelectedLog(null); }, [debouncedSearch, activeTab, severityFilter, dateRange, actionFilter, mutationsOnly]);
 
   // Selected Log Index for modal prev/next navigation
   const selectedLogIndex = useMemo(() => {
@@ -704,53 +692,29 @@ export function AuditLogsPage() {
     return logs.findIndex((l) => l._id === selectedLog._id);
   }, [logs, selectedLog]);
 
-  // Summary Metrics
-  const totalEvents = pagination.total || 0;
-  const successfulLogins = rawLogs.filter((l) => (l.action || '').includes('SUCCESS')).length;
-  const failedAttempts = rawLogs.filter((l) => (l.action || '').includes('FAILED') || (l.action || '').includes('REJECTED')).length;
-  const mutations = rawLogs.filter((l) => (l.action || '').includes('CREATED') || (l.action || '').includes('UPDATED') || (l.action || '').includes('PAYMENT')).length;
-
-  // 1-Click Export to CSV
-  const handleExportCsv = () => {
-    if (!rawLogs.length) return;
-    const headers = ['Timestamp', 'Action', 'Operator', 'Entity', 'Description', 'IP Address'];
-    const rows = rawLogs.map((l) => [
-      `"${new Date(l.createdAt).toLocaleString('en-IN')}"`,
-      `"${l.action}"`,
-      `"${l.actorUserId?.name || l.actorUsername || 'SYSTEM'}"`,
-      `"${l.entityType || l.module || '—'}"`,
-      `"${(l.description || '').replace(/"/g, '""')}"`,
-      `"${l.ipAddress || '127.0.0.1'}"`,
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `MSS_Locker_Audit_Logs_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setExportMenuOpen(false);
+  // Every metric covers the complete filtered dataset, never just this page.
+  const totalEvents = data?.summary.total ?? 0;
+  const successfulLogins = data?.summary.successfulLogins ?? 0;
+  const failedAttempts = data?.summary.failedAttempts ?? 0;
+  const mutations = data?.summary.mutations ?? 0;
+  const handleExport = async (format: 'csv' | 'json') => {
+    if (exportRef.current || isFetching || isError || search.trim() !== debouncedSearch) return;
+    exportRef.current = true; setExporting(true); setExportError(''); setExportMenuOpen(false);
+    try { await auditService.export(filters, format); }
+    catch (error: any) { setExportError(error.message || 'Could not export audit events. Please retry.'); }
+    finally { exportRef.current = false; setExporting(false); }
   };
-
-  // Export to JSON
-  const handleExportJson = () => {
-    if (!rawLogs.length) return;
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(rawLogs, null, 2));
-    const link = document.createElement('a');
-    link.setAttribute('href', dataStr);
-    link.setAttribute('download', `MSS_Locker_Audit_Logs_${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setExportMenuOpen(false);
-  };
+  const handleExportCsv = () => { void handleExport('csv'); };
+  const handleExportJson = () => { void handleExport('json'); };
 
   return (
-    <div className="space-y-5 font-sans">
+    <div className="space-y-5 font-sans" data-audit-print={selectedLog ? undefined : 'true'}>
+      {isError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Could not load audit events. <button type="button" onClick={() => refetch()} className="font-semibold underline">Retry audit logs</button></div>}
+      {exportError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{exportError}</p>}
+      {mutationsOnly && <button type="button" className="text-sm font-semibold text-emerald-800" onClick={() => setMutationsOnly(false)}>Clear vault and billing changes filter</button>}
+      {actionFilter && <button type="button" className="text-sm font-semibold text-emerald-800" onClick={() => setActionFilter(undefined)}>Clear action filter: {actionFilter}</button>}
       {/* Top Header Card */}
-      <section className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-5 lg:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <section className="relative rounded-2xl border border-slate-200/90 bg-white p-5 lg:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="absolute inset-y-0 left-0 w-1.5 bg-emerald-800" aria-hidden="true" />
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -763,7 +727,7 @@ export function AuditLogsPage() {
             Security &amp; Audit Logs
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-normal">
-            Immutable chronological register of all counter operator actions, auth attempts, and custody mutations.
+            Recorded operator activity, sign-in attempts and changes to locker records.
           </p>
         </div>
 
@@ -771,6 +735,7 @@ export function AuditLogsPage() {
           {/* Live Stream Auto-Refresh Toggle */}
           <button
             type="button"
+            aria-pressed={liveStream}
             onClick={() => setLiveStream((prev) => !prev)}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-2xs ${
               liveStream
@@ -779,23 +744,24 @@ export function AuditLogsPage() {
             }`}
           >
             <Radio className={`h-3.5 w-3.5 ${liveStream ? 'animate-pulse text-emerald-600' : 'text-slate-400'}`} />
-            <span>{liveStream ? 'Live Auto-Stream (10s)' : 'Live Stream Off'}</span>
+            <span>{liveStream ? 'Auto-refresh On (10s)' : 'Auto-refresh Off'}</span>
           </button>
 
           {/* Export Dropdown */}
-          <div className="relative">
+          <div ref={exportMenuRef} className="relative">
             <Button
+              aria-expanded={exportMenuOpen} aria-controls="audit-export-options"
               onClick={() => setExportMenuOpen((prev) => !prev)}
-              disabled={!rawLogs.length}
+              disabled={exporting || isFetching || isError || search.trim() !== debouncedSearch || !pagination.total}
               variant="outline"
               className="h-10 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs gap-1.5 px-3.5 shadow-2xs cursor-pointer"
             >
               <Download className="h-4 w-4 text-emerald-800" />
-              <span>Export Hub ▾</span>
+              <span>{exporting ? 'Exporting...' : 'Export filtered events'}</span>
             </Button>
 
             {exportMenuOpen && (
-              <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg z-20 animate-in fade-in-0 zoom-in-95 text-xs">
+              <div id="audit-export-options" className="absolute right-0 mt-1.5 w-48 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg z-20 animate-in fade-in-0 zoom-in-95 text-xs">
                 <button
                   type="button"
                   onClick={handleExportCsv}
@@ -821,7 +787,7 @@ export function AuditLogsPage() {
                   className="flex w-full items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-50 cursor-pointer font-medium border-t border-slate-100"
                 >
                   <Printer className="h-3.5 w-3.5 text-slate-600" />
-                  <span>Print Audit Log</span>
+                  <span>Print current page</span>
                 </button>
               </div>
             )}
@@ -842,7 +808,9 @@ export function AuditLogsPage() {
       {/* 4 KPI Summary Cards */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card
+          role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click(); } }}
           onClick={() => {
+            setActionFilter(undefined); setMutationsOnly(false);
             setActiveTab('ALL');
             setSeverityFilter('ALL');
           }}
@@ -852,9 +820,9 @@ export function AuditLogsPage() {
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Total Audited Events</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900 font-mono">
-                {isLoading ? '—' : totalEvents.toLocaleString('en-IN')}
+                {isLoading || isError ? '—' : totalEvents.toLocaleString('en-IN')}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Recorded in database</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Matching current filters</p>
             </div>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-100">
               <ShieldCheck className="h-6 w-6" />
@@ -863,7 +831,9 @@ export function AuditLogsPage() {
         </Card>
 
         <Card
+          role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click(); } }}
           onClick={() => {
+            setMutationsOnly(false); setActionFilter('LOGIN_SUCCESS');
             setActiveTab('AUTH');
             setSeverityFilter('SUCCESS');
           }}
@@ -871,11 +841,11 @@ export function AuditLogsPage() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Verified Logins</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Successful Sign-ins</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-emerald-700 font-mono">
-                {isLoading ? '—' : successfulLogins.toLocaleString('en-IN')}
+                {isLoading || isError ? '—' : successfulLogins.toLocaleString('en-IN')}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Active staff sessions</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Recorded successful sign-ins</p>
             </div>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-100">
               <CheckCircle2 className="h-6 w-6" />
@@ -884,16 +854,17 @@ export function AuditLogsPage() {
         </Card>
 
         <Card
-          onClick={() => setSeverityFilter('DANGER')}
+          role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click(); } }}
+          onClick={() => { setActionFilter(undefined); setMutationsOnly(false); setActiveTab('ALL'); setSeverityFilter('DANGER'); }}
           className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-rose-300 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Security Notices / Fails</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Failed / Rejected Events</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-rose-700 font-mono">
-                {isLoading ? '—' : failedAttempts.toLocaleString('en-IN')}
+                {isLoading || isError ? '—' : failedAttempts.toLocaleString('en-IN')}
               </p>
-              <p className="text-[11px] text-rose-500 mt-0.5 font-medium">Flagged attempts</p>
+              <p className="text-[11px] text-rose-500 mt-0.5 font-medium">Rejected / cancelled / failed events</p>
             </div>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-50 text-rose-700 border border-rose-100">
               <AlertTriangle className="h-6 w-6" />
@@ -902,16 +873,17 @@ export function AuditLogsPage() {
         </Card>
 
         <Card
-          onClick={() => setSeverityFilter('INFO')}
+          role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click(); } }}
+          onClick={() => { setActionFilter(undefined); setMutationsOnly(true); setActiveTab('ALL'); setSeverityFilter('ALL'); }}
           className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-sky-300 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Ledger Mutations</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-sky-700 font-mono">
-                {isLoading ? '—' : mutations.toLocaleString('en-IN')}
+                {isLoading || isError ? '—' : mutations.toLocaleString('en-IN')}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Allotment &amp; billing edits</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Vault &amp; billing changes</p>
             </div>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-50 text-sky-700 border border-sky-100">
               <Activity className="h-6 w-6" />
@@ -932,7 +904,7 @@ export function AuditLogsPage() {
                 <button
                   key={tab.id}
                   onClick={() => {
-                    setActiveTab(tab.id);
+                    setActiveTab(tab.id); setActionFilter(undefined); setMutationsOnly(false);
                     setPage(1);
                   }}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
@@ -954,6 +926,7 @@ export function AuditLogsPage() {
             <input
               type="text"
               placeholder="Search action, operator, entity, IP..."
+              aria-label="Search audit events"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -980,6 +953,7 @@ export function AuditLogsPage() {
               <Calendar className="h-3.5 w-3.5 text-slate-400" />
               <span className="font-semibold text-slate-700">Period:</span>
               <select
+                aria-label="Audit period"
                 value={dateRange}
                 onChange={(e) => {
                   setDateRange(e.target.value as DateRangeOption);
@@ -1000,6 +974,7 @@ export function AuditLogsPage() {
               <Filter className="h-3.5 w-3.5 text-slate-400" />
               <span className="font-semibold text-slate-700">Severity:</span>
               <select
+                aria-label="Audit severity"
                 value={severityFilter}
                 onChange={(e) => {
                   setSeverityFilter(e.target.value as SeverityFilter);
@@ -1058,7 +1033,7 @@ export function AuditLogsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {isLoading ? (
+                  {isError ? (<tr><td colSpan={6} className="p-8 text-center text-red-700">Audit events are unavailable. Retry above.</td></tr>) : isLoading ? (
                     <tr>
                       <td colSpan={6} className="p-10 text-center text-slate-500">
                         <div className="flex flex-col items-center justify-center gap-2">
@@ -1087,7 +1062,7 @@ export function AuditLogsPage() {
                         >
                           <td className="whitespace-nowrap px-4 py-3.5 sm:px-5 font-mono text-[11px] text-slate-500">
                             <div>
-                              {new Date(log.createdAt).toLocaleString('en-IN', {
+                              {new Date(log.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata',
                                 day: '2-digit',
                                 month: 'short',
                                 year: 'numeric',
@@ -1143,57 +1118,12 @@ export function AuditLogsPage() {
               </table>
             </div>
 
-            {/* Table Pagination Footer */}
-            <div className="border-t border-slate-100 bg-slate-50/70 p-3.5 sm:px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-slate-600">
-              <div className="flex items-center gap-2">
-                <span>Showing</span>
-                <select
-                  value={limit}
-                  onChange={(e) => {
-                    setLimit(Number(e.target.value));
-                    setPage(1);
-                  }}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-700"
-                >
-                  <option value={15}>15</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>of <strong>{pagination.total.toLocaleString('en-IN')}</strong> records</span>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500 mr-2">
-                  Page {pagination.page} of {pagination.totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="h-8 px-3 rounded-lg border-slate-200 gap-1 text-xs cursor-pointer"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  <span>Prev</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="h-8 px-3 rounded-lg border-slate-200 gap-1 text-xs cursor-pointer"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
           </div>
         ) : (
           /* Timeline Stream View */
           <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-6">
-            {isLoading ? (
+            {isError ? <p className="text-sm text-red-700">Audit events are unavailable. Retry above.</p> : isLoading ? (
               <div className="p-10 text-center text-slate-500">
                 <RefreshCw className="h-6 w-6 animate-spin text-emerald-800 mx-auto mb-2" />
                 <span className="text-xs font-medium">Generating chronological activity stream…</span>
@@ -1273,6 +1203,10 @@ export function AuditLogsPage() {
             )}
           </div>
         )}
+        <nav aria-label="Audit pagination" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-700">
+          <label>Page size <select aria-label="Audit page size" value={limit} onChange={event => { setLimit(Number(event.target.value)); setPage(1); }} className="ml-2 rounded-lg border border-slate-300 p-1">{[15, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}</select> of {pagination.total.toLocaleString('en-IN')} matching events</label>
+          <div className="flex items-center gap-2"><span aria-live="polite">Page {pagination.page} of {pagination.totalPages}</span><Button variant="outline" size="sm" aria-label="Previous audit page" disabled={page <= 1 || isFetching || isError} onClick={() => setPage(value => value - 1)}>Prev</Button><Button variant="outline" size="sm" aria-label="Next audit page" disabled={page >= pagination.totalPages || isFetching || isError} onClick={() => setPage(value => value + 1)}>Next</Button></div>
+        </nav>
       </div>
 
       {/* Forensic Inspection Modal (Full-Window React Portal) */}
@@ -1281,7 +1215,7 @@ export function AuditLogsPage() {
           log={selectedLog}
           onClose={() => setSelectedLog(null)}
           onPrev={selectedLogIndex > 0 ? () => setSelectedLog(logs[selectedLogIndex - 1]) : undefined}
-          onNext={selectedLogIndex < logs.length - 1 ? () => setSelectedLog(logs[selectedLogIndex + 1]) : undefined}
+          onNext={selectedLogIndex >= 0 && selectedLogIndex < logs.length - 1 ? () => setSelectedLog(logs[selectedLogIndex + 1]) : undefined}
           hasPrev={selectedLogIndex > 0}
           hasNext={selectedLogIndex >= 0 && selectedLogIndex < logs.length - 1}
         />

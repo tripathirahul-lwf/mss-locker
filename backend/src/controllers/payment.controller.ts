@@ -1,3 +1,4 @@
+import { serviceErrorStatus } from '../utils/serviceErrorStatus';
 import { Request, Response } from 'express';
 import { paymentService } from '../services/payment.service';
 import { logger } from '../utils/logger';
@@ -57,7 +58,7 @@ export class PaymentController {
       });
     } catch (error: any) {
       logger.error('Error recording payment:', error);
-      const statusCode = error.statusCode || 500;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to record payment',
@@ -79,7 +80,7 @@ export class PaymentController {
       });
     } catch (error: any) {
       logger.error('Error cancelling payment:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to cancel payment',
@@ -163,7 +164,7 @@ export class PaymentController {
       res.status(200).send(html);
     } catch (error: any) {
       logger.error('Error generating payment receipt HTML:', error);
-      const statusCode = error.statusCode || 500;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).send(`<h2>Error generating receipt: ${error.message || 'Server Error'}</h2>`);
     }
   }

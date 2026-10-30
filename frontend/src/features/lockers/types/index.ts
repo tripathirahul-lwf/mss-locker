@@ -26,6 +26,8 @@ export interface Locker {
   status: LockerStatus;
   operationalStatus: OperationalStatus;
   isRenewalDue?: boolean;
+  isOverdue?: boolean;
+  tenantKycStatus?: string;
   tenantName?: string;
   tenantCode?: string;
   tenantPhone?: string;
@@ -59,6 +61,10 @@ export interface LockerStats {
   decommissioned: number;
   availableForAllocation: number;
   renewalDue?: number;
+  dueSoon?: number;
+  overdue?: number;
+  kycPending?: number;
+  kycDone?: number;
   sizeBreakdown: Record<
     string,
     {

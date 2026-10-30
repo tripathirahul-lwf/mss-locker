@@ -1,3 +1,5 @@
+import { allotmentSchema } from '../validators/allotment.validator';
+import { AllotmentService } from '../services/allotment.service';
 import { Router } from 'express';
 import { LockerAllocationController } from '../controllers/allocation.controller';
 import { depositController } from '../controllers/deposit.controller';
@@ -8,6 +10,17 @@ const router = Router();
 
 // Apply auth to all allocation routes
 router.use(authenticate);
+router.post('/complete', requirePermission(PERMISSIONS.ALLOCATIONS_CREATE), requirePermission(PERMISSIONS.PAYMENTS_CREATE), requirePermission(PERMISSIONS.DEPOSITS_COLLECT), async (req, res, next) => {
+  try {
+    const input = allotmentSchema.parse(req.body);
+    const can = (permission: string) => req.user?.isSuperAdmin || req.user?.permissions.includes(permission as any);
+    if (input.customer && !can(PERMISSIONS.CUSTOMERS_CREATE)) { res.status(403).json({ success: false, message: 'Customer creation permission required.' }); return; }
+    if ((input.photo || input.idDocument) && !can(PERMISSIONS.CUSTOMERS_KYC_MANAGE)) { res.status(403).json({ success: false, message: 'KYC management permission required.' }); return; }
+    const result = await AllotmentService.complete(input, { userId: req.user?.userId, username: req.user?.username, ipAddress: req.ip, userAgent: req.get('user-agent') });
+    res.status(201).json({ success: true, message: 'Allotment, documents and collections saved.', data: result });
+  } catch (error) { next(error); }
+});
+
 
 /**
  * GET /api/allocations

@@ -65,6 +65,9 @@ export function calculateBillingPeriod(
 
   let monthsToAdd = 12;
   switch (billingCycle) {
+    case 'TRIENNIAL':
+      monthsToAdd = 36;
+      break;
     case 'ANNUAL':
       monthsToAdd = 12;
       break;
@@ -82,13 +85,15 @@ export function calculateBillingPeriod(
       break;
   }
 
-  periodEnd.setMonth(periodEnd.getMonth() + monthsToAdd);
-  // Subtract 1 day so if start is 01-09-2026, end is 31-08-2027
-  periodEnd.setDate(periodEnd.getDate() - 1);
-
-  // Next renewal invoice due date is typically the start of the next cycle
-  const nextDueDate = new Date(periodEnd);
-  nextDueDate.setDate(nextDueDate.getDate() + 1);
+  // Clamp month/year boundaries (e.g. 29 Feb + one year => 28 Feb).
+  const day = periodStart.getUTCDate();
+  const nextDueDate = new Date(periodStart);
+  nextDueDate.setUTCDate(1);
+  nextDueDate.setUTCMonth(nextDueDate.getUTCMonth() + monthsToAdd);
+  const lastDay = new Date(Date.UTC(nextDueDate.getUTCFullYear(), nextDueDate.getUTCMonth() + 1, 0)).getUTCDate();
+  nextDueDate.setUTCDate(Math.min(day, lastDay));
+  periodEnd.setTime(nextDueDate.getTime());
+  periodEnd.setUTCDate(periodEnd.getUTCDate() - 1);
 
   return { periodStart, periodEnd, nextDueDate };
 }

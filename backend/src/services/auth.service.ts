@@ -106,6 +106,9 @@ export class AuthService {
       throw new Error(`Account is temporarily locked due to multiple failed attempts. Try again in ${remainingMinutes} minutes.`);
     }
 
+    if (user.status === 'LOCKED' && !user.lockedUntil) throw new Error('Account is locked. Please contact your system administrator.');
+    if (!user.role || user.role.status !== 'ACTIVE') throw new Error('Assigned role is unavailable. Please contact your system administrator.');
+
     // Verify password
     const isPasswordValid = await comparePassword(params.password, user.passwordHash);
 
@@ -115,6 +118,7 @@ export class AuthService {
       if (user.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
         user.lockedUntil = new Date(Date.now() + LOCK_TIME_MS);
         user.status = 'LOCKED';
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
 
         await recordAuditLog({
@@ -167,6 +171,7 @@ export class AuthService {
       userId: user._id.toString(),
       username: user.username,
       roleCode: role.code,
+      tokenVersion: user.tokenVersion || 0,
     };
 
     const accessToken = generateAccessToken(tokenPayload);
@@ -254,7 +259,7 @@ export class AuthService {
     }
 
     const user = await User.findById(decoded.userId).populate<{ role: IRole }>('role');
-    if (!user || user.status !== 'ACTIVE') {
+    if (!user || user.status !== 'ACTIVE' || !user.role || user.role.status !== 'ACTIVE' || (decoded.tokenVersion || 0) !== (user.tokenVersion || 0)) {
       throw new Error('User inactive or not found');
     }
 
@@ -262,6 +267,7 @@ export class AuthService {
       userId: user._id.toString(),
       username: user.username,
       roleCode: user.role.code,
+      tokenVersion: user.tokenVersion || 0,
     };
 
     const newAccessToken = generateAccessToken(tokenPayload);
@@ -340,6 +346,7 @@ export class AuthService {
     }
 
     user.passwordHash = await hashPassword(newPass);
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
     // Revoke all existing sessions for this user for security

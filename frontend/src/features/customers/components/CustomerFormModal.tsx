@@ -17,6 +17,13 @@ interface CustomerFormModalProps {
   isSubmitting: boolean;
 }
 
+function editablePhone(value?: string): string {
+  const digits = (value || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  return digits;
+}
+
 export function CustomerFormModal({
   customer,
   onClose,
@@ -128,10 +135,10 @@ export function CustomerFormModal({
   useEffect(() => {
     if (customer) {
       setFullName(customer.fullName || '');
-      setPhone(customer.phone || '');
-      setAlternatePhone(customer.alternatePhone || '');
+      setPhone(editablePhone(customer.phone));
+      setAlternatePhone(editablePhone(customer.alternatePhone));
       setEmail(customer.email || '');
-      setDateOfBirth(customer.dateOfBirth || '');
+      setDateOfBirth(customer.dateOfBirth?.slice(0, 10) || '');
       setGender(customer.gender || 'MALE');
       setAddress(customer.address || '');
       // Sanitize legacy imported values where Vault location was saved as City/State
@@ -236,15 +243,15 @@ export function CustomerFormModal({
           fullName: fullName.trim(),
           phone: phone.trim(),
           alternatePhone: alternatePhone.trim() || undefined,
-          email: email.trim() || undefined,
-          dateOfBirth: dateOfBirth || undefined,
+          email: email.trim(),
+          dateOfBirth,
           gender,
           address: address.trim(),
           city: city.trim(),
           state: state.trim(),
           postalCode: postalCode.trim(),
           country: country.trim(),
-          photoUrl: photoUrl.trim() || undefined,
+          photoUrl: photoUrl.trim(),
           notes: notes.trim(),
           status,
           expectedUpdatedAt: customer.updatedAt,

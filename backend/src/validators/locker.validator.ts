@@ -17,8 +17,8 @@ export const createLockerSchema = z.object({
   floor: z.string().trim().max(50).optional().default('Ground Floor'),
   position: z.string().trim().max(100).optional().default(''),
   masterKeyReference: z.string().trim().max(100).optional().default(''),
-  annualRent: z.number().min(0, 'Annual rent cannot be negative').default(0),
-  securityDeposit: z.number().min(0, 'Security deposit cannot be negative').default(0),
+  annualRent: z.number().min(0, 'Annual rent cannot be negative').refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use at most 2 decimal places').default(0),
+  securityDeposit: z.number().min(0, 'Security deposit cannot be negative').refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use at most 2 decimal places').default(0),
   status: z.enum(['VACANT', 'RESERVED', 'OCCUPIED', 'BLOCKED']).optional().default('VACANT'),
   operationalStatus: z
     .enum(['ACTIVE', 'MAINTENANCE', 'DAMAGED', 'DECOMMISSIONED'])
@@ -41,13 +41,13 @@ export const updateLockerSchema = z.object({
   floor: z.string().trim().max(50).optional(),
   position: z.string().trim().max(100).optional(),
   masterKeyReference: z.string().trim().max(100).optional(),
-  annualRent: z.number().min(0, 'Annual rent cannot be negative').optional(),
-  securityDeposit: z.number().min(0, 'Security deposit cannot be negative').optional(),
+  annualRent: z.number().min(0, 'Annual rent cannot be negative').refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use at most 2 decimal places').optional(),
+  securityDeposit: z.number().min(0, 'Security deposit cannot be negative').refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use at most 2 decimal places').optional(),
   status: z.enum(['VACANT', 'RESERVED', 'OCCUPIED', 'BLOCKED']).optional(),
   operationalStatus: z.enum(['ACTIVE', 'MAINTENANCE', 'DAMAGED', 'DECOMMISSIONED']).optional(),
   remarks: z.string().trim().max(500).optional(),
   isActive: z.boolean().optional(),
-  expectedUpdatedAt: z.string().optional(), // For optimistic concurrency check
+  expectedUpdatedAt: z.iso.datetime({ offset: true }).optional(), // For optimistic concurrency check
 });
 
 export const lockerQuerySchema = z.object({
@@ -55,7 +55,7 @@ export const lockerQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(2000).optional().default(25),
   search: z.string().trim().optional(),
   size: z.string().trim().optional(),
-  status: z.enum(['VACANT', 'RESERVED', 'OCCUPIED', 'BLOCKED', 'RENEWAL_DUE', 'ALL']).optional(),
+  status: z.enum(['VACANT', 'RESERVED', 'OCCUPIED', 'BLOCKED', 'RENEWAL_DUE', 'DUE_SOON', 'OVERDUE', 'KYC_PENDING', 'KYC_DONE', 'ALL']).optional(),
   operationalStatus: z
     .enum(['ACTIVE', 'MAINTENANCE', 'DAMAGED', 'DECOMMISSIONED', 'ALL'])
     .optional(),

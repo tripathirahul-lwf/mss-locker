@@ -26,6 +26,8 @@ import { LOCKER_SIZES, LOCKER_STATUS_CONFIG, OPERATIONAL_STATUS_CONFIG } from '.
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { usePermission } from '../../../hooks/usePermission';
+import { lockerApi } from '../api/lockerApi';
+import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 import { allocationApi } from '../../allocations/api/allocationApi';
 
 const PRIMARY_SIZES = ['A', 'B', 'C', 'D'] as const;
@@ -38,12 +40,20 @@ interface LockerFormModalProps {
 }
 
 export function LockerFormModal({
-  locker,
+  locker: initialLocker,
   onClose,
   onSubmit,
   isSubmitting,
 }: LockerFormModalProps) {
-  const isEdit = Boolean(locker);
+  const isEdit = Boolean(initialLocker);
+  const { data: fullLocker, isFetching: loadingLocker, isError: failedLocker, refetch: retryLocker } = useQuery({
+    queryKey: ['locker-edit', initialLocker?._id],
+    queryFn: () => lockerApi.getLockerById(initialLocker!._id),
+    enabled: Boolean(initialLocker?._id),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
+  const locker = fullLocker || initialLocker;
   const canViewSensitive = usePermission('lockers.view_sensitive');
 
   // Form State
@@ -68,6 +78,8 @@ export function LockerFormModal({
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
 
+  const submittingRef = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const lockerNumberRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -88,8 +100,8 @@ export function LockerFormModal({
   );
 
   // Financial calculations
-  const numericRent = Math.max(0, Number(annualRent) || 0);
-  const numericDeposit = Math.max(0, Number(securityDeposit) || 0);
+  const numericRent = Number(annualRent);
+  const numericDeposit = Number(securityDeposit);
   const monthlyEquivalent = Math.round(numericRent / 12);
 
   const tariffIsCustomized = Boolean(
@@ -107,7 +119,7 @@ export function LockerFormModal({
     if (size !== locker.size) count++;
     if (rackNumber.trim() !== (locker.rackNumber || '')) count++;
     if (section.trim() !== (locker.section || '')) count++;
-    if (floor.trim() !== (locker.floor || 'Ground Floor')) count++;
+    if (floor.trim() !== (locker.floor ?? '')) count++;
     if (position.trim() !== (locker.position || '')) count++;
     if (masterKeyReference.trim() !== (locker.masterKeyReference || '')) count++;
     if (numericRent !== locker.annualRent) count++;
@@ -142,8 +154,8 @@ export function LockerFormModal({
       setLockerCode(locker.lockerCode || '');
       setSize(locker.size);
       setRackNumber(locker.rackNumber);
-      setSection(locker.section || 'Main Vault');
-      setFloor(locker.floor || 'Ground Floor');
+      setSection(locker.section ?? '');
+      setFloor(locker.floor ?? '');
       setPosition(locker.position || '');
       setMasterKeyReference(locker.masterKeyReference || '');
       setAnnualRent(locker.annualRent);
@@ -184,13 +196,34 @@ export function LockerFormModal({
         if (form) form.requestSubmit();
       }
     };
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKeyDown);
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [isDirty, isSubmitting, onClose]);
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || document.querySelector('[role="alertdialog"]')) return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)') || []);
+      if (!controls.length) return;
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener('keydown', trap);
+    return () => { window.removeEventListener('keydown', trap); if (previous?.isConnected) previous.focus(); };
+  }, []);
+
+  useEffect(() => {
+    if (isEdit && loadingLocker) return;
+    const frame = requestAnimationFrame(() => lockerNumberRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [isEdit, loadingLocker]);
 
   const requestClose = () => {
     if (isSubmitting) return;
@@ -244,8 +277,7 @@ export function LockerFormModal({
 
   const handleCopyKey = () => {
     if (!masterKeyReference) return;
-    navigator.clipboard.writeText(masterKeyReference);
-    setCopiedKey(true);
+    navigator.clipboard.writeText(masterKeyReference).then(() => setCopiedKey(true)).catch(() => setError('Could not copy the key reference.'));
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
@@ -254,20 +286,17 @@ export function LockerFormModal({
     setError(null);
 
     // If edit mode and no changes made, smoothly close
-    if (isEdit && !isDirty) {
-      onClose();
-      return;
-    }
+    if (submittingRef.current || isSubmitting || loadingLocker && isEdit || failedLocker && isEdit || confirmDiscard || (isEdit && !isDirty)) return;
 
     const nextErrors: Record<string, string> = {};
 
     if (!lockerNumber.trim()) nextErrors.lockerNumber = 'Enter a unique physical locker number.';
     if (!rackNumber.trim()) nextErrors.rackNumber = 'Enter the vault rack identifier.';
-    if (!Number.isFinite(numericRent) || numericRent < 0) {
-      nextErrors.annualRent = 'Enter a valid annual rent (zero or positive).';
+    if (String(annualRent).trim() === '' || !Number.isFinite(numericRent) || numericRent < 0 || Math.abs(numericRent * 100 - Math.round(numericRent * 100)) > 0.000001) {
+      nextErrors.annualRent = 'Enter a valid annual rent (zero or positive, up to 2 decimals).';
     }
-    if (!Number.isFinite(numericDeposit) || numericDeposit < 0) {
-      nextErrors.securityDeposit = 'Enter a valid security deposit (zero or positive).';
+    if (String(securityDeposit).trim() === '' || !Number.isFinite(numericDeposit) || numericDeposit < 0 || Math.abs(numericDeposit * 100 - Math.round(numericDeposit * 100)) > 0.000001) {
+      nextErrors.securityDeposit = 'Enter a valid security deposit (zero or positive, up to 2 decimals).';
     }
 
     setFieldErrors(nextErrors);
@@ -277,6 +306,7 @@ export function LockerFormModal({
       return;
     }
 
+    submittingRef.current = true;
     try {
       if (isEdit && locker) {
         await onSubmit({
@@ -284,9 +314,9 @@ export function LockerFormModal({
           lockerCode: lockerCode.trim() || undefined,
           size,
           rackNumber: rackNumber.trim(),
-          section: section.trim() || 'Main Vault',
-          floor: floor.trim() || 'Ground Floor',
-          position: position.trim() || undefined,
+          section: section.trim(),
+          floor: floor.trim(),
+          position: position.trim(),
           masterKeyReference: canViewSensitive ? masterKeyReference.trim() : undefined,
           annualRent: numericRent,
           securityDeposit: numericDeposit,
@@ -301,9 +331,9 @@ export function LockerFormModal({
           lockerCode: lockerCode.trim() || undefined,
           size,
           rackNumber: rackNumber.trim(),
-          section: section.trim() || 'Main Vault',
-          floor: floor.trim() || 'Ground Floor',
-          position: position.trim() || undefined,
+          section: section.trim(),
+          floor: floor.trim(),
+          position: position.trim(),
           masterKeyReference: masterKeyReference.trim() || undefined,
           annualRent: numericRent,
           securityDeposit: numericDeposit,
@@ -316,10 +346,14 @@ export function LockerFormModal({
       setError(
         err.response?.data?.message || err.message || 'An error occurred while saving the locker record.'
       );
-    }
+    } finally { submittingRef.current = false; }
   };
 
+  const catalogueNote = isEdit ? 'Catalogue rates apply to future allotments. Existing lease invoices, paid rent and deposit balances stay unchanged.' : 'Catalogue estimate only. Actual collection is calculated during allotment.';
   const isPrimarySize = PRIMARY_SIZES.includes(size as any);
+
+  if (isEdit && (loadingLocker || failedLocker)) return createPortal(
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4"><div role="dialog" aria-modal="true" aria-label="Load locker for editing" className="rounded-2xl bg-white p-6 space-y-4"><p role={failedLocker ? 'alert' : 'status'}>{failedLocker ? 'Could not load the full locker record.' : 'Loading locker details...'}</p>{failedLocker && <Button onClick={() => retryLocker()}>Retry</Button>}<Button onClick={onClose}>Cancel</Button></div></div>, document.body);
 
   const modalContent = (
     <div
@@ -329,6 +363,7 @@ export function LockerFormModal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="locker-form-title"
@@ -428,6 +463,7 @@ export function LockerFormModal({
           )}
         </div>
 
+        <p className="px-4 sm:px-6 py-2 text-xs text-slate-500">{catalogueNote}</p>
         {/* Modal Form Content */}
         <form
           id="locker-form"
@@ -435,6 +471,7 @@ export function LockerFormModal({
           noValidate
           className="flex flex-col flex-1 overflow-hidden"
         >
+          <fieldset disabled={isSubmitting} className="contents">
           <div ref={scrollContainerRef} className="p-3.5 sm:px-6 sm:py-4 space-y-3.5 overflow-y-auto flex-1 text-xs overscroll-contain">
             {error && (
               <div
@@ -735,7 +772,7 @@ export function LockerFormModal({
                       id="annual-rent"
                       type="number"
                       min="0"
-                      step="100"
+                      step="0.01"
                       value={annualRent}
                       onChange={(e) => {
                         setAnnualRent(e.target.value);
@@ -774,7 +811,7 @@ export function LockerFormModal({
                       id="security-deposit"
                       type="number"
                       min="0"
-                      step="500"
+                      step="0.01"
                       value={securityDeposit}
                       onChange={(e) => {
                         setSecurityDeposit(e.target.value);
@@ -798,7 +835,7 @@ export function LockerFormModal({
                 {/* Move-in Commercial Total Bar */}
                 <div className="sm:col-span-2 p-2.5 rounded-xl bg-white border border-slate-200/90 flex items-center justify-between shadow-2xs">
                   <span className="text-[11px] text-slate-500 font-medium">
-                    First-Year Move-in Total (Annual Rent + Caution Deposit):
+                    Annual Rent + Required Deposit (catalogue):
                   </span>
                   <span className="font-mono font-bold text-slate-900 text-xs">
                     ₹{(numericRent + numericDeposit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -840,7 +877,7 @@ export function LockerFormModal({
                       id="occupancy-status"
                       value={status}
                       onChange={(e) => setStatus(e.target.value as LockerStatus)}
-                      disabled={isEdit && locker?.status === 'OCCUPIED'}
+                      disabled={isEdit && ['OCCUPIED', 'RESERVED'].includes(locker?.status || '')}
                       className={`w-full h-9 pl-3 pr-8 rounded-xl font-medium text-xs appearance-none shadow-2xs ${
                         isEdit && locker?.status === 'OCCUPIED'
                           ? 'bg-slate-100/90 border border-slate-200 text-slate-500 cursor-not-allowed'
@@ -848,15 +885,15 @@ export function LockerFormModal({
                       }`}
                     >
                       <option value="VACANT">Vacant (Available for lease)</option>
-                      <option value="OCCUPIED">Occupied (Leased to customer)</option>
-                      <option value="RESERVED">Reserved (Pending allotment)</option>
+                      <option value="OCCUPIED" disabled={status !== 'OCCUPIED'}>Occupied (Leased to customer)</option>
+                      <option value="RESERVED" disabled={status !== 'RESERVED'}>Reserved (Pending allotment)</option>
                       <option value="BLOCKED">Blocked (Legal / Dispute hold)</option>
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   </div>
                   {isEdit && locker?.status === 'OCCUPIED' && currentTenant && (
                     <p className="text-[10.5px] font-normal text-slate-500 mt-1">
-                      Active lease held by <span className="font-semibold text-slate-800">{currentTenant.fullName}</span>. To officially vacate, please use the Allocation Surrender workflow.
+                      Active lease held by <span className="font-semibold text-slate-800">{currentTenant.fullName}</span>. To vacate this locker, use the Close Locker action.
                     </p>
                   )}
                 </div>
@@ -1002,54 +1039,11 @@ export function LockerFormModal({
               </Button>
             </div>
           </div>
+          </fieldset>
         </form>
       </div>
 
-      {/* Discard Confirmation Dialog */}
-      {confirmDiscard && (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="discard-title"
-          className="fixed inset-0 z-[120] grid place-items-center bg-slate-950/45 p-4 animate-in fade-in-0 duration-150"
-        >
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
-            <div className="flex items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-800 border border-amber-200">
-                <AlertCircle className="h-5 w-5" />
-              </span>
-              <div>
-                <h3 id="discard-title" className="text-sm font-semibold text-slate-900">
-                  Discard unsaved changes?
-                </h3>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500 font-normal">
-                  Your modifications will not be saved.
-                </p>
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rounded-xl font-medium text-xs cursor-pointer"
-                onClick={() => setConfirmDiscard(false)}
-              >
-                Keep editing
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="rounded-xl font-medium text-xs cursor-pointer"
-                onClick={onClose}
-              >
-                Discard changes
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal isOpen={confirmDiscard} title="Discard unsaved changes?" description="Your modifications will not be saved." confirmText="Discard changes" cancelText="Keep editing" variant="warning" onClose={() => setConfirmDiscard(false)} onConfirm={onClose} isLoading={isSubmitting} />
     </div>
   );
 

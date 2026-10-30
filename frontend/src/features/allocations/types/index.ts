@@ -1,6 +1,6 @@
 export type AllocationStatus = 'ACTIVE' | 'RESERVED' | 'CLOSED' | 'CANCELLED';
 export type AllocationType = 'NEW' | 'TRANSFER' | 'RENEWAL_MIGRATION' | 'LEGACY_IMPORT';
-export type BillingCycle = 'ANNUAL' | 'HALF_YEARLY' | 'QUARTERLY' | 'MONTHLY';
+export type BillingCycle = 'ANNUAL' | 'TRIENNIAL' | 'HALF_YEARLY' | 'QUARTERLY' | 'MONTHLY';
 
 export interface AllocationCustomer {
   _id: string;
@@ -48,6 +48,7 @@ export interface LockerAllocation {
   allocationType: AllocationType;
   reservationExpiresAt?: string;
   paidThroughDate?: string;
+  paymentCoverageConfirmed?: boolean;
   nextRenewalDueDate?: string;
   lastRenewedAt?: string;
   remarks?: string;

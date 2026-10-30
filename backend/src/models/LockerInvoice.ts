@@ -107,7 +107,7 @@ const lockerInvoiceSchema = new Schema<ILockerInvoice>(
     },
     billingCycle: {
       type: String,
-      enum: ['ANNUAL', 'HALF_YEARLY', 'QUARTERLY', 'MONTHLY', 'CUSTOM'],
+      enum: ['ANNUAL', 'TRIENNIAL', 'HALF_YEARLY', 'QUARTERLY', 'MONTHLY', 'CUSTOM'],
       default: 'ANNUAL',
     },
     baseRent: {

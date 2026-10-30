@@ -7,7 +7,7 @@ const phoneSchema = z.string().trim().min(10).max(20).refine(isValidPhone, {
 const optionalBirthDateSchema = z.string().trim().refine((value) => {
   if (!value) return true;
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed <= new Date();
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value && parsed <= new Date();
 }, 'Date of birth must be a valid date and cannot be in the future').optional();
 const optionalIndianPinSchema = z.string().trim().refine(
   (value) => !value || /^\d{6}$/.test(value),
@@ -63,7 +63,7 @@ export const updateCustomerSchema = z.object({
   notes: z.string().trim().max(500).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'BLOCKED', 'ARCHIVED']).optional(),
   isActive: z.boolean().optional(),
-  expectedUpdatedAt: z.string().optional(),
+  expectedUpdatedAt: z.iso.datetime({ offset: true }).optional(),
 });
 
 export const customerQuerySchema = z.object({

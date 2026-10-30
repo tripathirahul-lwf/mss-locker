@@ -2,7 +2,7 @@ export type InvoiceType = 'NEW_ALLOCATION' | 'RENEWAL' | 'ADJUSTMENT' | 'LEGACY_
 export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
 export type DueStatus = 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE';
-export type BillingCycle = 'ANNUAL' | 'HALF_YEARLY' | 'QUARTERLY' | 'MONTHLY' | 'CUSTOM';
+export type BillingCycle = 'ANNUAL' | 'TRIENNIAL' | 'HALF_YEARLY' | 'QUARTERLY' | 'MONTHLY' | 'CUSTOM';
 export type InvoiceSource = 'SYSTEM' | 'MANUAL' | 'LEGACY_IMPORT';
 
 export const INVOICE_TYPES: { value: InvoiceType; label: string }[] = [
@@ -25,6 +25,7 @@ export const DUE_STATUSES: { value: DueStatus; label: string }[] = [
 ];
 
 export const BILLING_CYCLES: { value: BillingCycle; label: string; months: number }[] = [
+  { value: 'TRIENNIAL', label: '3 Years (36 Months)', months: 36 },
   { value: 'ANNUAL', label: 'Annual (12 Months)', months: 12 },
   { value: 'HALF_YEARLY', label: 'Half-Yearly (6 Months)', months: 6 },
   { value: 'QUARTERLY', label: 'Quarterly (3 Months)', months: 3 },

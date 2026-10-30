@@ -1,5 +1,6 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { CustomerKycDocument, ICustomerKycDocument } from '../models/CustomerKycDocument';
+import { Payment } from '../models/Payment';
 import { Customer } from '../models/Customer';
 import {
   AddKycDocumentInput,
@@ -12,6 +13,15 @@ import { KycStatus, KYC_POLICY } from '../constants/customer.constants';
 import { StorageService } from './storage.service';
 
 export class CustomerKycService {
+  static async assertDocumentBelongsToCustomer(docId: string, customerId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(docId) || !Types.ObjectId.isValid(customerId)) throw Object.assign(new Error('Invalid customer or document ID.'), { statusCode: 400 });
+    if (!await CustomerKycDocument.exists({ _id: docId, customerId, isActive: true })) throw Object.assign(new Error('KYC document not found for this customer.'), { statusCode: 404 });
+  }
+  private static async removeUnusedAttachment(url: string): Promise<void> {
+    if (await CustomerKycDocument.exists({ documentUrl: url, isActive: true }) || await Payment.exists({ proofUrl: url }) || await Customer.exists({ photoUrl: url })) return;
+    await StorageService.deleteFile(url);
+  }
+
   /**
    * Centralized KYC state calculation engine.
    * Recalculates customer overall KYC status from active KYC documents.
@@ -33,7 +43,8 @@ export class CustomerKycService {
       return 'REJECTED';
     }
 
-    const verifiedDocs = docs.filter((d) => d.verificationStatus === 'VERIFIED');
+    const verifiedDocs = docs.filter((d) => d.verificationStatus === 'VERIFIED' && (!d.expiryDate || d.expiryDate >= new Date()));
+    if (!verifiedDocs.length && docs.some(d => d.expiryDate && d.expiryDate < new Date())) return 'EXPIRED';
     const hasPrimaryVerified = verifiedDocs.some((d) =>
       KYC_POLICY.PRIMARY_DOC_TYPES.includes(d.documentType)
     );
@@ -126,7 +137,8 @@ export class CustomerKycService {
       throw new Error('Invalid customer ID');
     }
 
-    const customer = await Customer.findById(customerId);
+    return mongoose.connection.transaction(async () => {
+    const customer = await Customer.findOneAndUpdate({ _id: customerId }, { $inc: { __v: 1 } }, { new: true, timestamps: false });
     if (!customer) {
       throw new Error('Customer not found');
     }
@@ -172,6 +184,7 @@ export class CustomerKycService {
     });
 
     return this.sanitizeKycDoc(doc, true);
+    });
   }
 
   /**
@@ -189,14 +202,18 @@ export class CustomerKycService {
       throw new Error('Invalid document ID');
     }
 
-    const doc = await CustomerKycDocument.findById(docId);
+    let replacedDocumentUrl: string | undefined;
+    const result = await mongoose.connection.transaction(async () => {
+    const doc = await CustomerKycDocument.findOne({ _id: docId, isActive: true });
     if (!doc) {
       throw new Error('KYC document not found');
     }
+    await Customer.findOneAndUpdate({ _id: doc.customerId }, { $inc: { __v: 1 } }, { timestamps: false });
 
+    const typeChanged = input.documentType !== undefined && input.documentType !== doc.documentType;
     if (input.documentType) doc.documentType = input.documentType;
     if (input.documentNumber) doc.documentNumber = input.documentNumber.trim();
-    const replacedDocumentUrl = input.documentUrl && input.documentUrl.trim() !== doc.documentUrl ? doc.documentUrl : undefined;
+    replacedDocumentUrl = input.documentUrl && input.documentUrl.trim() !== doc.documentUrl ? doc.documentUrl : undefined;
     if (input.documentUrl) {
       StorageService.assertPrivateDocumentUrl(input.documentUrl.trim());
       doc.documentUrl = input.documentUrl.trim();
@@ -209,7 +226,7 @@ export class CustomerKycService {
     if (input.isPrimary !== undefined) doc.isPrimary = input.isPrimary;
 
     // Reset status to PENDING if document or file was replaced
-    if (input.documentNumber || input.documentUrl) {
+    if (typeChanged || input.documentNumber || input.documentUrl) {
       doc.verificationStatus = 'PENDING';
       doc.verifiedAt = undefined;
       doc.verifiedBy = undefined;
@@ -217,7 +234,6 @@ export class CustomerKycService {
     }
 
     await doc.save();
-    if (replacedDocumentUrl) await StorageService.deleteFile(replacedDocumentUrl);
     await this.syncCustomerKycState(doc.customerId, actorUserId);
 
     await recordAuditLog({
@@ -236,6 +252,9 @@ export class CustomerKycService {
     });
 
     return this.sanitizeKycDoc(doc, true);
+    });
+    if (replacedDocumentUrl) await this.removeUnusedAttachment(replacedDocumentUrl);
+    return result;
   }
 
   /**
@@ -253,11 +272,14 @@ export class CustomerKycService {
       throw new Error('Invalid document ID');
     }
 
-    const doc = await CustomerKycDocument.findById(docId);
+    return mongoose.connection.transaction(async () => {
+    const doc = await CustomerKycDocument.findOne({ _id: docId, isActive: true });
     if (!doc) {
       throw new Error('KYC document not found');
     }
+    await Customer.findOneAndUpdate({ _id: doc.customerId }, { $inc: { __v: 1 } }, { timestamps: false });
 
+    if (input.status === 'VERIFIED' && doc.expiryDate && doc.expiryDate < new Date()) throw Object.assign(new Error('Cannot verify an expired document.'), { statusCode: 400 });
     doc.verificationStatus = input.status;
     doc.verifiedAt = new Date();
     if (actorUserId) {
@@ -293,6 +315,7 @@ export class CustomerKycService {
     });
 
     return this.sanitizeKycDoc(doc, true);
+    });
   }
 
   /**
@@ -309,14 +332,17 @@ export class CustomerKycService {
       throw new Error('Invalid document ID');
     }
 
-    const doc = await CustomerKycDocument.findById(docId);
+    let deletedUrl: string | undefined;
+    await mongoose.connection.transaction(async () => {
+    const doc = await CustomerKycDocument.findOne({ _id: docId, isActive: true });
     if (!doc) {
       throw new Error('KYC document not found');
     }
+    await Customer.findOneAndUpdate({ _id: doc.customerId }, { $inc: { __v: 1 } }, { timestamps: false });
 
     doc.isActive = false;
     await doc.save();
-    await StorageService.deleteFile(doc.documentUrl);
+    deletedUrl = doc.documentUrl;
 
     await this.syncCustomerKycState(doc.customerId, actorUserId);
 
@@ -333,5 +359,7 @@ export class CustomerKycService {
         documentType: doc.documentType,
       },
     });
+    });
+    if (deletedUrl) await this.removeUnusedAttachment(deletedUrl);
   }
 }

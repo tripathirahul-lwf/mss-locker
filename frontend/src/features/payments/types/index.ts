@@ -40,6 +40,7 @@ export interface PaymentInvoice {
 export interface Payment {
   _id: string;
   paymentNumber: string;
+  paymentPurpose?: 'INVOICE_PAYMENT' | 'SECURITY_DEPOSIT' | 'REFUND' | 'OTHER';
   receiptNumber: string;
   idempotencyKey?: string;
 

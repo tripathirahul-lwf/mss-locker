@@ -63,12 +63,12 @@ export function GenerateRenewalModal({
     preSelectedAllocation?.billingCycle || 'ANNUAL'
   );
   const [baseRent, setBaseRent] = useState<number>(
-    preSelectedAllocation?.rentSnapshot || preSelectedAllocation?.annualRent || 1655
+    (Math.round((preSelectedAllocation?.rentSnapshot || preSelectedAllocation?.annualRent || 1655) / 1.18 * 100) / 100) * (preSelectedAllocation?.billingCycle === 'TRIENNIAL' ? 3 : 1)
   );
   const [discount, setDiscount] = useState<number>(0);
   const [lateFee, setLateFee] = useState<number>(0);
   const [otherCharges, setOtherCharges] = useState<number>(0);
-  const [gstRate, setGstRate] = useState<number>(0); // 0 or 18
+  const [gstRate, setGstRate] = useState<number>(18); // 0 or 18
   const [taxAmount, setTaxAmount] = useState<number>(0);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -177,23 +177,15 @@ export function GenerateRenewalModal({
     const start = new Date(startDate);
     if (isNaN(start.getTime())) return null;
 
-    const end = new Date(start);
-    if (billingCycle === 'ANNUAL') {
-      end.setFullYear(end.getFullYear() + 1);
-      end.setDate(end.getDate() - 1);
-    } else if (billingCycle === 'HALF_YEARLY') {
-      end.setMonth(end.getMonth() + 6);
-      end.setDate(end.getDate() - 1);
-    } else if (billingCycle === 'QUARTERLY') {
-      end.setMonth(end.getMonth() + 3);
-      end.setDate(end.getDate() - 1);
-    } else if (billingCycle === 'MONTHLY') {
-      end.setMonth(end.getMonth() + 1);
-      end.setDate(end.getDate() - 1);
-    }
-
-    const nextDue = new Date(end);
-    nextDue.setDate(nextDue.getDate() + 1);
+    const months = { ANNUAL: 12, TRIENNIAL: 36, HALF_YEARLY: 6, QUARTERLY: 3, MONTHLY: 1, CUSTOM: 12 }[billingCycle];
+    const nextDue = new Date(start);
+    const day = nextDue.getUTCDate();
+    nextDue.setUTCDate(1);
+    nextDue.setUTCMonth(nextDue.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(nextDue.getUTCFullYear(), nextDue.getUTCMonth() + 1, 0)).getUTCDate();
+    nextDue.setUTCDate(Math.min(day, lastDay));
+    const end = new Date(nextDue);
+    end.setUTCDate(end.getUTCDate() - 1);
 
     return {
       startFormatted: start.toLocaleDateString('en-IN', {
@@ -216,7 +208,8 @@ export function GenerateRenewalModal({
 
   const handleSelectAllocation = (alloc: LockerAllocation) => {
     setSelectedAllocation(alloc);
-    setBaseRent(alloc.rentSnapshot || alloc.annualRent || (alloc.lockerId as any)?.annualRent || 1655);
+    setBaseRent((Math.round((alloc.rentSnapshot || alloc.annualRent || (alloc.lockerId as any)?.annualRent || 1655) / 1.18 * 100) / 100) * (alloc.billingCycle === 'TRIENNIAL' ? 3 : 1));
+    setBillingCycle(alloc.billingCycle || 'ANNUAL');
     if (alloc.nextRenewalDueDate) {
       setStartDate(new Date(alloc.nextRenewalDueDate).toISOString().slice(0, 10));
     } else if (alloc.endDate) {
@@ -425,9 +418,14 @@ export function GenerateRenewalModal({
                   </label>
                   <select
                     value={billingCycle}
-                    onChange={(e) => setBillingCycle(e.target.value as any)}
+                    onChange={(e) => {
+                      const next = e.target.value as BillingCycle;
+                      setBaseRent(value => Math.round(value * (next === 'TRIENNIAL' ? 3 : 1) / (billingCycle === 'TRIENNIAL' ? 3 : 1) * 100) / 100);
+                      setBillingCycle(next);
+                    }}
                     className="w-full h-10 px-3 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-xs text-slate-900 cursor-pointer focus:border-emerald-700 focus:bg-white"
                   >
+                    <option value="TRIENNIAL">3 Years (36 Months)</option>
                     <option value="ANNUAL">Annual (12 Months / 1 Year)</option>
                     <option value="HALF_YEARLY">Half-Yearly (6 Months)</option>
                     <option value="QUARTERLY">Quarterly (3 Months)</option>

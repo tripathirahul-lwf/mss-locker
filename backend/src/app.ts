@@ -1,3 +1,5 @@
+import { isAllowedOrigin } from './utils/origin';
+import { verifyBrowserOrigin } from './middlewares/verifyBrowserOrigin';
 import express, { Application } from 'express';
 import path from 'path';
 import cors from 'cors';
@@ -29,22 +31,9 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       
-      // Allow configured client URL and Vercel / Render origins
-      if (
-        env.CLIENT_URL === '*' ||
-        origin === env.CLIENT_URL ||
-        origin.endsWith('.vercel.app') ||
-        origin.endsWith('.onrender.com')
-      ) {
-        return callback(null, true);
-      }
+      if (isAllowedOrigin(origin, env.CLIENT_URL, env.NODE_ENV)) return callback(null, true);
 
-      // Allow all local development origins (localhost & 127.0.0.1 on any port like 5173, 5174, 5175, 3000, etc.)
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error(`CORS origin not allowed: ${origin}`), false);
+      return callback(Object.assign(new Error('Request origin not allowed.'), { statusCode: 403 }), false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -111,7 +100,10 @@ app.use('/uploads/photos', express.static(path.resolve(process.cwd(), 'uploads',
 app.use(requestLogger);
 
 // Mount API Routes
-app.use('/api', apiRouter);
+app.use('/api', (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) { next(); return; }
+  verifyBrowserOrigin(req, res, next);
+}, apiRouter);
 
 // 404 Handler
 app.use(notFoundHandler);

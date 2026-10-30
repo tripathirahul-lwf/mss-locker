@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -104,6 +104,7 @@ export function InvoiceDetailModal({
   onCancelInvoice,
   onRecordPayment,
 }: InvoiceDetailModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const canCreate = usePermission('renewals.create');
   const canPay = usePermission('payments.create');
@@ -119,6 +120,26 @@ export function InvoiceDetailModal({
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (isCancelling) return;
+        if (cancelModalOpen) setCancelModalOpen(false); else onClose();
+      }
+      if (event.key === 'Tab' && !cancelModalOpen) {
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)') || []);
+        if (!controls.length) return;
+        const first = controls[0], last = controls[controls.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => { window.removeEventListener('keydown', handler, true); if (previous?.isConnected) previous.focus(); };
+  }, [onClose, cancelModalOpen, isCancelling]);
 
   // Billing period inline editing state
   const [isEditingPeriod, setIsEditingPeriod] = useState(false);
@@ -250,6 +271,7 @@ export function InvoiceDetailModal({
   const modalContent = (
     <div className="fixed inset-0 z-[120] w-screen h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs select-none animate-in fade-in-0 duration-150 font-sans">
       <div
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Invoice ${invoice.invoiceNumber}`}
         className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200/90 font-sans"
         onClick={(e) => e.stopPropagation()}
       >
@@ -687,7 +709,7 @@ export function InvoiceDetailModal({
           </Button>
 
           <div className="flex items-center gap-2">
-            {invoice.balanceAmount > 0 && invoice.status !== 'CANCELLED' && canPay && onRecordPayment && (
+            {invoice.balanceAmount > 0 && !['CANCELLED', 'DRAFT'].includes(invoice.status) && canPay && onRecordPayment && (
               <Button
                 type="button"
                 size="sm"

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
-import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt';
+import { verifyAccessToken, verifyRefreshToken, hashRefreshToken } from '../utils/jwt';
+import { Session } from '../models/Session';
 import { User } from '../models/User';
 import { type IRole } from '../models/Role';
 import { SYSTEM_ROLE_CODES, PermissionCode } from '../constants/permissions';
@@ -42,13 +43,19 @@ export const authenticate = async (
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
-    } else if (typeof req.query.token === 'string' && req.query.token) {
+    } else if (req.method === 'GET' && typeof req.query.token === 'string' && req.query.token) {
       token = req.query.token;
-    } else if (typeof req.query.auth_token === 'string' && req.query.auth_token) {
+    } else if (req.method === 'GET' && typeof req.query.auth_token === 'string' && req.query.auth_token) {
       token = req.query.auth_token;
     }
 
     let decoded: any;
+    const validateCookie = async (value: string) => {
+      const payload = verifyRefreshToken(value);
+      const session = await Session.exists({ userId: payload.userId, refreshTokenHash: hashRefreshToken(value), revokedAt: { $exists: false }, expiresAt: { $gt: new Date() } });
+      if (!session) throw new Error('Session revoked or expired');
+      return payload;
+    };
     if (token) {
       try {
         decoded = verifyAccessToken(token);
@@ -57,7 +64,7 @@ export const authenticate = async (
         const cookieToken = req.cookies?.vault_refresh_token || req.cookies?.['__Host-vault_refresh_token'];
         if (cookieToken) {
           try {
-            decoded = verifyRefreshToken(cookieToken);
+            decoded = await validateCookie(cookieToken);
           } catch {
             res.status(401).json(errorResponse('Invalid or expired token. Please log in again.'));
             return;
@@ -72,7 +79,7 @@ export const authenticate = async (
       const cookieToken = req.cookies?.vault_refresh_token || req.cookies?.['__Host-vault_refresh_token'];
       if (cookieToken) {
         try {
-          decoded = verifyRefreshToken(cookieToken);
+          decoded = await validateCookie(cookieToken);
         } catch {
           res.status(401).json(errorResponse('Authentication required. Missing Bearer token.'));
           return;
@@ -89,6 +96,9 @@ export const authenticate = async (
       return;
     }
 
+    if ((decoded.tokenVersion || 0) !== (user.tokenVersion || 0)) {
+      res.status(401).json(errorResponse('Session revoked. Please log in again.')); return;
+    }
     if (user.status !== 'ACTIVE') {
       res.status(403).json(
         errorResponse(
@@ -101,7 +111,7 @@ export const authenticate = async (
     }
 
     const role = user.role;
-    if (!role) {
+    if (!role || role.status !== 'ACTIVE') {
       res.status(403).json(errorResponse('Assigned role not found.'));
       return;
     }
@@ -180,7 +190,7 @@ export const requireAnyPermission = (...allowedPermissions: PermissionCode[]) =>
       return;
     }
     res.status(403).json(errorResponse(
-      'Access denied. Customer creation or KYC management permission is required to upload files.',
+      'Access denied. One of the required permissions is missing.',
       { allowedPermissions }
     ));
   };

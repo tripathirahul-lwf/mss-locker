@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -31,7 +31,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { userService, CreateUserData, UpdateUserData } from '../services/userService';
-import { roleService } from '../services/roleService';
+
 import { User, RoleListItem } from '../types/auth';
 import { useAuth } from '../hooks/useAuth';
 import { usePermission } from '../hooks/usePermission';
@@ -40,6 +40,42 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { useDebounce } from '../hooks/useDebounce';
+
+function strongPassword(): string {
+  const groups = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '!@#$%&*'];
+  const pick = (n: number) => { const value = new Uint32Array(1); const ceiling = Math.floor(4294967296 / n) * n; do { crypto.getRandomValues(value); } while (value[0] >= ceiling); return value[0] % n; };
+  const all = groups.join(''); const chars = groups.map(group => group[pick(group.length)]);
+  while (chars.length < 16) chars.push(all[pick(all.length)]);
+  for (let i = chars.length - 1; i > 0; i--) { const j = pick(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join('');
+}
+function passwordIssue(value: string): string | null {
+  return value.length < 8 || !/[A-Z]/.test(value) || !/[a-z]/.test(value) || !/[0-9]/.test(value)
+    ? 'Password needs at least 8 characters, uppercase, lowercase and a number.'
+    : new TextEncoder().encode(value).length > 72 ? 'Password cannot exceed 72 bytes.' : null;
+}
+function validStaffPhone(value: string): boolean {
+  const count = value.replace(/\D/g, '').length;
+  return /^[+\d\s().-]+$/.test(value) && count >= 10 && count <= 15;
+}
+function useStaffDialog(onClose: () => void, busy = false) {
+  const ref = useRef<HTMLDivElement>(null); const state = useRef({ onClose, busy }); state.current = { onClose, busy };
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement; const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; ref.current?.focus();
+    const keydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); if (!state.current.busy) state.current.onClose(); }
+      if (e.key !== 'Tab' || !ref.current) return;
+      const items = [...ref.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]')].filter(el => el.getClientRects().length);
+      const first = items[0], last = items[items.length - 1];
+      if (!first) { e.preventDefault(); ref.current.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || document.activeElement === ref.current)) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus(); };
+  }, []);
+  return ref;
+}
 
 function getRoleBadgeStyle(roleCode?: string, roleName?: string): { bg: string; text: string; border: string } {
   const code = (roleCode || '').toUpperCase();
@@ -63,6 +99,8 @@ function formatRelativeTime(dateString?: string | Date): string {
   const date = new Date(dateString);
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+  if (!Number.isFinite(diffInSeconds)) return 'Unknown date';
+  if (diffInSeconds < 0) return 'Future timestamp';
   if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
   const diffInMinutes = Math.floor(diffInSeconds / 60);
   if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
@@ -77,10 +115,10 @@ export function UsersPage() {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
 
-  const canCreateUser = usePermission('users.create') || true;
-  const canUpdateUser = usePermission('users.update') || true;
-  const canDeactivateUser = usePermission('users.deactivate') || true;
-  const canResetPassword = usePermission('users.reset_password') || true;
+  const canCreateUser = usePermission('users.create');
+  const canUpdateUser = usePermission('users.update');
+  const canDeactivateUser = usePermission('users.deactivate');
+  const canResetPassword = usePermission('users.reset_password');
 
   // Search & Filter State
   const [search, setSearch] = useState('');
@@ -115,9 +153,9 @@ export function UsersPage() {
   });
 
   // Fetch Roles for dropdown selection
-  const { data: rolesData } = useQuery({
-    queryKey: ['roles'],
-    queryFn: () => roleService.getRoles(),
+  const { data: rolesData, isLoading: rolesLoading, isError: rolesError, refetch: refetchRoles } = useQuery({
+    queryKey: ['staff-assignable-roles'],
+    queryFn: () => userService.getAssignableRoles(),
     staleTime: 60_000,
   });
 
@@ -127,9 +165,13 @@ export function UsersPage() {
   const totalPages = usersData?.pagination.totalPages || 1;
 
   // Quick KPI calculations
-  const activeCount = users.filter((u) => u.status === 'ACTIVE').length;
-  const adminCount = users.filter((u) => (u.role?.code || '').includes('SUPER') || (u.role?.code || '').includes('ADMIN') || (u.role?.name || '').includes('Admin')).length;
-  const lockedCount = users.filter((u) => u.status === 'LOCKED' || u.status === 'INACTIVE').length;
+  const activeCount = usersData?.summary.active ?? 0;
+  const adminCount = usersData?.summary.administrative ?? 0;
+  const lockedCount = usersData?.summary.restricted ?? 0;
+  useEffect(() => { setPage(1); }, [debouncedSearch, roleFilter, statusFilter]);
+  useEffect(() => { if (usersData && page > totalPages) setPage(totalPages); }, [usersData, page, totalPages]);
+  const manageable = (target: User) => currentUser?.isSuperAdmin || roles.some(role => role.id === (target.role?.id || target.role?._id)) && (target.permissionsOverride?.grant || []).every(permission => currentUser?.permissions?.includes(permission));
+
 
   return (
     <div className="space-y-5 font-sans">
@@ -164,7 +206,7 @@ export function UsersPage() {
 
           {canCreateUser && (
             <Button
-              onClick={() => setCreateModalOpen(true)}
+              disabled={rolesLoading || rolesError || !roles.length} onClick={() => setCreateModalOpen(true)}
               className="h-10 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-medium text-xs gap-1.5 px-4 shadow-xs cursor-pointer"
             >
               <UserPlus className="h-4 w-4" />
@@ -176,7 +218,7 @@ export function UsersPage() {
 
       {/* 4 KPI Summary Cards */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card
+        <Card role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
           onClick={() => {
             setStatusFilter('ALL');
             setRoleFilter('ALL');
@@ -187,7 +229,7 @@ export function UsersPage() {
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Total Staff Accounts</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900 font-mono">
-                {isLoading ? '—' : totalUsers}
+                {isLoading || isError ? '—' : totalUsers}
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5">Registered counter operators</p>
             </div>
@@ -197,7 +239,7 @@ export function UsersPage() {
           </div>
         </Card>
 
-        <Card
+        <Card role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
           onClick={() => setStatusFilter('ACTIVE')}
           className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-emerald-300 transition-all cursor-pointer"
         >
@@ -205,9 +247,9 @@ export function UsersPage() {
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Active Operators</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-emerald-700 font-mono">
-                {isLoading ? '—' : activeCount}
+                {isLoading || isError ? '—' : activeCount}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Authorized for custody duty</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Accounts enabled for sign-in</p>
             </div>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-100">
               <UserCheck className="h-6 w-6" />
@@ -215,17 +257,17 @@ export function UsersPage() {
           </div>
         </Card>
 
-        <Card
-          onClick={() => setRoleFilter('ALL')}
+        <Card role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+          onClick={() => setRoleFilter('ADMINISTRATIVE')}
           className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-sky-300 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Administrative Roles</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-sky-700 font-mono">
-                {isLoading ? '—' : adminCount}
+                {isLoading || isError ? '—' : adminCount}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Superadmins &amp; Managers</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Super administrators &amp; administrators</p>
             </div>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-50 text-sky-700 border border-sky-100">
               <Shield className="h-6 w-6" />
@@ -233,15 +275,15 @@ export function UsersPage() {
           </div>
         </Card>
 
-        <Card
-          onClick={() => setStatusFilter('INACTIVE')}
+        <Card role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+          onClick={() => setStatusFilter('RESTRICTED')}
           className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-rose-300 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Suspended / Locked</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-rose-700 font-mono">
-                {isLoading ? '—' : lockedCount}
+                {isLoading || isError ? '—' : lockedCount}
               </p>
               <p className="text-[11px] text-rose-500 mt-0.5 font-medium">Restricted accounts</p>
             </div>
@@ -258,7 +300,7 @@ export function UsersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search staff by name, @username, email, phone..."
+            aria-label="Search staff" placeholder="Search staff by name, @username, email, phone..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -281,14 +323,14 @@ export function UsersPage() {
           <div className="flex items-center gap-1.5 text-xs text-slate-600">
             <span className="font-semibold">Role:</span>
             <select
-              value={roleFilter}
+              aria-label="Staff role filter" value={roleFilter}
               onChange={(e) => {
                 setRoleFilter(e.target.value);
                 setPage(1);
               }}
               className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-700"
             >
-              <option value="ALL">All Roles</option>
+              <option value="ALL">All Roles</option><option value="ADMINISTRATIVE">Administrative Accounts</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -301,17 +343,17 @@ export function UsersPage() {
           <div className="flex items-center gap-1.5 text-xs text-slate-600">
             <span className="font-semibold">Status:</span>
             <select
-              value={statusFilter}
+              aria-label="Staff status filter" value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
               className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-700"
             >
-              <option value="ALL">All Statuses</option>
+              <option value="ALL">All Statuses</option><option value="RESTRICTED">Inactive or Locked</option>
               <option value="ACTIVE">Active Only</option>
               <option value="INACTIVE">Inactive / Suspended</option>
-              <option value="LOCKED">Temporarily Locked</option>
+              <option value="LOCKED">Locked</option>
             </select>
           </div>
         </div>
@@ -340,12 +382,12 @@ export function UsersPage() {
                 <th scope="col" className="px-3 py-3.5">Assigned Role</th>
                 <th scope="col" className="px-3 py-3.5">Phone Number</th>
                 <th scope="col" className="px-3 py-3.5 text-center">Account Status</th>
-                <th scope="col" className="px-3 py-3.5">Last Login Session</th>
+                <th scope="col" className="px-3 py-3.5">Last Sign-in</th>
                 <th scope="col" className="px-4 py-3.5 text-right sm:px-5">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {isLoading ? (
+              {isError ? (<tr><td colSpan={7} className="p-6 text-center text-rose-800">Staff directory unavailable. Use Retry above.</td></tr>) : isLoading ? (
                 <tr>
                   <td colSpan={7} className="p-10 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -446,7 +488,7 @@ export function UsersPage() {
                         {u.lastLoginAt ? (
                           <div>
                             <div className="font-semibold text-slate-800">
-                              {new Date(u.lastLoginAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(u.lastLoginAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}
                             </div>
                             <div className="text-[10px] text-slate-400">
                               {formatRelativeTime(u.lastLoginAt)}
@@ -476,7 +518,7 @@ export function UsersPage() {
                             <button
                               type="button"
                               onClick={() => setEditModalUser(u)}
-                              disabled={isTargetSuperAdmin && !currentUser?.isSuperAdmin}
+                              disabled={!manageable(u)}
                               className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer disabled:opacity-30"
                               title="Edit Profile"
                             >
@@ -488,7 +530,7 @@ export function UsersPage() {
                             <button
                               type="button"
                               onClick={() => setResetModalUser(u)}
-                              disabled={isTargetSuperAdmin && !currentUser?.isSuperAdmin}
+                              disabled={!manageable(u)}
                               className="p-1.5 rounded-lg border border-amber-200 hover:bg-amber-50 text-amber-700 transition-colors cursor-pointer disabled:opacity-30"
                               title="Reset Password"
                             >
@@ -500,7 +542,7 @@ export function UsersPage() {
                             <button
                               type="button"
                               onClick={() => setDeactivateUser(u)}
-                              disabled={isTargetSuperAdmin && !currentUser?.isSuperAdmin}
+                              disabled={!manageable(u)}
                               className={`p-1.5 rounded-lg border transition-colors cursor-pointer disabled:opacity-30 ${
                                 u.status === 'ACTIVE'
                                   ? 'border-rose-200 hover:bg-rose-50 text-rose-700'
@@ -535,7 +577,7 @@ export function UsersPage() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page <= 1}
+                disabled={isFetching || page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 className="h-8 px-3 rounded-lg border-slate-200 text-xs cursor-pointer shadow-2xs"
               >
@@ -545,7 +587,7 @@ export function UsersPage() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page >= totalPages}
+                disabled={isFetching || page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
                 className="h-8 px-3 rounded-lg border-slate-200 text-xs cursor-pointer shadow-2xs"
               >
@@ -557,19 +599,20 @@ export function UsersPage() {
         )}
       </div>
 
+      {rolesError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-rose-800">Could not load assignable roles. <button onClick={() => void refetchRoles()} className="underline">Retry roles</button></div>}
       {/* 1. View User Profile Modal */}
       {selectedProfileUser && (
         <UserProfileModal
           user={selectedProfileUser}
           onClose={() => setSelectedProfileUser(null)}
-          onEdit={() => {
+          onEdit={canUpdateUser && manageable(selectedProfileUser) ? () => {
             setEditModalUser(selectedProfileUser);
             setSelectedProfileUser(null);
-          }}
-          onResetPassword={() => {
+          } : undefined}
+          onResetPassword={canResetPassword && manageable(selectedProfileUser) ? () => {
             setResetModalUser(selectedProfileUser);
             setSelectedProfileUser(null);
-          }}
+          } : undefined}
         />
       )}
 
@@ -637,23 +680,18 @@ function UserProfileModal({
 }: {
   user: User;
   onClose: () => void;
-  onEdit: () => void;
-  onResetPassword: () => void;
+  onEdit?: () => void;
+  onResetPassword?: () => void;
 }) {
   const roleStyle = getRoleBadgeStyle(user.role?.code, user.role?.name);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useStaffDialog(onClose);
 
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/75 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150">
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs"
+        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs max-h-[92dvh] overflow-y-auto"
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label="Staff account dialog" tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -668,7 +706,7 @@ function UserProfileModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            aria-label="Close staff dialog" onClick={onClose}
             className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
@@ -676,7 +714,7 @@ function UserProfileModal({
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Assigned Role</span>
@@ -693,28 +731,28 @@ function UserProfileModal({
           </div>
 
           <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200 font-mono text-xs">
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2 break-all">
               <span className="text-slate-500">Email:</span>
               <span className="font-bold text-slate-800">{user.email}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2 break-all">
               <span className="text-slate-500">Phone:</span>
               <span className="font-bold text-slate-800">{user.phone || 'Not recorded'}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2 break-all">
               <span className="text-slate-500">Last Login:</span>
               <span className="font-bold text-slate-800">
-                {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-IN') : 'Never'}
+                {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Never'}
               </span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-100 bg-slate-50/90 px-6 py-3.5 flex items-center justify-between">
+        <div className="border-t border-slate-100 bg-slate-50/90 px-6 py-3.5 flex flex-wrap gap-2 items-center justify-between">
           <button
             type="button"
-            onClick={onResetPassword}
+            disabled={!onResetPassword} onClick={onResetPassword}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold cursor-pointer shadow-2xs"
           >
             <KeyRound className="h-3.5 w-3.5" />
@@ -726,7 +764,7 @@ function UserProfileModal({
               type="button"
               variant="outline"
               size="sm"
-              onClick={onEdit}
+              disabled={!onEdit} onClick={onEdit}
               className="h-8 px-3.5 text-xs font-semibold cursor-pointer"
             >
               <Edit2 className="h-3.5 w-3.5 mr-1" />
@@ -763,7 +801,7 @@ function CreateUserModal({
     email: '',
     username: '',
     phone: '',
-    roleId: roles[0]?.id || (roles[0] as any)?._id || '',
+    roleId: '',
     password: '',
     status: 'ACTIVE',
   });
@@ -772,37 +810,10 @@ function CreateUserModal({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useStaffDialog(onClose, isSubmitting);
+  const submitRef = useRef(false);
 
-  // Generate high-entropy password
-  const generateStrongPassword = () => {
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lower = 'abcdefghijkmnopqrstuvwxyz';
-    const numbers = '23456789';
-    const symbols = '!@#$%&*';
-    const all = upper + lower + numbers + symbols;
-
-    let pwd = '';
-    pwd += upper.charAt(Math.floor(Math.random() * upper.length));
-    pwd += lower.charAt(Math.floor(Math.random() * lower.length));
-    pwd += numbers.charAt(Math.floor(Math.random() * numbers.length));
-    pwd += symbols.charAt(Math.floor(Math.random() * symbols.length));
-
-    for (let i = 4; i < 14; i++) {
-      pwd += all.charAt(Math.floor(Math.random() * all.length));
-    }
-    const shuffled = pwd
-      .split('')
-      .sort(() => 0.5 - Math.random())
-      .join('');
-    setFormData((prev) => ({ ...prev, password: shuffled }));
-  };
+  const generateStrongPassword = () => setFormData(prev => ({ ...prev, password: strongPassword() }));
 
   // Compute suggested username
   const suggestedUsername = useMemo(() => {
@@ -818,8 +829,7 @@ function CreateUserModal({
   // Selected role metadata
   const selectedRole = useMemo(() => {
     return (
-      roles.find((r) => r.id === formData.roleId || (r as any)._id === formData.roleId) ||
-      roles[0]
+      roles.find((r) => r.id === formData.roleId || (r as any)._id === formData.roleId)
     );
   }, [roles, formData.roleId]);
 
@@ -857,9 +867,9 @@ function CreateUserModal({
       ? 'bg-sky-500'
       : 'bg-emerald-800';
 
-  const copyCredentials = () => {
+  const copyCredentials = async () => {
     const text =
-      `Custody Operations — New Staff Account Credentials\n` +
+      `DRAFT - save account before sharing. Custody Operations — New Staff Account Credentials\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `Staff Name: ${formData.name || 'Staff'}\n` +
       `Username: ${formData.username || '—'}\n` +
@@ -868,20 +878,19 @@ function CreateUserModal({
       `Temporary Password: ${formData.password || '—'}\n` +
       `Portal Link: ${window.location.origin}/login\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `Note: Please change your password upon your first sign-in.`;
-    navigator.clipboard.writeText(text);
+      `Draft credentials: save the account successfully before sharing.`;
+    try { await navigator.clipboard.writeText(text); } catch { setError('Could not copy credentials. Check clipboard permissions.'); return; }
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
 
   const handlePhoneChange = (val: string) => {
-    // Only allow digits, max 10 digits
-    const digits = val.replace(/\D/g, '').slice(0, 10);
+    const digits = val.replace(/[^+\d\s().-]/g, '').slice(0, 20);
     setFormData((prev) => ({ ...prev, phone: digits }));
   };
 
   const handleNameChange = (val: string) => {
-    const sanitized = val.replace(/[^a-zA-Z\s.'-]/g, '').slice(0, 50);
+    const sanitized = val.slice(0, 100);
     setFormData((prev) => ({ ...prev, name: sanitized }));
   };
 
@@ -910,15 +919,18 @@ function CreateUserModal({
       return;
     }
 
-    if (formData.phone && formData.phone.length !== 10) {
-      setError('Phone number must be exactly 10 digits (e.g. 9876543210).');
+    if (formData.phone && !validStaffPhone(formData.phone)) {
+      setError('Phone number must contain 10 to 15 digits, with an optional country code.');
       return;
     }
 
-    if (formData.password.length < 8) {
-      setError('Temporary password must be at least 8 characters long.');
+    if (!formData.roleId) { setError('Select an access role.'); return; }
+    if (passwordIssue(formData.password)) {
+      setError(passwordIssue(formData.password));
       return;
     }
+    if (submitRef.current) return;
+    submitRef.current = true;
     setIsSubmitting(true);
     try {
       await userService.createUser(formData);
@@ -926,6 +938,7 @@ function CreateUserModal({
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to create user');
     } finally {
+      submitRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -934,6 +947,7 @@ function CreateUserModal({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/75 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150 overflow-y-auto">
       <div
         className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs my-auto max-h-[92vh]"
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label="Staff account dialog" tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -951,7 +965,7 @@ function CreateUserModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            aria-label="Close staff dialog" onClick={onClose} disabled={isSubmitting}
             className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -959,8 +973,8 @@ function CreateUserModal({
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex flex-col overflow-y-auto">
-          <div className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col overflow-y-auto"><fieldset disabled={isSubmitting} className="contents">
+          <div className="p-6 space-y-4 overflow-y-auto">
             {error && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2 animate-in fade-in-0">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -977,8 +991,8 @@ function CreateUserModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Full Name *</label>
-                  <Input
+                  <label htmlFor="CreateUserModal-full-name" className="text-xs font-semibold text-slate-700">Full Name *</label>
+                  <Input id="CreateUserModal-full-name"
                     required
                     value={formData.name}
                     onChange={(e) => handleNameChange(e.target.value)}
@@ -1002,7 +1016,7 @@ function CreateUserModal({
                   </div>
                   <Input
                     required
-                    value={formData.username}
+                    aria-label="Username" value={formData.username}
                     onChange={(e) => handleUsernameChange(e.target.value)}
                     placeholder="e.g. ramesh.sharma"
                     className="h-9 text-xs font-mono"
@@ -1012,8 +1026,8 @@ function CreateUserModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Email Address *</label>
-                  <Input
+                  <label htmlFor="CreateUserModal-email-address" className="text-xs font-semibold text-slate-700">Email Address *</label>
+                  <Input id="CreateUserModal-email-address"
                     type="email"
                     required
                     value={formData.email}
@@ -1029,28 +1043,25 @@ function CreateUserModal({
                     {formData.phone ? (
                       <span
                         className={`text-[10px] font-mono font-semibold ${
-                          formData.phone.length === 10 ? 'text-emerald-800' : 'text-amber-600'
+                          validStaffPhone(formData.phone) ? 'text-emerald-800' : 'text-amber-600'
                         }`}
                       >
-                        {formData.phone.length}/10 digits
+                        {formData.phone.replace(/\D/g, '').length} digits
                       </span>
                     ) : null}
                   </div>
                   <div className="relative flex items-center">
-                    <span className="absolute left-3 text-xs font-semibold text-slate-400 select-none pointer-events-none">
-                      +91
-                    </span>
                     <Input
                       type="tel"
-                      value={formData.phone}
+                      aria-label="Phone number" value={formData.phone}
                       onChange={(e) => handlePhoneChange(e.target.value)}
                       placeholder="9876543210"
-                      className="h-9 text-xs font-mono pl-11"
-                      maxLength={10}
+                      className="h-9 text-xs font-mono"
+                      maxLength={20}
                     />
                   </div>
                   <p className="text-[10px] text-slate-400">
-                    10-digit mobile number (numbers only)
+                    10 to 15 digits; country code optional
                   </p>
                 </div>
               </div>
@@ -1065,13 +1076,14 @@ function CreateUserModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Role *</label>
-                  <select
+                  <label htmlFor="CreateUserModal-role" className="text-xs font-semibold text-slate-700">Role *</label>
+                  <select id="CreateUserModal-role"
                     required
                     value={formData.roleId}
                     onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
                     className="w-full h-9 px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-emerald-700 font-medium"
                   >
+                    <option value="">Select a role</option>
                     {roles.map((r) => (
                       <option key={r.id || (r as any)._id} value={r.id || (r as any)._id}>
                         {r.name}
@@ -1081,8 +1093,8 @@ function CreateUserModal({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Status</label>
-                  <select
+                  <label htmlFor="CreateUserModal-status" className="text-xs font-semibold text-slate-700">Status</label>
+                  <select id="CreateUserModal-status"
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full h-9 px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-emerald-700 font-medium"
@@ -1142,7 +1154,7 @@ function CreateUserModal({
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    value={formData.password}
+                    aria-label="Temporary password" autoComplete="new-password" value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="Enter or generate password (min 8 chars)"
                     className="h-9 text-xs pr-10 font-mono"
@@ -1195,7 +1207,7 @@ function CreateUserModal({
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-800" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Credentials Copied!' : 'Copy Login Details'}</span>
+                <span>{copied ? 'Credentials Copied!' : 'Copy Draft Details'}</span>
               </button>
             ) : (
               <div />
@@ -1206,8 +1218,7 @@ function CreateUserModal({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={onClose}
-                disabled={isSubmitting}
+                onClick={onClose} disabled={isSubmitting}
                 className="h-8.5 text-xs font-semibold cursor-pointer"
               >
                 Cancel
@@ -1222,7 +1233,7 @@ function CreateUserModal({
               </Button>
             </div>
           </div>
-        </form>
+        </fieldset></form>
       </div>
     </div>
   );
@@ -1241,6 +1252,9 @@ function EditUserModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { user: actor } = useAuth();
+  const canChangeStatus = usePermission('users.deactivate');
+  const self = (actor?.id || actor?._id) === (user.id || user._id);
   const [formData, setFormData] = useState<UpdateUserData>({
     name: user.name,
     phone: user.phone || '',
@@ -1250,21 +1264,16 @@ function EditUserModal({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useStaffDialog(onClose, isSubmitting);
+  const submitRef = useRef(false);
 
   const handlePhoneChange = (val: string) => {
-    const digits = val.replace(/\D/g, '').slice(0, 10);
+    const digits = val.replace(/[^+\d\s().-]/g, '').slice(0, 20);
     setFormData((prev) => ({ ...prev, phone: digits }));
   };
 
   const handleNameChange = (val: string) => {
-    const sanitized = val.replace(/[^a-zA-Z\s.'-]/g, '').slice(0, 50);
+    const sanitized = val.slice(0, 100);
     setFormData((prev) => ({ ...prev, name: sanitized }));
   };
 
@@ -1277,20 +1286,26 @@ function EditUserModal({
       return;
     }
 
-    if (formData.phone && formData.phone.length !== 10) {
-      setError('Phone number must be exactly 10 digits (e.g. 9876543210).');
+    if (formData.phone && !validStaffPhone(formData.phone)) {
+      setError('Phone number must contain 10 to 15 digits, with an optional country code.');
       return;
     }
 
+    if (submitRef.current) return;
+    submitRef.current = true;
     setIsSubmitting(true);
     try {
       const id = user.id || user._id;
       if (!id) throw new Error('User ID missing');
-      await userService.updateUser(id, formData);
+      const changes: UpdateUserData = { name: formData.name, phone: formData.phone };
+      if (formData.roleId !== (user.role?.id || user.role?._id)) changes.roleId = formData.roleId;
+      if (formData.status !== user.status) changes.status = formData.status;
+      await userService.updateUser(id, changes);
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to update user');
     } finally {
+      submitRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1298,7 +1313,8 @@ function EditUserModal({
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/75 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150">
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs"
+        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs max-h-[92dvh] overflow-y-auto"
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label="Staff account dialog" tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-6 py-4">
@@ -1311,12 +1327,12 @@ function EditUserModal({
               <p className="text-[11px] font-mono text-slate-500">@{user.username}</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer">
+          <button aria-label="Close staff dialog" onClick={onClose} disabled={isSubmitting} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit}><fieldset disabled={isSubmitting} className="contents">
           <div className="p-6 space-y-3.5">
             {error && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
@@ -1326,8 +1342,8 @@ function EditUserModal({
             )}
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Full Name</label>
-              <Input
+              <label htmlFor="EditUserModal-full-name" className="text-xs font-semibold text-slate-700">Full Name</label>
+              <Input id="EditUserModal-full-name"
                 required
                 value={formData.name}
                 onChange={(e) => handleNameChange(e.target.value)}
@@ -1342,32 +1358,29 @@ function EditUserModal({
                   {formData.phone ? (
                     <span
                       className={`text-[10px] font-mono font-semibold ${
-                        formData.phone.length === 10 ? 'text-emerald-800' : 'text-amber-600'
+                        validStaffPhone(formData.phone) ? 'text-emerald-800' : 'text-amber-600'
                       }`}
                     >
-                      {formData.phone.length}/10 digits
+                      {formData.phone.replace(/\D/g, '').length} digits
                     </span>
                   ) : null}
                 </div>
                 <div className="relative flex items-center">
-                  <span className="absolute left-3 text-xs font-semibold text-slate-400 select-none pointer-events-none">
-                    +91
-                  </span>
                   <Input
                     type="tel"
-                    value={formData.phone}
+                    aria-label="Phone number" value={formData.phone}
                     onChange={(e) => handlePhoneChange(e.target.value)}
                     placeholder="9876543210"
-                    className="h-9 text-xs font-mono pl-11"
-                    maxLength={10}
+                    className="h-9 text-xs font-mono"
+                    maxLength={20}
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Account Status</label>
-                <select
-                  value={formData.status}
+                <label htmlFor="EditUserModal-account-status" className="text-xs font-semibold text-slate-700">Account Status</label>
+                <select id="EditUserModal-account-status"
+                  aria-label="Account status" disabled={self || !canChangeStatus || isSubmitting} value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                   className="w-full h-9 px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-emerald-700 font-medium"
                 >
@@ -1379,12 +1392,13 @@ function EditUserModal({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Assigned Access Role</label>
-              <select
-                value={formData.roleId}
+              <label htmlFor="EditUserModal-assigned-access-role" className="text-xs font-semibold text-slate-700">Assigned Access Role</label>
+              <select id="EditUserModal-assigned-access-role"
+                aria-label="Assigned role" disabled={self || roles.length === 0 || isSubmitting} value={formData.roleId}
                 onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
                 className="w-full h-9 px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-emerald-700 font-medium"
               >
+                {!roles.some(role => role.id === formData.roleId) && <option value={formData.roleId}>{user.role?.name || 'Current role unavailable'}</option>}
                 {roles.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
@@ -1402,7 +1416,7 @@ function EditUserModal({
               {isSubmitting ? 'Saving Changes...' : 'Save Profile Changes'}
             </Button>
           </div>
-        </form>
+        </fieldset></form>
       </div>
     </div>
   );
@@ -1424,26 +1438,17 @@ function AdminResetPasswordModal({
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useStaffDialog(onClose, isSubmitting);
+  const submitRef = useRef(false);
 
-  const generatePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-    let pwd = '';
-    for (let i = 0; i < 12; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setNewPassword(pwd);
-  };
+  const generatePassword = () => setNewPassword(strongPassword());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (passwordIssue(newPassword)) { setError(passwordIssue(newPassword)); return; }
+    if (submitRef.current) return;
+    submitRef.current = true;
     setIsSubmitting(true);
     try {
       const id = user.id || user._id;
@@ -1453,6 +1458,7 @@ function AdminResetPasswordModal({
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to reset password');
     } finally {
+      submitRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1460,7 +1466,8 @@ function AdminResetPasswordModal({
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/75 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150">
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs max-h-[92dvh] overflow-y-auto"
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label="Staff account dialog" tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-6 py-4">
@@ -1473,12 +1480,12 @@ function AdminResetPasswordModal({
               <p className="text-[11px] font-mono text-slate-500">@{user.username}</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer">
+          <button aria-label="Close staff dialog" onClick={onClose} disabled={isSubmitting} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit}><fieldset disabled={isSubmitting} className="contents">
           <div className="p-6 space-y-3.5">
             {error && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
@@ -1500,7 +1507,7 @@ function AdminResetPasswordModal({
                 </button>
               </div>
               <Input
-                type="text"
+                type="password" aria-label="New password" autoComplete="new-password"
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -1511,11 +1518,11 @@ function AdminResetPasswordModal({
 
             {newPassword && (
               <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="font-mono text-xs text-slate-700 font-bold">{newPassword}</span>
+                <span className="font-mono text-xs text-slate-700 font-bold">Password ready to copy</span>
                 <button
                   type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(newPassword);
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(newPassword); } catch { setError('Could not copy password. Check clipboard permissions.'); return; }
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
@@ -1536,7 +1543,7 @@ function AdminResetPasswordModal({
               {isSubmitting ? 'Updating Password...' : 'Confirm Password Reset'}
             </Button>
           </div>
-        </form>
+        </fieldset></form>
       </div>
     </div>
   );
@@ -1558,16 +1565,13 @@ function ToggleUserStatusModal({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useStaffDialog(onClose, isSubmitting);
+  const submitRef = useRef(false);
 
   const handleConfirm = async () => {
     setError(null);
+    if (submitRef.current) return;
+    submitRef.current = true;
     setIsSubmitting(true);
     try {
       const id = user.id || user._id;
@@ -1577,6 +1581,7 @@ function ToggleUserStatusModal({
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to update user status');
     } finally {
+      submitRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1584,7 +1589,8 @@ function ToggleUserStatusModal({
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/75 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150">
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 text-slate-900 text-xs max-h-[92dvh] overflow-y-auto"
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label="Staff account dialog" tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-6 py-4">
@@ -1599,7 +1605,7 @@ function ToggleUserStatusModal({
               <p className="text-[11px] font-mono text-slate-500">@{user.username}</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer">
+          <button aria-label="Close staff dialog" onClick={onClose} disabled={isSubmitting} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>

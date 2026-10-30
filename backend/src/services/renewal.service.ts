@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { AuditLog } from '../models/AuditLog';
@@ -34,7 +34,8 @@ export class RenewalService {
       throw error;
     }
 
-    const allocation = await LockerAllocation.findById(input.allocationId)
+    return mongoose.connection.transaction(async () => {
+    const allocation = await LockerAllocation.findOneAndUpdate({ _id: input.allocationId }, { $set: { updatedAt: new Date() } }, { new: true })
       .populate('customerId')
       .populate('lockerId');
 
@@ -51,6 +52,8 @@ export class RenewalService {
       error.statusCode = 400;
       throw error;
     }
+
+    if (await LockerInvoice.exists({ allocationId: allocation._id, invoiceType: 'NEW_ALLOCATION', status: { $ne: 'CANCELLED' }, balanceAmount: { $gt: 0 } })) throw Object.assign(new Error('Settle the opening invoice before generating a renewal.'), { statusCode: 409 });
 
     // 1. Determine Start Date of the Renewal Period
     let renewalStartDate: Date;
@@ -89,13 +92,13 @@ export class RenewalService {
     }
 
     // 3. Freeze Financial Snapshot Tariffs
-    const baseRent = input.baseRent !== undefined ? Number(input.baseRent) : allocation.rentSnapshot || allocation.annualRent;
+    const baseRent = input.baseRent !== undefined ? Number(input.baseRent) : Math.round((allocation.rentSnapshot || allocation.annualRent) / 1.18 * 100) / 100 * (cycle === 'TRIENNIAL' ? 3 : 1);
     const totals = calculateInvoiceTotals({
       baseRent,
       discount: input.discount || 0,
       lateFee: input.lateFee || 0,
       otherCharges: input.otherCharges || 0,
-      taxAmount: input.taxAmount || 0,
+      taxAmount: input.taxAmount ?? Math.round(baseRent * .18 * 100) / 100,
       paidAmount: 0,
     });
 
@@ -153,6 +156,7 @@ export class RenewalService {
     });
 
     return invoice;
+    });
   }
 }
 

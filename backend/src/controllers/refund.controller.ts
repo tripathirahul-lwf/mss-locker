@@ -1,3 +1,4 @@
+import { serviceErrorStatus } from '../utils/serviceErrorStatus';
 import { Request, Response } from 'express';
 import { refundService } from '../services/refund.service';
 
@@ -31,7 +32,7 @@ export class RefundController {
         data: refund,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -46,7 +47,7 @@ export class RefundController {
         data: refund,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -69,7 +70,7 @@ export class RefundController {
         data: refund,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -87,7 +88,7 @@ export class RefundController {
         data: refund,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -110,7 +111,7 @@ export class RefundController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 
@@ -132,7 +133,7 @@ export class RefundController {
         data: refund,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(serviceErrorStatus(error)).json({ success: false, message: error.message });
     }
   }
 }

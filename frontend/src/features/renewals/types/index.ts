@@ -2,7 +2,7 @@ export type InvoiceType = 'NEW_ALLOCATION' | 'RENEWAL' | 'ADJUSTMENT' | 'LEGACY_
 export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
 export type DueStatus = 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE';
-export type BillingCycle = 'ANNUAL' | 'HALF_YEARLY' | 'QUARTERLY' | 'MONTHLY' | 'CUSTOM';
+export type BillingCycle = 'ANNUAL' | 'TRIENNIAL' | 'HALF_YEARLY' | 'QUARTERLY' | 'MONTHLY' | 'CUSTOM';
 export type InvoiceSource = 'SYSTEM' | 'MANUAL' | 'LEGACY_IMPORT';
 
 export interface LockerInvoice {

@@ -1,18 +1,16 @@
+import { serviceErrorStatus } from '../utils/serviceErrorStatus';
+import { createUserSchema, updateUserSchema, resetUserPasswordSchema, queryUsersSchema } from '../validators/user.validator';
 import { Request, Response, NextFunction } from 'express';
 import { UserService } from '../services/user.service';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 
 export class UserController {
+  static async assignableRoles(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try { res.json(successResponse('Assignable roles', await UserService.assignableRoles(req.user!.userId))); } catch (error) { next(error); }
+  }
   static async getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { search, role, status, page, limit } = req.query;
-      const result = await UserService.getUsers({
-        search: search as string,
-        role: role as string,
-        status: status as string,
-        page: page ? parseInt(page as string, 10) : 1,
-        limit: limit ? parseInt(limit as string, 10) : 10,
-      });
+      const result = await UserService.getUsers(queryUsersSchema.parse({ query: req.query }).query);
 
       res.status(200).json(successResponse('Users retrieved successfully', result));
     } catch (error) {
@@ -26,7 +24,7 @@ export class UserController {
       const user = await UserService.getUserById(id);
       res.status(200).json(successResponse('User details retrieved', user));
     } catch (error: any) {
-      res.status(404).json(errorResponse(error.message || 'User not found'));
+      res.status(serviceErrorStatus(error, 500)).json(errorResponse(error.message || 'User not found'));
     }
   }
 
@@ -37,8 +35,8 @@ export class UserController {
         return;
       }
 
-      const { name, email, username, phone, roleId, password, status } = req.body;
-      const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+      const { name, email, username, phone, roleId, password, status } = createUserSchema.parse({ body: req.body }).body;
+      const ipAddress = req.ip || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
       const user = await UserService.createUser({
@@ -58,7 +56,7 @@ export class UserController {
 
       res.status(201).json(successResponse('Staff user created successfully', user));
     } catch (error: any) {
-      res.status(400).json(errorResponse(error.message || 'Failed to create user'));
+      res.status(serviceErrorStatus(error)).json(errorResponse(error.message || 'Failed to create user'));
     }
   }
 
@@ -70,8 +68,8 @@ export class UserController {
       }
 
       const id = req.params.id as string;
-      const { name, phone, roleId, status, permissionsOverride } = req.body;
-      const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+      const { name, phone, roleId, status, permissionsOverride } = updateUserSchema.parse({ params: req.params, body: req.body }).body;
+      const ipAddress = req.ip || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
       const user = await UserService.updateUser({
@@ -90,7 +88,7 @@ export class UserController {
 
       res.status(200).json(successResponse('User updated successfully', user));
     } catch (error: any) {
-      res.status(400).json(errorResponse(error.message || 'Failed to update user'));
+      res.status(serviceErrorStatus(error)).json(errorResponse(error.message || 'Failed to update user'));
     }
   }
 
@@ -102,8 +100,8 @@ export class UserController {
       }
 
       const id = req.params.id as string;
-      const { newPassword } = req.body;
-      const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+      const { newPassword } = resetUserPasswordSchema.parse({ params: req.params, body: req.body }).body;
+      const ipAddress = req.ip || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
       await UserService.resetPassword(
@@ -118,7 +116,7 @@ export class UserController {
 
       res.status(200).json(successResponse('User password reset successfully. User sessions invalidated.'));
     } catch (error: any) {
-      res.status(400).json(errorResponse(error.message || 'Failed to reset password'));
+      res.status(serviceErrorStatus(error)).json(errorResponse(error.message || 'Failed to reset password'));
     }
   }
 }

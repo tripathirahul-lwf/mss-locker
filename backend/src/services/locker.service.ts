@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Locker, ILocker } from '../models/Locker';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
@@ -33,6 +33,10 @@ export interface LockerStatsResult {
   decommissioned: number;
   availableForAllocation: number;
   renewalDue?: number;
+  dueSoon?: number;
+  overdue?: number;
+  kycPending?: number;
+  kycDone?: number;
   sizeBreakdown: Record<
     string,
     {
@@ -46,15 +50,63 @@ export interface LockerStatsResult {
 }
 
 export class LockerService {
-  private static readonly statsCache = new Map<string, { expiresAt: number; value: LockerStatsResult }>();
+  // The ledger uses calendar dates in the business timezone, including today.
+  private static ledgerDate(date = new Date()): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(date);
+  }
+
+  private static renewalDate(allocation: any): Date | undefined {
+    if (!allocation) return undefined;
+    if (allocation.nextRenewalDueDate) return new Date(allocation.nextRenewalDueDate);
+    if (allocation.paidThroughDate || allocation.endDate) {
+      const next = new Date(allocation.paidThroughDate || allocation.endDate);
+      next.setUTCDate(next.getUTCDate() + 1); return next;
+    }
+    return allocation.startDate ? calculateBillingPeriod(new Date(allocation.startDate), allocation.billingCycle || 'ANNUAL').nextDueDate : undefined;
+  }
+
+  private static async ledgerGroups() {
+    const today = this.ledgerDate();
+    const horizon = this.ledgerDate(new Date(Date.now() + 30 * 86400000));
+    const allocations = await LockerAllocation.find({ status: 'ACTIVE' })
+      .select('lockerId customerId nextRenewalDueDate endDate startDate billingCycle paidThroughDate')
+      .populate('customerId', 'kycStatus').lean();
+    const invoices = await LockerInvoice.find({ invoiceType: 'RENEWAL', allocationId: { $in: allocations.map(a => a._id) }, status: { $ne: 'CANCELLED' }, balanceAmount: { $gt: 0 } })
+      .select('lockerId dueDate').lean();
+    const groups = { dueSoon: new Set<string>(), overdue: new Set<string>(), kycPending: new Set<string>(), kycDone: new Set<string>() };
+    const activeIds = new Set(allocations.map(a => String(a.lockerId)));
+    const classify = (id: string, value: unknown) => {
+      if (!value) return;
+      const date = new Date(value as string);
+      if (!Number.isFinite(date.getTime())) return;
+      const day = this.ledgerDate(date);
+      if (day < today) groups.overdue.add(id);
+      else if (day <= horizon) groups.dueSoon.add(id);
+    };
+    for (const a of allocations) {
+      const id = String(a.lockerId);
+      classify(id, this.renewalDate(a));
+      if ((a.customerId as any)?.kycStatus === 'VERIFIED') groups.kycDone.add(id);
+      else groups.kycPending.add(id);
+    }
+    for (const invoice of invoices) {
+      const id = String(invoice.lockerId);
+      if (activeIds.has(id)) classify(id, invoice.dueDate);
+    }
+    for (const id of groups.overdue) groups.dueSoon.delete(id);
+    return groups;
+  }
+
   private static async buildLockerFilter(
-    params: Partial<LockerQueryParams>
+    params: Partial<LockerQueryParams>, canViewSensitive = false
   ): Promise<Record<string, unknown>> {
     const { search, size, status, operationalStatus, rackNumber, section, isActive } = params;
     const filter: Record<string, unknown> = {};
     if (isActive !== undefined) filter.isActive = isActive;
     if (size) filter.size = size.toUpperCase();
-    if (status && status !== 'ALL' && status !== 'RENEWAL_DUE') filter.status = status;
+    if (status && !['ALL', 'RENEWAL_DUE', 'DUE_SOON', 'OVERDUE', 'KYC_PENDING', 'KYC_DONE'].includes(status)) filter.status = status;
     if (operationalStatus && operationalStatus !== 'ALL') filter.operationalStatus = operationalStatus;
     if (rackNumber) filter.rackNumber = { $regex: rackNumber.trim(), $options: 'i' };
     if (section) filter.section = { $regex: section.trim(), $options: 'i' };
@@ -102,6 +154,8 @@ export class LockerService {
         { rackNumber: { $regex: escaped, $options: 'i' } },
         { section: { $regex: escaped, $options: 'i' } },
       ];
+
+      if (canViewSensitive) orConditions.push({ masterKeyReference: { $regex: escaped, $options: 'i' } });
 
       // If user typed "#1", also search for "1"
       if (cleanNum && cleanNum !== trimmed) {
@@ -194,41 +248,13 @@ export class LockerService {
       sortOrder = 'asc',
     } = params;
 
-    const filter = await this.buildLockerFilter({ search, size, status, operationalStatus, rackNumber, section, isActive });
+    const filter = await this.buildLockerFilter({ search, size, status, operationalStatus, rackNumber, section, isActive }, canViewSensitive);
 
-    // Handle RENEWAL_DUE virtual filter (synchronized with Actionable Dues: Overdue + Due This Month)
-    if (status === 'RENEWAL_DUE') {
-      const now = new Date();
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      const [invoiceLockerIds, allocLockerIds] = await Promise.all([
-        LockerInvoice.find({
-          status: { $ne: 'CANCELLED' },
-          balanceAmount: { $gt: 0 },
-          $or: [
-            { dueStatus: 'OVERDUE' },
-            { dueDate: { $lte: monthEnd } },
-          ],
-        }).distinct('lockerId'),
-        LockerAllocation.find({
-          status: 'ACTIVE',
-          $or: [
-            { nextRenewalDueDate: { $lte: monthEnd } },
-            { paidThroughDate: { $lte: monthEnd } },
-          ],
-        }).distinct('lockerId'),
-      ]);
-      const combined = Array.from(new Set([...invoiceLockerIds, ...allocLockerIds].map(String)))
-        .map((id) => new Types.ObjectId(id));
-      if (filter.$or) {
-        filter.$and = [
-          { _id: { $in: combined } },
-          { $or: filter.$or },
-        ];
-        delete filter.$or;
-      } else {
-        filter._id = { $in: combined };
-      }
-    }
+    const groups = await this.ledgerGroups();
+    const virtualIds = status === 'RENEWAL_DUE' ? new Set([...groups.dueSoon, ...groups.overdue])
+      : status === 'DUE_SOON' ? groups.dueSoon : status === 'OVERDUE' ? groups.overdue
+      : status === 'KYC_PENDING' ? groups.kycPending : status === 'KYC_DONE' ? groups.kycDone : undefined;
+    if (virtualIds) filter._id = { $in: [...virtualIds].map(id => new Types.ObjectId(id)) };
 
     const sortOptions: Record<string, 1 | -1> = {
       [sortBy]: sortOrder === 'desc' ? -1 : 1,
@@ -262,15 +288,15 @@ export class LockerService {
         lockerId: { $in: lockerIds },
         status: 'ACTIVE',
       })
-        .select('lockerId customerId startDate paidThroughDate nextRenewalDueDate')
-        .populate('customerId', 'fullName customerCode phone')
+        .select('lockerId customerId startDate endDate billingCycle paidThroughDate nextRenewalDueDate')
+        .populate('customerId', 'fullName customerCode phone kycStatus')
         .lean(),
       LockerInvoice.find({
         lockerId: { $in: lockerIds },
         status: { $ne: 'CANCELLED' },
         balanceAmount: { $gt: 0 },
       })
-        .select('lockerId dueDate balanceAmount paymentStatus dueStatus')
+        .select('lockerId allocationId dueDate balanceAmount paymentStatus dueStatus').sort({ dueDate: 1 })
         .lean(),
     ]);
 
@@ -282,41 +308,25 @@ export class LockerService {
     const invoiceMap = new Map<string, any>();
     pendingInvoices.forEach((inv) => {
       const key = String(inv.lockerId);
+      if (String(inv.allocationId) !== String(allocMap.get(key)?._id)) return;
       if (!invoiceMap.has(key)) {
         invoiceMap.set(key, inv);
       }
     });
-
-    const now = new Date();
-    const monthEndMs = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
 
     const enrichedLockers = (sanitizedLockers as any[]).map((l) => {
       const lockerIdStr = String(l._id);
       const alloc = allocMap.get(lockerIdStr);
       const inv = invoiceMap.get(lockerIdStr);
 
-      const isInvoiceDue = Boolean(
-        inv && (
-          inv.dueStatus === 'OVERDUE' ||
-          (inv.dueDate && new Date(inv.dueDate).getTime() <= monthEndMs)
-        )
-      );
-      const computedAllocDue =
-        alloc?.nextRenewalDueDate ||
-        alloc?.endDate ||
-        (alloc?.startDate
-          ? calculateBillingPeriod(new Date(alloc.startDate), (alloc.billingCycle as any) || 'ANNUAL').nextDueDate
-          : undefined);
-      const allocDueMs = computedAllocDue
-        ? new Date(computedAllocDue).getTime()
-        : (alloc?.paidThroughDate ? new Date(alloc.paidThroughDate).getTime() : 0);
-      const isAllocDue = allocDueMs > 0 && allocDueMs <= monthEndMs;
-      const isRenewalDue = isInvoiceDue || isAllocDue;
+      const computedAllocDue = this.renewalDate(alloc);
 
       const base = typeof (l as any).toObject === 'function' ? (l as any).toObject() : l;
       return {
         ...base,
-        isRenewalDue,
+        isRenewalDue: groups.dueSoon.has(lockerIdStr) || groups.overdue.has(lockerIdStr),
+        isOverdue: groups.overdue.has(lockerIdStr),
+        tenantKycStatus: alloc?.customerId?.kycStatus,
         tenantName: alloc?.customerId?.fullName,
         tenantCode: alloc?.customerId?.customerCode,
         tenantPhone: alloc?.customerId?.phone,
@@ -358,7 +368,7 @@ export class LockerService {
     const sanitized = this.sanitizeLocker(locker, canViewSensitive);
     const [activeAlloc, pendingInv] = await Promise.all([
       LockerAllocation.findOne({ lockerId: locker._id, status: 'ACTIVE' })
-        .populate('customerId', 'fullName customerCode phone')
+        .populate('customerId', 'fullName customerCode phone kycStatus')
         .lean(),
       LockerInvoice.findOne({
         lockerId: locker._id,
@@ -367,29 +377,14 @@ export class LockerService {
       }).lean(),
     ]);
 
-    const now = new Date();
-    const monthEndMs = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
-    const isInvoiceDue = Boolean(
-      pendingInv && (
-        pendingInv.dueStatus === 'OVERDUE' ||
-        (pendingInv.dueDate && new Date(pendingInv.dueDate).getTime() <= monthEndMs)
-      )
-    );
-    const computedAllocDue =
-      activeAlloc?.nextRenewalDueDate ||
-      activeAlloc?.endDate ||
-      (activeAlloc?.startDate
-        ? calculateBillingPeriod(new Date(activeAlloc.startDate), (activeAlloc.billingCycle as any) || 'ANNUAL').nextDueDate
-        : undefined);
-    const allocDueMs = computedAllocDue
-      ? new Date(computedAllocDue).getTime()
-      : (activeAlloc?.paidThroughDate ? new Date(activeAlloc.paidThroughDate).getTime() : 0);
-    const isAllocDue = allocDueMs > 0 && allocDueMs <= monthEndMs;
-    const isRenewalDue = isInvoiceDue || isAllocDue;
-
+    const computedAllocDue = this.renewalDate(activeAlloc);
+    const groups = await this.ledgerGroups();
+    const ledgerId = String(locker._id);
     return {
       ...sanitized,
-      isRenewalDue,
+      isRenewalDue: groups.dueSoon.has(ledgerId) || groups.overdue.has(ledgerId),
+      isOverdue: groups.overdue.has(ledgerId),
+      tenantKycStatus: (activeAlloc?.customerId as any)?.kycStatus,
       tenantName: (activeAlloc?.customerId as any)?.fullName,
       tenantCode: (activeAlloc?.customerId as any)?.customerCode,
       tenantPhone: (activeAlloc?.customerId as any)?.phone,
@@ -402,14 +397,15 @@ export class LockerService {
    * Get operational statistics & size distribution matrix.
    */
   static async getLockerStats(params: Partial<LockerQueryParams> = {}): Promise<LockerStatsResult> {
-    const cacheKey = JSON.stringify(params, Object.keys(params).sort());
-    const cached = this.statsCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.value;
     const match = await this.buildLockerFilter({ ...params, isActive: params.isActive ?? true });
-    const now = new Date();
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const groups = await this.ledgerGroups();
+    const subset = params.status === 'RENEWAL_DUE' ? new Set([...groups.dueSoon, ...groups.overdue])
+      : params.status === 'DUE_SOON' ? groups.dueSoon : params.status === 'OVERDUE' ? groups.overdue
+      : params.status === 'KYC_PENDING' ? groups.kycPending : params.status === 'KYC_DONE' ? groups.kycDone : undefined;
+    if (subset) match._id = { $in: [...subset].map(id => new Types.ObjectId(id)) };
 
-    const [total, statusCounts, operationalCounts, sizeMatrix, availableCount, invoiceLockerIds, allocLockerIds] =
+
+    const [total, statusCounts, operationalCounts, sizeMatrix, availableCount] =
       await Promise.all([
         Locker.countDocuments(match),
         Locker.aggregate([
@@ -433,24 +429,11 @@ export class LockerService {
           status: 'VACANT',
           operationalStatus: 'ACTIVE',
         }),
-        LockerInvoice.find({
-          status: { $ne: 'CANCELLED' },
-          balanceAmount: { $gt: 0 },
-          $or: [
-            { dueStatus: 'OVERDUE' },
-            { dueDate: { $lte: monthEnd } },
-          ],
-        }).distinct('lockerId'),
-        LockerAllocation.find({
-          status: 'ACTIVE',
-          $or: [
-            { nextRenewalDueDate: { $lte: monthEnd } },
-            { paidThroughDate: { $lte: monthEnd } },
-          ],
-        }).distinct('lockerId'),
       ]);
 
-    const renewalDueCount = new Set([...invoiceLockerIds, ...allocLockerIds].map(String)).size;
+    const matchedIds = new Set((await Locker.find(match).select('_id').lean()).map(l => String(l._id)));
+    const countGroup = (ids: Set<string>) => [...ids].filter(id => matchedIds.has(id)).length;
+    const renewalDueCount = countGroup(new Set([...groups.dueSoon, ...groups.overdue]));
 
     const getStatusCount = (statusName: string) => {
       const item = statusCounts.find((s) => s._id === statusName);
@@ -493,12 +476,12 @@ export class LockerService {
       decommissioned: getOperationalCount('DECOMMISSIONED'),
       availableForAllocation: availableCount,
       renewalDue: renewalDueCount,
+      dueSoon: countGroup(groups.dueSoon),
+      overdue: countGroup(groups.overdue),
+      kycPending: countGroup(groups.kycPending),
+      kycDone: countGroup(groups.kycDone),
       sizeBreakdown,
     };
-    this.statsCache.set(cacheKey, { expiresAt: Date.now() + 15_000, value: result });
-    if (this.statsCache.size > 100) {
-      for (const [key, entry] of this.statsCache) if (entry.expiresAt <= Date.now()) this.statsCache.delete(key);
-    }
     return result;
   }
 
@@ -706,7 +689,8 @@ export class LockerService {
       throw new Error('Invalid locker ID');
     }
 
-    const locker = await Locker.findById(id);
+    return mongoose.connection.transaction(async () => {
+    const locker = await Locker.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, timestamps: false });
     if (!locker) {
       throw new Error('Locker not found');
     }
@@ -716,18 +700,24 @@ export class LockerService {
       const currentUpdated = new Date(locker.updatedAt).toISOString();
       const expectedUpdated = new Date(input.expectedUpdatedAt).toISOString();
       if (currentUpdated !== expectedUpdated) {
-        throw new Error(
-          'Conflict: Locker has been modified by another operator. Please refresh and review latest status.'
-        );
+        throw Object.assign(new Error('Conflict: Locker has been modified by another operator. Please refresh and review latest status.'), { statusCode: 409 });
       }
     }
 
+    const tenancy = await LockerAllocation.findOne({ lockerId: id, status: { $in: ['ACTIVE', 'RESERVED'] } }).lean();
+    const managedStatus = tenancy?.status === 'ACTIVE' ? 'OCCUPIED' : tenancy ? 'RESERVED' : undefined;
+    if (input.status && input.status !== locker.status && (managedStatus || ['OCCUPIED', 'RESERVED'].includes(input.status))) {
+      throw Object.assign(new Error('Occupancy must be changed through allotment, reservation or locker closure.'), { statusCode: 409 });
+    }
+    if (tenancy && input.isActive === false) throw Object.assign(new Error('Close the active allocation before deactivating this locker.'), { statusCode: 409 });
+
+    const numberChanged = input.lockerNumber !== undefined && input.lockerNumber.trim() !== locker.lockerNumber;
     // Check unique locker number if modified
     if (input.lockerNumber && input.lockerNumber.trim().toLowerCase() !== locker.lockerNumber.toLowerCase()) {
       const duplicate = await Locker.findOne({
         _id: { $ne: locker._id },
-        lockerNumber: { $regex: new RegExp(`^${input.lockerNumber.trim()}$`, 'i') },
-      });
+        lockerNumber: input.lockerNumber.trim(),
+      }).collation({ locale: 'en', strength: 2 });
       if (duplicate) {
         throw new Error(`Locker number '${input.lockerNumber}' is already assigned.`);
       }
@@ -736,6 +726,11 @@ export class LockerService {
 
     // Track changed fields for audit logging
     const changedFields: string[] = [];
+    if (numberChanged) changedFields.push('lockerNumber');
+    if (input.lockerCode !== undefined && input.lockerCode.trim().toUpperCase() !== locker.lockerCode) {
+      locker.lockerCode = input.lockerCode.trim().toUpperCase();
+      changedFields.push('lockerCode');
+    }
     const previousStatus = locker.status;
     const previousOpStatus = locker.operationalStatus;
 
@@ -829,6 +824,7 @@ export class LockerService {
     });
 
     return locker.toObject();
+    });
   }
 
   /**

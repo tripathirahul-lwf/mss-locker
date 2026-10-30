@@ -22,6 +22,7 @@ export const ALLOCATION_STATUS_CONFIG = {
 } as const;
 
 export const BILLING_CYCLES = [
+  { value: 'TRIENNIAL', label: '3 Years (36 Months)' },
   { value: 'ANNUAL', label: 'Annual (12 Months)' },
   { value: 'HALF_YEARLY', label: 'Half-Yearly (6 Months)' },
   { value: 'QUARTERLY', label: 'Quarterly (3 Months)' },

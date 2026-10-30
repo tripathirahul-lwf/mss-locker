@@ -206,7 +206,8 @@ export const depositApi = {
       transactionReference?: string;
       notes?: string;
       paymentDate?: string;
-    }
+    },
+    idempotencyKey?: string
   ): Promise<{
     refund: RefundRequest;
     payment: any;
@@ -221,7 +222,7 @@ export const depositApi = {
         transaction: DepositTransaction;
         summary: DepositSummary;
       };
-    }>(`/refunds/${id}/pay`, data);
+    }>(`/refunds/${id}/pay`, data, { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined });
     return res.data.data;
   },
 

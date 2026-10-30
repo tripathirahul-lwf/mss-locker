@@ -46,22 +46,32 @@ export function ConfirmationModal({
   useEffect(() => {
     if (!isOpen) return;
 
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) {
+      if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        e.stopImmediatePropagation();
+        if (!isLoading) onClose();
+      }
+      if (e.key === 'Tab') {
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex="0"]') || []);
+        if (!controls.length) { e.preventDefault(); return; }
+        const first = controls[0], last = controls[controls.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
       }
     };
-
     document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKeyDown);
-    window.requestAnimationFrame(() => {
-      confirmBtnRef.current?.focus();
+    window.addEventListener('keydown', onKeyDown, true);
+    const frame = window.requestAnimationFrame(() => {
+      dialogRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     });
-
     return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', onKeyDown);
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown, true);
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, [isOpen, isLoading, onClose]);
 

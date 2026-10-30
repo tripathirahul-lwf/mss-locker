@@ -18,6 +18,7 @@ export interface User {
   role: UserRole;
   isSuperAdmin: boolean;
   permissions: string[];
+  permissionsOverride?: { grant?: string[]; revoke?: string[] };
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   lastLoginAt?: string;
   lastLoginIp?: string;

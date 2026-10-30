@@ -6,7 +6,7 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const config = loadEnv(mode, process.cwd(), 'VITE_');
-  const backendProxyTarget = 'http://127.0.0.1:5000';
+  const backendProxyTarget = config.VITE_API_PROXY_TARGET || 'http://127.0.0.1:5000';
 
   return ({
   plugins: [

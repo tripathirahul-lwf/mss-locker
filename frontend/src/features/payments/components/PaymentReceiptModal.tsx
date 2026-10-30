@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -39,7 +39,7 @@ function numberToWordsINR(amount: number): string {
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   const num = Math.floor(amount);
-  if (num === 0) return 'Zero Rupees Only';
+  if (amount === 0) return 'Zero Rupees Only';
 
   const inWords = (n: number): string => {
     if (n < 20) return a[n];
@@ -50,7 +50,8 @@ function numberToWordsINR(amount: number): string {
     return inWords(Math.floor(n / 10000000)) + 'Crore ' + (n % 10000000 !== 0 ? inWords(n % 10000000) : '');
   };
 
-  return `Rupees ${inWords(num).trim()} Only`;
+  const paise = Math.round((amount - num) * 100);
+  return `Rupees ${num ? inWords(num).trim() : 'Zero'}${paise ? ' and ' + inWords(paise).trim() + ' Paise' : ''} Only`;
 }
 
 export function PaymentReceiptModal({
@@ -58,6 +59,22 @@ export function PaymentReceiptModal({
   onClose,
 }: PaymentReceiptModalProps) {
   const customer = payment.customerId;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.stopImmediatePropagation(); onClose(); }
+      if (event.key === 'Tab') {
+        const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[tabindex="0"]') || []);
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => { document.removeEventListener('keydown', handleKey); before?.focus(); };
+  }, [onClose]);
   const locker = payment.lockerId;
   const invoice = payment.invoiceId;
   const allocation = payment.allocationId;
@@ -119,6 +136,7 @@ export function PaymentReceiptModal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Payment receipt ${payment.receiptNumber}`} tabIndex={-1}
         className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200 print:border-none print:shadow-none print:max-h-full print:rounded-none animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
@@ -259,7 +277,7 @@ export function PaymentReceiptModal({
           <div className="grid grid-cols-2 gap-0 border border-slate-950 divide-x divide-slate-950">
             <div className="p-3 space-y-1">
               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                Verified Tenant Information
+                Tenant Information
               </span>
               <p className="font-black text-sm text-slate-950">
                 {customer?.fullName || 'Customer Record'}

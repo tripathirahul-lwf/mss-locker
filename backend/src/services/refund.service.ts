@@ -1,4 +1,4 @@
-import mongoose, { Types } from 'mongoose';
+import mongoose, { ClientSession, Types } from 'mongoose';
 import { RefundRequest } from '../models/RefundRequest';
 import { DepositTransaction } from '../models/DepositTransaction';
 import { LockerAllocation } from '../models/LockerAllocation';
@@ -33,15 +33,14 @@ export class RefundService {
    * Create a new refund request
    */
   async createRefundRequest(input: CreateRefundInput, userId: string) {
-    if (!input.requestedAmount || input.requestedAmount <= 0) {
-      throw new Error('Requested refund amount must be greater than 0');
-    }
+    input = { ...input, requestedAmount: normalizeMoney(input.requestedAmount, 'Requested refund amount') };
 
     if (!input.reason || input.reason.trim().length < 3) {
       throw new Error('Detailed reason is required for requesting a refund');
     }
 
-    const allocation = await LockerAllocation.findById(input.allocationId);
+    return mongoose.connection.transaction(async () => {
+    const allocation = await LockerAllocation.findOneAndUpdate({ _id: input.allocationId }, { $set: { updatedAt: new Date() } }, { new: true });
     if (!allocation) {
       throw new Error('Locker allocation not found');
     }
@@ -88,12 +87,14 @@ export class RefundService {
     });
 
     return refund;
+    });
   }
 
   /**
    * Submit draft refund request for manager approval
    */
   async submitRefundRequest(id: string, userId: string) {
+    return mongoose.connection.transaction(async () => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
@@ -102,6 +103,8 @@ export class RefundService {
     if (refund.status !== 'DRAFT') {
       throw new Error(`Cannot submit refund with status ${refund.status}`);
     }
+
+    await LockerAllocation.findOneAndUpdate({ _id: refund.allocationId }, { $set: { updatedAt: new Date() } });
 
     // Recheck live available balance
     const summary = await depositService.getDepositSummary(refund.allocationId);
@@ -125,6 +128,7 @@ export class RefundService {
     });
 
     return refund;
+    });
   }
 
   /**
@@ -136,6 +140,8 @@ export class RefundService {
     notes: string | undefined,
     userId: string
   ) {
+    approvedAmount = normalizeMoney(approvedAmount, 'Approved refund amount');
+    return mongoose.connection.transaction(async () => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
@@ -162,12 +168,14 @@ export class RefundService {
       );
     }
 
+    await LockerAllocation.findOneAndUpdate({ _id: refund.allocationId }, { $set: { updatedAt: new Date() } });
+
     // Recheck live refundable balance
     const summary = await depositService.getDepositSummary(refund.allocationId);
 
     // Note: since this refund was PENDING_APPROVAL, its requestedAmount was included in pendingRefundAmount.
-    // The available headroom for THIS refund is (availableRefundableBalance + refund.requestedAmount)
-    const maxAllowableForThis = summary.availableRefundableBalance + refund.requestedAmount;
+    // Subtract other reservations from the raw held balance before clamping; a clamped available balance can hide an existing deficit.
+    const maxAllowableForThis = Math.max(0, summary.netDepositHeld - summary.pendingRefundAmount + refund.requestedAmount);
 
     if (approvedAmount > maxAllowableForThis) {
       throw new Error(
@@ -198,6 +206,7 @@ export class RefundService {
     });
 
     return refund;
+    });
   }
 
   /**
@@ -208,10 +217,12 @@ export class RefundService {
       throw new Error('Rejection reason is required');
     }
 
+    return mongoose.connection.transaction(async () => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
     }
+    await LockerAllocation.findOneAndUpdate({ _id: refund.allocationId }, { $inc: { __v: 1 } }, { timestamps: false });
 
     if (refund.status !== 'PENDING_APPROVAL') {
       throw new Error(`Cannot reject refund with status ${refund.status}`);
@@ -236,6 +247,7 @@ export class RefundService {
     });
 
     return refund;
+    });
   }
 
   /**
@@ -247,21 +259,30 @@ export class RefundService {
     userId: string,
     idempotencyKey?: string
   ) {
-    if (idempotencyKey) {
-      const existingPayment = await Payment.findOne({ idempotencyKey }).lean();
-      if (existingPayment) {
-        const [refund, transaction] = await Promise.all([
-          RefundRequest.findById(id).lean(),
-          DepositTransaction.findOne({ paymentId: existingPayment._id }).lean(),
-        ]);
-        return { refund, payment: existingPayment, transaction, summary: refund ? await depositService.getDepositSummary(refund.allocationId as any) : null };
+    if (paymentInput.refundPaymentMethod !== 'CASH' && !paymentInput.transactionReference?.trim()) throw Object.assign(new Error('A transaction reference is required for non-cash refunds.'), { statusCode: 400 });
+    const replayPayout = async (session?: ClientSession) => {
+      if (!idempotencyKey) return undefined;
+      const existingPayment = await Payment.findOne({ idempotencyKey }).session(session || null).lean();
+      if (!existingPayment) return undefined;
+      const refund = await RefundRequest.findById(id).session(session || null).lean();
+      const transaction = await DepositTransaction.findOne({ paymentId: existingPayment._id }).session(session || null).lean();
+      if (!refund || existingPayment.paymentPurpose !== 'REFUND' || existingPayment.paymentStatus !== 'COMPLETED' || existingPayment.paymentMethod !== paymentInput.refundPaymentMethod || String(existingPayment.allocationId) !== String(refund.allocationId) || refund.status !== 'PAID' || !transaction?.notes?.startsWith(`[Refund Payout: ${refund.refundNumber}]`)) {
+        throw Object.assign(new Error('Idempotency key belongs to a different or cancelled refund payment.'), { statusCode: 409 });
       }
-    }
+      return { refund, payment: existingPayment, transaction, summary: await depositService.getDepositSummary(refund.allocationId, session) };
+    };
+    const existing = await replayPayout();
+    if (existing) return existing;
 
     const session = await mongoose.startSession();
     let result: any;
     try {
       await session.withTransaction(async () => {
+    const target = await RefundRequest.findById(id).session(session);
+    if (!target) throw new Error('Refund request not found');
+    await LockerAllocation.findOneAndUpdate({ _id: target.allocationId }, { $inc: { __v: 1 } }, { session, timestamps: false });
+    const replayed = await replayPayout(session);
+    if (replayed) { result = replayed; return; }
     const refund = await RefundRequest.findOneAndUpdate(
       { _id: id, status: 'APPROVED' }, { $set: { updatedAt: new Date() } }, { new: true, session }
     );
@@ -273,7 +294,7 @@ export class RefundService {
 
     // Concurrency / balance check
     const summary = await depositService.getDepositSummary(refund.allocationId, session);
-    const allowableHeadroom = summary.availableRefundableBalance + payoutAmount;
+    const allowableHeadroom = Math.max(0, summary.netDepositHeld - summary.pendingRefundAmount + payoutAmount);
 
     if (payoutAmount > allowableHeadroom) {
       throw new Error(
@@ -375,10 +396,12 @@ export class RefundService {
       throw new Error('Cancellation reason is required');
     }
 
+    return mongoose.connection.transaction(async () => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
     }
+    await LockerAllocation.findOneAndUpdate({ _id: refund.allocationId }, { $inc: { __v: 1 } }, { timestamps: false });
 
     if (refund.status === 'PAID') {
       throw new Error('Cannot cancel a refund that has already been paid/disbursed.');
@@ -407,6 +430,7 @@ export class RefundService {
     });
 
     return refund;
+    });
   }
 
   /**

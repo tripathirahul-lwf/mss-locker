@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -56,6 +56,10 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
   const [dialogNotes, setDialogNotes] = useState<string>('');
   const [overrideFinancial, setOverrideFinancial] = useState<boolean>(false);
   const [overrideReason, setOverrideReason] = useState<string>('');
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [readinessError, setReadinessError] = useState('');
+  const [readinessRevision, setReadinessRevision] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const canReview = userPermissions.includes('closures.review');
   const canApprove = userPermissions.includes('closures.approve');
@@ -76,14 +80,39 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
       return;
     }
 
-    // Fetch real-time readiness
+    let active = true;
+    setReadiness(null); setReadinessError(''); setDialogMode('NONE');
     setLoadingReadiness(true);
-    closureApi
-      .getClosureReadiness(closure._id, closure.physicalChecklist)
-      .then((data) => setReadiness(data))
-      .catch((err) => console.error('Error loading readiness:', err))
-      .finally(() => setLoadingReadiness(false));
-  }, [isOpen, closure]);
+    closureApi.getClosureReadiness(closure._id, closure.physicalChecklist)
+      .then(data => { if (active) setReadiness(data); })
+      .catch(() => { if (active) setReadinessError('Could not load financial readiness. Retry before continuing.'); })
+      .finally(() => { if (active) setLoadingReadiness(false); });
+    return () => { active = false; };
+  }, [isOpen, closure, readinessRevision]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const handler = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
+      if (dialogs[dialogs.length - 1] !== dialogRef.current) return;
+      if (event.key === 'Escape' && !actionLoading) {
+        event.preventDefault();
+        if (dialogMode !== 'NONE') setDialogMode('NONE'); else onClose();
+      }
+      if (event.key === 'Tab') {
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)') || []);
+        if (!controls.length) return;
+        const first = controls[0], last = controls[controls.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+      }
+    };
+    const frame = requestAnimationFrame(() => dialogRef.current?.focus());
+    window.addEventListener('keydown', handler);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('keydown', handler); if (previous?.isConnected) previous.focus(); };
+  }, [isOpen, onClose, actionLoading, dialogMode]);
 
   if (!isOpen || !closure) return null;
 
@@ -126,7 +155,6 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
     }
   };
 
-  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
 
   const handleQuickSubmit = () => {
     setSubmitConfirmOpen(true);
@@ -151,7 +179,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex h-[100dvh] w-screen items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
-      <div role="dialog" aria-modal="true" aria-labelledby="closure-detail-title" className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl sm:max-h-[calc(100dvh-3rem)]">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="closure-detail-title" className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl sm:max-h-[calc(100dvh-3rem)]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-3">
@@ -191,6 +219,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Close closure details"
+              disabled={actionLoading}
               className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
             >
               <X className="w-5 h-5" />
@@ -200,6 +229,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          {readinessError && <div role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-800">{readinessError} <button type="button" onClick={() => setReadinessRevision(value => value + 1)}>Retry readiness</button></div>}
           {actionError && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -320,7 +350,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
                       onClick={() => onNavigateToPayments(readiness.openInvoices[0]?._id)}
                       className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
                     >
-                      Collect Dues in Payments <ExternalLink className="w-3 h-3" />
+                      Record payment <ExternalLink className="w-3 h-3" />
                     </button>
                   )}
                 </div>

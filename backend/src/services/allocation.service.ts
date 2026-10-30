@@ -39,6 +39,25 @@ export interface AllocationActor {
 }
 
 export class LockerAllocationService {
+  /** Read-only presentation: agreement dates are not evidence of payment. */
+  private static async presentAllocations(records: any[]): Promise<any[]> {
+    const invoices = await LockerInvoice.find({ allocationId: { $in: records.map(record => record._id) }, status: { $nin: ['CANCELLED', 'DRAFT'] } })
+      .select('allocationId billingPeriodEnd paymentStatus balanceAmount paidAmount totalAmount').lean();
+    return records.map(record => {
+      const value = record.toObject ? record.toObject() : { ...record };
+      const related = invoices.filter(invoice => String(invoice.allocationId) === String(value._id));
+      const settled = related.filter(invoice => invoice.paymentStatus === 'PAID' && invoice.balanceAmount <= 0 && invoice.paidAmount >= invoice.totalAmount && invoice.totalAmount > 0)
+        .sort((a,b) => new Date(b.billingPeriodEnd).getTime() - new Date(a.billingPeriodEnd).getTime());
+      const planned = value.startDate ? calculateBillingPeriod(new Date(value.startDate), value.billingCycle || 'ANNUAL') : undefined;
+      return { ...value,
+        endDate: value.endDate || planned?.periodEnd,
+        nextRenewalDueDate: value.nextRenewalDueDate || planned?.nextDueDate,
+        paidThroughDate: related.length ? settled[0]?.billingPeriodEnd : value.paidThroughDate,
+        paymentCoverageConfirmed: settled.length > 0,
+      };
+    });
+  }
+
   /**
    * Generate next sequential human-readable allocation code (e.g. ALC-000001)
    */
@@ -56,7 +75,10 @@ export class LockerAllocationService {
     input: CreateAllocationInput,
     actor: AllocationActor
   ): Promise<ILockerAllocation> {
-    return mongoose.connection.transaction(async (session) => {
+    return mongoose.connection.transaction(session => this.createAllocationInSession(input, actor, session));
+  }
+
+  static async createAllocationInSession(input: CreateAllocationInput, actor: AllocationActor, session: mongoose.ClientSession, kycCharge = 0, annualBaseRent?: number): Promise<ILockerAllocation> {
     // 1. Validate Customer
     const customer = await Customer.findOne({
       _id: input.customerId,
@@ -131,7 +153,6 @@ export class LockerAllocationService {
     const { periodEnd, nextDueDate } = calculateBillingPeriod(startDate, cycle);
     const calculatedEndDate = input.endDate ? new Date(input.endDate) : periodEnd;
     const nextRenewalDueDate = nextDueDate;
-    const paidThroughDate = periodEnd;
 
     const allocation = new LockerAllocation({
       allocationCode,
@@ -140,7 +161,6 @@ export class LockerAllocationService {
       startDate,
       endDate: calculatedEndDate,
       nextRenewalDueDate,
-      paidThroughDate,
       billingCycle: cycle,
       annualRent,
       securityDeposit,
@@ -157,11 +177,12 @@ export class LockerAllocationService {
     await allocation.save({ session });
 
     // 6. Generate Initial Tenancy Invoice (NEW_ALLOCATION)
-    if (annualRent > 0) {
+    if (annualRent > 0 || kycCharge > 0) {
       const invoiceNumber = await generateInvoiceNumber();
-      const baseRent = Math.round((annualRent / 1.18) * 100) / 100;
-      const taxAmount = Math.round((annualRent - baseRent) * 100) / 100;
-      const dueStatus = determineDueStatus(startDate, annualRent);
+      const cycleRent = annualRent * (cycle === 'TRIENNIAL' ? 3 : 1);
+      const baseRent = annualBaseRent === undefined ? Math.round((cycleRent / 1.18) * 100) / 100 : Math.round(annualBaseRent * (cycle === 'TRIENNIAL' ? 3 : 1) * 100) / 100;
+      const taxAmount = annualBaseRent === undefined ? Math.round((cycleRent - baseRent) * 100) / 100 : Math.round(baseRent * .18 * 100) / 100;
+      const dueStatus = determineDueStatus(startDate, cycleRent);
 
       await LockerInvoice.create([{
         invoiceNumber,
@@ -178,16 +199,16 @@ export class LockerAllocationService {
         taxAmount,
         discount: 0,
         lateFee: 0,
-        otherCharges: 0,
-        subtotal: baseRent,
-        totalAmount: annualRent,
+        otherCharges: kycCharge,
+        subtotal: baseRent + kycCharge,
+        totalAmount: Math.round((baseRent + taxAmount + kycCharge) * 100) / 100,
         paidAmount: 0,
-        balanceAmount: annualRent,
+        balanceAmount: Math.round((baseRent + taxAmount + kycCharge) * 100) / 100,
         status: 'ISSUED',
         paymentStatus: 'UNPAID',
         dueStatus,
         source: 'SYSTEM',
-        notes: `Initial Tenancy Allocation Invoice for Locker #${locker.lockerNumber}`,
+        notes: `Initial Tenancy Allocation Invoice for Locker #${locker.lockerNumber}${kycCharge ? "; KYC charge: Rs " + kycCharge : ""}`,
         createdBy: actor.userId ? new Types.ObjectId(actor.userId) : undefined,
       }], { session });
     }
@@ -215,7 +236,6 @@ export class LockerAllocationService {
     return (await LockerAllocation.findById(allocation._id)
       .populate('customerId', 'fullName customerCode phone kycStatus status photoUrl')
       .populate('lockerId', 'lockerNumber lockerCode size rackNumber section floor status operationalStatus').session(session)) as ILockerAllocation;
-    });
   }
 
   /**
@@ -268,7 +288,6 @@ export class LockerAllocationService {
       startDate,
       endDate: periodEnd,
       nextRenewalDueDate: nextDueDate,
-      paidThroughDate: periodEnd,
       reservationExpiresAt: input.reservationExpiresAt
         ? new Date(input.reservationExpiresAt)
         : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 7 days hold
@@ -451,7 +470,6 @@ export class LockerAllocationService {
         const { periodEnd, nextDueDate } = calculateBillingPeriod(new Date(allocation.startDate), input.billingCycle as BillingCycle);
         allocation.endDate = periodEnd;
         allocation.nextRenewalDueDate = nextDueDate;
-        allocation.paidThroughDate = periodEnd;
       }
     }
     if (input.endDate !== undefined) {
@@ -599,22 +617,7 @@ export class LockerAllocationService {
       LockerAllocation.countDocuments(query),
     ]);
 
-    // Ensure all allocations return nextRenewalDueDate, endDate, and paidThroughDate
-    const enrichedAllocations = allocations.map((alloc) => {
-      if ((!alloc.nextRenewalDueDate || !alloc.endDate) && alloc.startDate) {
-        const { periodEnd, nextDueDate } = calculateBillingPeriod(
-          new Date(alloc.startDate),
-          (alloc.billingCycle as BillingCycle) || 'ANNUAL'
-        );
-        return {
-          ...alloc,
-          nextRenewalDueDate: alloc.nextRenewalDueDate || nextDueDate,
-          endDate: alloc.endDate || periodEnd,
-          paidThroughDate: alloc.paidThroughDate || periodEnd,
-        };
-      }
-      return alloc;
-    });
+    const enrichedAllocations = await this.presentAllocations(allocations);
 
     return {
       allocations: enrichedAllocations,
@@ -644,22 +647,7 @@ export class LockerAllocationService {
       throw new AppHttpError('Allocation agreement not found.', 404);
     }
 
-    if ((!allocation.nextRenewalDueDate || !allocation.endDate) && allocation.startDate) {
-      const { periodEnd, nextDueDate } = calculateBillingPeriod(
-        new Date(allocation.startDate),
-        (allocation.billingCycle as BillingCycle) || 'ANNUAL'
-      );
-      if (!allocation.nextRenewalDueDate) allocation.nextRenewalDueDate = nextDueDate;
-      if (!allocation.endDate) allocation.endDate = periodEnd;
-      if (!allocation.paidThroughDate) allocation.paidThroughDate = periodEnd;
-
-      void LockerAllocation.updateOne(
-        { _id: allocation._id },
-        { $set: { nextRenewalDueDate: nextDueDate, endDate: periodEnd, paidThroughDate: periodEnd } }
-      ).exec();
-    }
-
-    return allocation as ILockerAllocation;
+    return (await this.presentAllocations([allocation]))[0] as ILockerAllocation;
   }
 
   /**
@@ -673,27 +661,12 @@ export class LockerAllocationService {
       .sort({ createdAt: -1 })
       .lean();
 
-    for (const alloc of allocations) {
-      if ((!alloc.nextRenewalDueDate || !alloc.endDate) && alloc.startDate) {
-        const { periodEnd, nextDueDate } = calculateBillingPeriod(
-          new Date(alloc.startDate),
-          (alloc.billingCycle as BillingCycle) || 'ANNUAL'
-        );
-        if (!alloc.nextRenewalDueDate) alloc.nextRenewalDueDate = nextDueDate;
-        if (!alloc.endDate) alloc.endDate = periodEnd;
-        if (!alloc.paidThroughDate) alloc.paidThroughDate = periodEnd;
+    const presented = await this.presentAllocations(allocations);
 
-        void LockerAllocation.updateOne(
-          { _id: alloc._id },
-          { $set: { nextRenewalDueDate: nextDueDate, endDate: periodEnd, paidThroughDate: periodEnd } }
-        ).exec();
-      }
-    }
-
-    const active = allocations.find(
+    const active = presented.find(
       (a) => a.status === ALLOCATION_STATUS.ACTIVE || a.status === ALLOCATION_STATUS.RESERVED
     );
-    const history = allocations.filter(
+    const history = presented.filter(
       (a) => a.status === ALLOCATION_STATUS.CLOSED || a.status === ALLOCATION_STATUS.CANCELLED
     );
 
@@ -717,30 +690,15 @@ export class LockerAllocationService {
       .sort({ createdAt: -1 })
       .lean();
 
-    for (const alloc of allocations) {
-      if ((!alloc.nextRenewalDueDate || !alloc.endDate) && alloc.startDate) {
-        const { periodEnd, nextDueDate } = calculateBillingPeriod(
-          new Date(alloc.startDate),
-          (alloc.billingCycle as BillingCycle) || 'ANNUAL'
-        );
-        if (!alloc.nextRenewalDueDate) alloc.nextRenewalDueDate = nextDueDate;
-        if (!alloc.endDate) alloc.endDate = periodEnd;
-        if (!alloc.paidThroughDate) alloc.paidThroughDate = periodEnd;
+    const presented = await this.presentAllocations(allocations);
 
-        void LockerAllocation.updateOne(
-          { _id: alloc._id },
-          { $set: { nextRenewalDueDate: nextDueDate, endDate: periodEnd, paidThroughDate: periodEnd } }
-        ).exec();
-      }
-    }
-
-    const current = allocations.find(
+    const current = presented.find(
       (a) => a.status === ALLOCATION_STATUS.ACTIVE || a.status === ALLOCATION_STATUS.RESERVED
     );
 
     return {
       currentAllocation: current || null,
-      history: allocations,
+      history: presented,
       totalTenancies: allocations.length,
     };
   }
