@@ -4,7 +4,6 @@ import { User } from '../types/auth';
 
 const SESSION_HINT_KEY = 'mss-locker-session';
 let restorePromise: Promise<User | null> | null = null;
-const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
 const setSessionHint = (active: boolean) => {
   if (active) localStorage.setItem(SESSION_HINT_KEY, 'active');
@@ -72,23 +71,17 @@ export const authService = {
     if (!restorePromise) {
       restorePromise = (async () => {
         try {
-          for (let attempt = 0; attempt < 3; attempt += 1) {
-            try {
-              const restored = await authService.refresh();
-              return restored.user;
-            } catch (error) {
-              const status = (error as AxiosError)?.response?.status;
-              const isAuthoritativeRejection = status === 400 || status === 401 || status === 403;
-              if (isAuthoritativeRejection) {
-                setAccessToken(null);
-                setSessionHint(false);
-                return null;
-              }
-              if (attempt < 2) await wait(750 * (attempt + 1));
-              else throw error;
-            }
+          const restored = await authService.refresh();
+          return restored.user;
+        } catch (error) {
+          const status = (error as AxiosError)?.response?.status;
+          if (status === 400 || status === 401 || status === 403) {
+            setAccessToken(null);
+            setSessionHint(false);
+            return null;
           }
-          throw new Error('Session restoration failed after all retry attempts.');
+          // Preserve the session hint on outages; retry through an explicit reload.
+          throw error;
         } finally {
           restorePromise = null;
         }

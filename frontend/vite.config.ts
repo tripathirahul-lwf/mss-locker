@@ -98,6 +98,15 @@ export default defineConfig(({ mode }) => {
         target: backendProxyTarget,
         changeOrigin: true,
         secure: false,
+        proxyTimeout: 15000,
+        configure(proxy) {
+          proxy.on('error', (_error, _request, response) => {
+            if ('writeHead' in response && !response.headersSent && !response.writableEnded) {
+              response.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '5', 'Cache-Control': 'no-store' });
+              response.end(JSON.stringify({ success: false, message: 'API server is unavailable. Start the backend and check its configured port.' }));
+            }
+          });
+        },
       },
     },
   },

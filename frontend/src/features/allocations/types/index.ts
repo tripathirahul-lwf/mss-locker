@@ -49,6 +49,7 @@ export interface LockerAllocation {
   reservationExpiresAt?: string;
   paidThroughDate?: string;
   paymentCoverageConfirmed?: boolean;
+  coverageIssue?: string;
   nextRenewalDueDate?: string;
   lastRenewedAt?: string;
   remarks?: string;

@@ -100,6 +100,7 @@ export interface InvoiceQueryParams {
 }
 
 export interface GenerateRenewalInput {
+  nextRenewalDueDate?: string;
   allocationId: string;
   startDate?: string;
   billingCycle?: BillingCycle;

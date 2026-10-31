@@ -103,17 +103,10 @@ export function determineDueStatus(dueDate: Date, balanceAmount: number): DueSta
     return 'UPCOMING';
   }
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-
-  if (dueDay.getTime() < todayStart.getTime()) {
-    return 'OVERDUE';
-  } else if (dueDay.getTime() === todayStart.getTime()) {
-    return 'DUE_TODAY';
-  } else {
-    return 'UPCOMING';
-  }
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+  if (!Number.isFinite(dueDate.getTime())) return 'UPCOMING';
+  const today = formatter.format(new Date()), dueDay = formatter.format(dueDate);
+  return dueDay < today ? 'OVERDUE' : dueDay === today ? 'DUE_TODAY' : 'UPCOMING';
 }
 
 import { Sequence } from '../models/Sequence';

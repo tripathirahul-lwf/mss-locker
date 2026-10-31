@@ -80,6 +80,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
       return;
     }
 
+    if (closure.status === 'COMPLETED') { setReadiness(null); setReadinessError(''); setLoadingReadiness(false); return; }
     let active = true;
     setReadiness(null); setReadinessError(''); setDialogMode('NONE');
     setLoadingReadiness(true);
@@ -90,6 +91,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
     return () => { active = false; };
   }, [isOpen, closure, readinessRevision]);
 
+  const focusState = useRef({ onClose, actionLoading, dialogMode }); focusState.current = { onClose, actionLoading, dialogMode };
   useEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -97,22 +99,22 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
       if (event.defaultPrevented) return;
       const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
       if (dialogs[dialogs.length - 1] !== dialogRef.current) return;
-      if (event.key === 'Escape' && !actionLoading) {
+      if (event.key === 'Escape' && !focusState.current.actionLoading) {
         event.preventDefault();
-        if (dialogMode !== 'NONE') setDialogMode('NONE'); else onClose();
+        if (focusState.current.dialogMode !== 'NONE') setDialogMode('NONE'); else focusState.current.onClose();
       }
       if (event.key === 'Tab') {
-        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)') || []);
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)') || []).filter(el => el.getClientRects().length);
         if (!controls.length) return;
         const first = controls[0], last = controls[controls.length - 1];
-        if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
       }
     };
     const frame = requestAnimationFrame(() => dialogRef.current?.focus());
     window.addEventListener('keydown', handler);
     return () => { cancelAnimationFrame(frame); window.removeEventListener('keydown', handler); if (previous?.isConnected) previous.focus(); };
-  }, [isOpen, onClose, actionLoading, dialogMode]);
+  }, [isOpen]);
 
   if (!isOpen || !closure) return null;
 
@@ -290,11 +292,12 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
             </div>
           </div>
 
+          {closure.status === 'COMPLETED' && <section aria-label="Closure financial snapshot" className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 className="font-bold text-slate-900">Recorded settlement at closure</h3><p className="mt-2 text-sm">Closing date: {closure.actualClosureDate ? new Date(closure.actualClosureDate).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' }) : 'Not recorded'}</p>{closure.financialSnapshot ? <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">{([['Rent outstanding', closure.financialSnapshot.outstandingAtClosure], ['Deposit refunded', closure.financialSnapshot.depositRefunded], ['Deposit balance', closure.financialSnapshot.depositBalanceAtClosure]] as const).map(([label, value]) => <div key={label}><dt className="text-slate-600">{label}</dt><dd className="font-bold">{Number.isFinite(value) ? value.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : 'Not recorded'}</dd></div>)}</dl> : <p className="mt-2 text-sm">No historical settlement snapshot recorded.</p>}</section>}
           {/* Reason & Type Banner */}
           <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
             <div>
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Surrender Justification
+                Closure reason
               </span>
               <p className="text-sm font-medium text-slate-800 mt-0.5">
                 {closure.closureReason}
@@ -306,7 +309,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
           </div>
 
           {/* Real-time Financial Readiness Section */}
-          <div className="space-y-3">
+          {closure.status !== 'COMPLETED' && <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-emerald-600" />
@@ -392,7 +395,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
                 </div>
               </div>
             ) : null}
-          </div>
+          </div>}
 
           {/* Physical Checklist Section */}
           <div className="space-y-3">
@@ -561,7 +564,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {canCancel && !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(closure.status) && (
               <button
@@ -627,6 +630,7 @@ export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
       {/* Submit for Review Confirmation Modal */}
       <ConfirmationModal
         isOpen={submitConfirmOpen}
+        layer={140}
         onClose={() => !actionLoading && setSubmitConfirmOpen(false)}
         onConfirm={handleConfirmQuickSubmit}
         title="Submit Day-End Closure for Review?"

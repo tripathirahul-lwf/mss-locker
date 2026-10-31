@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 async function openOccupied(page: any) {
   await page.goto('/login');
   await page.getByLabel('Username or Email').fill('browser-test');
@@ -14,8 +14,8 @@ test('occupied reference layout shows real rent, held deposit, masked ID and sep
   await expect(modal.getByLabel('Payment and renewal status')).toHaveText('All good');
   await expect(modal).toContainText('Size A'); await expect(modal).toContainText('Rack 7'); await expect(modal).toContainText('Key K-1007');
   await expect(summary.getByText('Customer', { exact: true }).locator('..')).toContainText('Reference Customer');
-  await expect(summary.getByText('Annual rent (+18% GST)', { exact: true }).locator('..')).toContainText('3,000.00');
-  await expect(summary.getByText('Annual rent (+18% GST)', { exact: true }).locator('..')).toContainText('3,540.00');
+  await expect(summary.getByText('Annual rent (before GST)', { exact: true }).locator('..')).toContainText('3,000.00');
+  await expect(summary.getByText('Annual rent (before GST)', { exact: true }).locator('..')).toContainText('3,540.00');
   await expect(summary.getByText('Security deposit', { exact: true }).locator('..')).toContainText('6,000.00');
   await expect(summary).not.toContainText('704724216043');
   await summary.getByRole('button', { name: 'Show ID number', exact: true }).click();
@@ -125,4 +125,57 @@ test('receipt requests can be switched and closing the locker cancels an unfinis
   await page.getByRole('button', { name: 'Open locker 77', exact: true }).press('Enter');
   await expect(modal).toBeVisible();
   await expect(modal.getByRole('button', { name: 'View receipt REFERENCE-77-DEP', exact: true })).toBeEnabled();
+});
+
+
+test('same-day paid-through and renewal overlap is reviewable without offering a duplicate collection', async ({ page }) => {
+  await page.route('**/api/lockers/*/allocations', async route => {
+    const response = await route.fetch(); const body = await response.json(); const allocation = body.data?.currentAllocation;
+    if (allocation) { allocation.nextRenewalDueDate = allocation.paidThroughDate; allocation.paymentCoverageConfirmed = true; delete allocation.coverageIssue; }
+    await route.fulfill({ response, json: body });
+  });
+  await page.route('**/api/renewals/locker/*', async route => {
+    const response = await route.fetch(); const body = await response.json(); const paid = body.data?.[0];
+    if (paid) body.data.push({ ...paid, _id: '000000000000000000009201', invoiceNumber: 'UNPAID-OVERLAP', invoiceType: 'RENEWAL', billingPeriodStart: paid.billingPeriodEnd, billingPeriodEnd: '2040-12-31', paymentStatus: 'UNPAID', status: 'ISSUED', paidAmount: 0, balanceAmount: paid.totalAmount });
+    await route.fulfill({ response, json: body });
+  });
+  const modal = await openOccupied(page);
+  await expect(modal.getByLabel('Payment and renewal status')).toHaveText('Coverage needs review');
+  await expect(modal.getByRole('alert')).toContainText('overlaps recorded paid coverage');
+  await expect(modal.getByRole('button', { name: /^Record Payment/ })).toHaveCount(0);
+  await expect(modal.getByRole('button', { name: 'Renew Lease', exact: true })).toHaveCount(0);
+  await expect(modal.getByTestId('occupied-locker-summary')).toContainText('Recorded paid through:');
+  await expect(modal.getByRole('button', { name: 'View invoice UNPAID-OVERLAP', exact: true })).toBeVisible();
+});
+
+test('a future unpaid renewal stays pending even when a stale due-status field says overdue', async ({ page }) => {
+  await page.route('**/api/renewals/locker/*', async route => {
+    const response = await route.fetch(); const body = await response.json(); const paid = body.data?.[0];
+    if (paid) { const start = new Date(paid.billingPeriodEnd); start.setUTCDate(start.getUTCDate() + 1); const end = new Date(start); end.setUTCFullYear(end.getUTCFullYear() + 1); end.setUTCDate(end.getUTCDate() - 1);
+      body.data.push({ ...paid, _id: '000000000000000000009202', invoiceNumber: 'FUTURE-UNPAID', invoiceType: 'RENEWAL', billingPeriodStart: start.toISOString(), billingPeriodEnd: end.toISOString(), dueDate: start.toISOString(), dueStatus: 'OVERDUE', paymentStatus: 'UNPAID', status: 'ISSUED', paidAmount: 0, balanceAmount: paid.totalAmount }); }
+    await route.fulfill({ response, json: body });
+  });
+  const modal = await openOccupied(page);
+  await expect(modal.getByLabel('Payment and renewal status')).toHaveText('Payment pending');
+  await expect(modal.getByText(/Locker renewal payment pending:/)).toBeVisible();
+  await expect(modal.getByText(/Locker renewal payment overdue:/)).toHaveCount(0);
+  await expect(modal.getByRole('button', { name: /^Record Payment/ })).toBeVisible();
+});
+
+test('imported paid bills do not invent receipts or display a different tenancy receipt referencing this bill', async ({ page }) => {
+  let invoiceId: string; let invoiceReady!: () => void; const ready = new Promise<void>(resolve => { invoiceReady = resolve; });
+  await page.route('**/api/renewals/locker/*', async route => {
+    const response = await route.fetch(); const body = await response.json(); if (body.data?.[0]) { body.data[0].source = 'LEGACY_IMPORT'; invoiceId = body.data[0]._id; } invoiceReady();
+    await route.fulfill({ response, json: body });
+  });
+  await page.route('**/api/payments/locker/*', async route => {
+    const response = await route.fetch(); const body = await response.json(); const payment = body.data?.[0];
+    await ready;
+    body.data = payment ? [{ ...payment, allocationId: '000000000000000000009299', invoiceId: invoiceId, receiptNumber: 'WRONG-TENANCY-RECEIPT' }] : [];
+    await route.fulfill({ response, json: body });
+  });
+  const modal = await openOccupied(page); const history = modal.getByRole('region', { name: 'Bill and receipt history' });
+  await expect(history).toContainText('1 bill, 0 receipts');
+  await expect(history).toContainText('Historical bill marked paid; no receipt is recorded.');
+  await expect(history).not.toContainText('WRONG-TENANCY-RECEIPT');
 });

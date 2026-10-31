@@ -88,36 +88,20 @@ export const renewalApi = {
    * Print invoice seamlessly directly on current page without opening any new tab
    */
   async printInvoicePdf(id: string, _invoiceNumber?: string): Promise<void> {
-    // 1. Fetch clean backend-generated bank standard HTML invoice
     const invoiceHtml = await this.getInvoiceHtml(id);
+    const iframe = document.createElement('iframe'); iframe.title = 'Invoice print document'; iframe.setAttribute('aria-hidden', 'true');
+    Object.assign(iframe.style, { position: 'fixed', width: '0', height: '0', border: '0', visibility: 'hidden' });
+    document.body.appendChild(iframe);
+    try {
+      const win = iframe.contentWindow, doc = iframe.contentDocument;
+      if (!win || !doc) throw new Error('Invoice print document could not be created.');
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => { iframe.remove(); reject(new Error('Invoice print document timed out.')); }, 10000);
+        iframe.onload = () => { window.clearTimeout(timeout); try { win.addEventListener('afterprint', () => iframe.remove(), { once: true }); win.focus(); win.print(); resolve(); window.setTimeout(() => iframe.remove(), 60000); } catch (error) { reject(error); } };
+        doc.open(); doc.write(invoiceHtml); doc.close();
+      });
+    } catch (error) { iframe.remove(); throw error; }
 
-    // 2. Print via isolated iframe to guarantee no tab switching and no popup blocker
-    let iframe = document.getElementById('invoice-print-iframe') as HTMLIFrameElement;
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.id = 'invoice-print-iframe';
-      iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = '0';
-      iframe.style.visibility = 'hidden';
-      document.body.appendChild(iframe);
-    }
-
-    const doc = iframe.contentWindow?.document || iframe.contentDocument;
-    if (doc) {
-      doc.open();
-      doc.write(invoiceHtml);
-      doc.close();
-      iframe.contentWindow?.focus();
-      setTimeout(() => {
-        iframe.contentWindow?.print();
-      }, 250);
-    } else {
-      window.print();
-    }
   },
 
   /**
@@ -150,7 +134,8 @@ export const renewalApi = {
   async updateBillingPeriod(
     id: string,
     billingPeriodStart: string,
-    billingPeriodEnd: string
+    billingPeriodEnd: string,
+    expectedUpdatedAt?: string
   ): Promise<LockerInvoice> {
     const response = await apiClient.patch<{
       success: boolean;
@@ -159,6 +144,7 @@ export const renewalApi = {
     }>(`/renewals/${id}/billing-period`, {
       billingPeriodStart,
       billingPeriodEnd,
+      expectedUpdatedAt,
     });
     return response.data.data;
   },

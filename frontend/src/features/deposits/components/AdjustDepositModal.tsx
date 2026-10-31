@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { DepositDialogLayer } from './DepositDialogLayer';
+import React, { useState, useEffect, useRef } from 'react';
 import { depositApi } from '../api/depositApi';
 import { DepositSummary } from '../types';
 import { X, SlidersHorizontal, AlertTriangle, ArrowRight } from 'lucide-react';
@@ -16,6 +17,8 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
   allocationId,
   onSuccess,
 }) => {
+  const submissionLock = useRef(false);
+  const loadVersion = useRef(0);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -33,17 +36,20 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
     if (isOpen && allocationId) {
       loadSummary(allocationId);
     }
+    return () => { loadVersion.current++; };
   }, [isOpen, allocationId]);
 
   const loadSummary = async (allocId: string) => {
+    const version = ++loadVersion.current; setSummary(null); setErrorMessage(null);
     try {
       setLoadingSummary(true);
       const res = await depositApi.getDepositSummary(allocId);
+      if (version !== loadVersion.current) return;
       setSummary(res);
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to load deposit details');
+      if (version === loadVersion.current) setErrorMessage(err?.response?.data?.message || 'Failed to load deposit details');
     } finally {
-      setLoadingSummary(false);
+      if (version === loadVersion.current) setLoadingSummary(false);
     }
   };
 
@@ -77,6 +83,8 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
       return;
     }
 
+    if (submissionLock.current) return;
+    submissionLock.current = true;
     try {
       setSubmitting(true);
       const res = await depositApi.adjustDeposit({
@@ -93,11 +101,13 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
     } catch (err: any) {
       setErrorMessage(err?.response?.data?.message || 'Failed to adjust deposit');
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };
 
   return (
+    <DepositDialogLayer title="Deposit balance adjustment" busy={submitting} onClose={onClose}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
       <div className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden my-8">
         {/* Header */}
@@ -114,6 +124,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
             </div>
           </div>
           <button
+            aria-label="Close deposit action"
             onClick={onClose}
             className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           >
@@ -209,7 +220,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
                 step="0.01"
                 required
                 min="0.01"
-                value={amount}
+                aria-label="Adjustment amount" value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
                 className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 focus:border-cyan-500 text-lg font-bold text-slate-900 outline-none"
@@ -235,7 +246,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
               <textarea
                 required
                 rows={2}
-                value={reason}
+                aria-label="Adjustment reason" value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Detailed explanation for audit log (e.g. Lost key replacement fee receipt #124)"
                 className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-cyan-500 text-xs text-slate-900 outline-none"
@@ -287,5 +298,6 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
         )}
       </div>
     </div>
+    </DepositDialogLayer>
   );
 };

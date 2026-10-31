@@ -55,6 +55,7 @@ export function CompleteAllotmentModal({
   const [keyNumber, setKeyNumber] = useState(initialLocker?.masterKeyReference || '');
   const [startDate, setStartDate] = useState(today);
   const [years, setYears] = useState(1);
+  const [renewalDateOverride, setRenewalDateOverride] = useState<string | null>(null);
   const [annualBase, setAnnualBase] = useState<number | string>(round((initialLocker?.annualRent ?? 1180) / 1.18));
   const [deposit, setDeposit] = useState<number | string>(initialLocker?.securityDeposit ?? 2000);
   const [receiptNumber, setReceiptNumber] = useState('');
@@ -111,19 +112,20 @@ export function CompleteAllotmentModal({
     const keys = (event: KeyboardEvent) => {
       const dialogs = document.querySelectorAll('[role="dialog"]');
       if (dialogs.length && dialogs[dialogs.length - 1] !== dialog.current) return;
-      if (event.key === 'Escape' && !submitting.current) closeRef.current();
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!submitting.current) closeRef.current(); }
       if (event.key === 'Tab') {
         const items = Array.from(
           dialog.current?.querySelectorAll<HTMLElement>(
-            'button:enabled,input:enabled,select:enabled,[tabindex="0"]'
+            'button:enabled,input:enabled,select:enabled,textarea:enabled,[tabindex="0"]'
           ) || []
-        );
+        ).filter(item => item.getClientRects().length && !item.closest('fieldset:disabled'));
+        if (!items.length) { event.preventDefault(); dialog.current?.focus(); return; }
         const first = items[0],
           last = items[items.length - 1];
-        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current || !dialog.current?.contains(document.activeElement))) {
           event.preventDefault();
           last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
+        } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current || !dialog.current?.contains(document.activeElement))) {
           event.preventDefault();
           first?.focus();
         }
@@ -172,7 +174,7 @@ export function CompleteAllotmentModal({
 
   useEffect(() => {
     setCashReceived(false);
-  }, [total, locker?._id, customer?._id, name, phone, startDate, receiptDate, receiptNumber]);
+  }, [total, locker?._id, customer?._id, name, phone, email, keyNumber, startDate, years, renewalDateOverride, receiptDate, receiptNumber]);
 
   useEffect(() => {
     if (error) errorRef.current?.focus();
@@ -190,6 +192,9 @@ export function CompleteAllotmentModal({
     renewal.setUTCFullYear(renewal.getUTCFullYear() + years);
     if (renewal.getUTCMonth() !== month) renewal.setUTCDate(0);
   }
+
+  const automaticRenewalDate = renewal && Number.isFinite(renewal.getTime()) ? renewal.toISOString().slice(0, 10) : '';
+  const renewalDate = renewalDateOverride ?? automaticRenewalDate;
 
   const validateFile = (file: File | null, imagesOnly = false) => {
     if (!file) return;
@@ -234,7 +239,8 @@ export function CompleteAllotmentModal({
     const previous = uploaded.current.get(file);
     if (previous) return previous;
     setUploadStatus(`Uploading ${label}...`);
-    const asset = { ...(await customerApi.uploadFile(file, 'kyc')), mimeType: file.type };
+    const result = await customerApi.uploadFile(file, 'kyc');
+    const asset = { ...result, mimeType: result.mimeType || file.type };
     uploaded.current.set(file, asset);
     return asset;
   };
@@ -275,7 +281,8 @@ export function CompleteAllotmentModal({
           new Date(startDate).toISOString().slice(0, 10) !== startDate
         )
           throw new Error('Choose a valid opening date.');
-        if (!receiptDate || receiptDate > today()) throw new Error('Receipt date cannot be in the future.');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(renewalDate) || !Number.isFinite(Date.parse(renewalDate)) || new Date(renewalDate).toISOString().slice(0, 10) !== renewalDate || renewalDate <= startDate) throw new Error('Next renewal must be a valid date after the opening date.');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(receiptDate) || !Number.isFinite(Date.parse(receiptDate)) || new Date(receiptDate).toISOString().slice(0, 10) !== receiptDate || receiptDate > today()) throw new Error('Choose a valid receipt date on or before today.');
 
         if (documentNumber.trim() && !idFile)
           throw new Error('Attach the ID proof for this ID number, or clear the number to upload KYC later.');
@@ -316,6 +323,7 @@ export function CompleteAllotmentModal({
               }),
           keyNumber: keyNumber.trim(),
           startDate,
+          nextRenewalDueDate: renewalDate,
           receiptDate,
           cashReceived: true,
           billingCycle: years === 3 ? 'TRIENNIAL' : 'ANNUAL',
@@ -328,8 +336,8 @@ export function CompleteAllotmentModal({
           idDocument: documentAsset
             ? {
                 ...documentAsset,
-                documentType,
-                documentNumber: documentNumber.trim() || `${documentType} Scan`,
+                documentType: documentNumber.trim() ? documentType : 'OTHER',
+                documentNumber: documentNumber.trim(),
               }
             : undefined,
         };
@@ -592,7 +600,7 @@ export function CompleteAllotmentModal({
                     )}
                     {canManageKyc && (
                       <p className="text-[11px] text-slate-500">
-                        The ID number is saved with its attached proof. Leave it empty to upload ID later.
+                        Enter an ID number with its proof, or attach a generic KYC document without a number.
                       </p>
                     )}
                   </section>
@@ -635,12 +643,9 @@ export function CompleteAllotmentModal({
                         </select>
                       </label>
                       <div className="text-xs sm:text-sm font-semibold text-slate-700">
-                        Next renewal
-                        <p className="mt-1 rounded-xl bg-slate-50 border border-slate-200 p-2.5 font-mono font-semibold text-slate-800">
-                          {renewal && !isNaN(renewal.getTime())
-                            ? renewal.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })
-                            : 'Choose a valid opening date'}
-                        </p>
+                        <label>Next renewal<input required type="date" className={inputClass} value={renewalDate} onChange={event => setRenewalDateOverride(event.target.value)} aria-describedby="renewal-date-help" /></label>
+                        <p id="renewal-date-help" className="mt-1 text-xs font-normal text-slate-500">Editable. Rent is charged for the selected tenure.</p>
+                        {renewalDateOverride !== null && <button type="button" className="mt-1 text-xs text-emerald-800 underline" onClick={() => setRenewalDateOverride(null)}>Use tenure date</button>}
                       </div>
                     </div>
                   </section>
@@ -729,7 +734,7 @@ export function CompleteAllotmentModal({
                       onFileChange={handleReceiptChange}
                       onPreview={handleOpenPreview}
                       category="receipt"
-                      disabled={busy}
+                      disabled={busy || uncertain}
                     />
 
                     <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 p-3.5 text-xs sm:text-sm font-bold text-emerald-900 cursor-pointer shadow-2xs">
@@ -762,18 +767,18 @@ export function CompleteAllotmentModal({
                           onPreview={handleOpenPreview}
                           imagesOnly={true}
                           category="photo"
-                          disabled={busy}
+                          disabled={busy || uncertain}
                         />
 
                         {/* Enhanced ID Proof Upload Box with Preview & Delete */}
                         <AllotmentDocumentUploadBox
                           label="ID proof (image or PDF)"
-                          helperText={`${documentType} front & back scan`}
+                          helperText={documentNumber.trim() ? `${documentType} proof` : 'Generic KYC document'}
                           file={idFile}
                           onFileChange={handleIdFileChange}
                           onPreview={handleOpenPreview}
                           category="id"
-                          disabled={busy}
+                          disabled={busy || uncertain}
                         />
                       </div>
                     </section>

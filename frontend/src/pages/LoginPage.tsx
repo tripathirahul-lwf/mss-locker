@@ -81,7 +81,7 @@ export function LoginPage() {
           err.response?.data?.message || 'This account has been deactivated. Please contact your system administrator.'
         );
       } else if (err.response?.status === 503) {
-        setError('Database connection error. Please verify database connectivity.');
+        setError(err.response?.data?.message || 'Server temporarily unavailable. Please check that the backend and database are running.');
       } else {
         setError(
           err.response?.data?.message || 'Incorrect username, email, or password. Please double check and try again.'

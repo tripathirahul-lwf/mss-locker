@@ -1,12 +1,13 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+const syncQuery = z.object({ cursor: z.string().max(4000).optional(), limit: z.coerce.number().int().min(10).max(5000).default(2000) });
 import { syncService } from '../services/sync.service';
 import { logger } from '../utils/logger';
 
 export class SyncController {
-  async getIncrementalSync(req: Request, res: Response): Promise<void> {
+  async getIncrementalSync(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const cursor = req.query.cursor ? String(req.query.cursor) : undefined;
-      const limit = Math.min(5000, Math.max(10, Number(req.query.limit) || 2000));
+      const { cursor, limit } = syncQuery.parse(req.query);
 
       const result = await syncService.getIncrementalSync(cursor, limit, req.user?.permissions || []);
 
@@ -16,14 +17,11 @@ export class SyncController {
       });
     } catch (error: any) {
       logger.error('Error during incremental sync:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Incremental sync failed',
-      });
+      next(error);
     }
   }
 
-  async getDashboardSync(req: Request, res: Response): Promise<void> {
+  async getDashboardSync(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await syncService.getDashboardSync();
       res.status(200).json({
@@ -32,10 +30,7 @@ export class SyncController {
       });
     } catch (error: any) {
       logger.error('Error during dashboard sync:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Dashboard sync failed',
-      });
+      next(error);
     }
   }
 }

@@ -39,7 +39,7 @@ export class RefundService {
       throw new Error('Detailed reason is required for requesting a refund');
     }
 
-    return mongoose.connection.transaction(async () => {
+    return mongoose.connection.transaction(async (session) => {
     const allocation = await LockerAllocation.findOneAndUpdate({ _id: input.allocationId }, { $set: { updatedAt: new Date() } }, { new: true });
     if (!allocation) {
       throw new Error('Locker allocation not found');
@@ -84,7 +84,7 @@ export class RefundService {
         reason: input.reason,
         status: refund.status,
       },
-    });
+    }, session);
 
     return refund;
     });
@@ -94,7 +94,7 @@ export class RefundService {
    * Submit draft refund request for manager approval
    */
   async submitRefundRequest(id: string, userId: string) {
-    return mongoose.connection.transaction(async () => {
+    return mongoose.connection.transaction(async (session) => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
@@ -125,7 +125,7 @@ export class RefundService {
       actorUserId: userId,
       description: `Submitted refund request ${refund.refundNumber} for approval`,
       metadata: { refundNumber: refund.refundNumber },
-    });
+    }, session);
 
     return refund;
     });
@@ -141,7 +141,7 @@ export class RefundService {
     userId: string
   ) {
     approvedAmount = normalizeMoney(approvedAmount, 'Approved refund amount');
-    return mongoose.connection.transaction(async () => {
+    return mongoose.connection.transaction(async (session) => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
@@ -203,7 +203,7 @@ export class RefundService {
         approvedAmount,
         approvedBy: userId,
       },
-    });
+    }, session);
 
     return refund;
     });
@@ -217,7 +217,7 @@ export class RefundService {
       throw new Error('Rejection reason is required');
     }
 
-    return mongoose.connection.transaction(async () => {
+    return mongoose.connection.transaction(async (session) => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
@@ -244,7 +244,7 @@ export class RefundService {
         refundNumber: refund.refundNumber,
         rejectionReason,
       },
-    });
+    }, session);
 
     return refund;
     });
@@ -396,7 +396,7 @@ export class RefundService {
       throw new Error('Cancellation reason is required');
     }
 
-    return mongoose.connection.transaction(async () => {
+    return mongoose.connection.transaction(async (session) => {
     const refund = await RefundRequest.findById(id);
     if (!refund) {
       throw new Error('Refund request not found');
@@ -427,7 +427,7 @@ export class RefundService {
         refundNumber: refund.refundNumber,
         cancellationReason,
       },
-    });
+    }, session);
 
     return refund;
     });

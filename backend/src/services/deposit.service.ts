@@ -26,6 +26,7 @@ export interface DepositSummary {
   totalRefunded: number;
   netDepositHeld: number;
   pendingRefundAmount: number;
+  pendingRefundsCount: number;
   availableRefundableBalance: number;
   outstandingDeposit: number;
   depositStatus: DepositStatus;
@@ -68,11 +69,11 @@ export class DepositService {
       .lean();
 
     if (!allocation) {
-      throw new Error('Locker allocation not found');
+      throw Object.assign(new Error('Locker allocation not found'), { statusCode: 404 });
     }
 
-    const requiredDeposit =
-      allocation.depositSnapshot ?? allocation.securityDeposit ?? 0;
+    const requiredDeposit = allocation.depositSnapshot ?? allocation.securityDeposit ?? 0;
+    if (!Number.isFinite(requiredDeposit) || requiredDeposit < 0) throw Object.assign(new Error('Required deposit needs reconciliation.'), { statusCode: 409 });
 
     // Fetch all completed deposit transactions for this allocation
     const transactions = await DepositTransaction.find({
@@ -86,6 +87,7 @@ export class DepositService {
     let totalRefunded = 0;
 
     for (const tx of transactions) {
+      if (!Number.isFinite(tx.amount) || tx.amount < 0) throw Object.assign(new Error('Deposit ledger contains an invalid amount. Reconcile before continuing.'), { statusCode: 409 });
       switch (tx.transactionType) {
         case 'DEPOSIT_RECEIVED':
         case 'LEGACY_IMPORT':
@@ -111,26 +113,19 @@ export class DepositService {
     }).session(session || null).lean();
 
     const pendingRefundAmount = pendingRefunds.reduce(
-      (sum, r) => sum + (r.approvedAmount ?? r.requestedAmount),
+      (sum, r) => { const amount = r.approvedAmount ?? r.requestedAmount; if (!Number.isFinite(amount) || amount < 0) throw Object.assign(new Error('Refund reservations need reconciliation.'), { statusCode: 409 }); return sum + amount; },
       0
     );
 
-    const netDepositHeld =
-      totalDepositReceived + totalAddAdjustments - totalDeductAdjustments - totalRefunded;
-
-    const availableRefundableBalance = Math.max(0, netDepositHeld - pendingRefundAmount);
-    const outstandingDeposit = Math.max(0, requiredDeposit - totalDepositReceived);
-
-    let depositStatus: DepositStatus = 'NOT_COLLECTED';
-    if (totalDepositReceived === 0) {
-      depositStatus = 'NOT_COLLECTED';
-    } else if (totalDepositReceived < requiredDeposit) {
-      depositStatus = 'PARTIAL';
-    } else if (totalDepositReceived === requiredDeposit) {
-      depositStatus = 'FULLY_COLLECTED';
-    } else {
-      depositStatus = 'OVER_COLLECTED';
-    }
+    const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+    totalDepositReceived = round(totalDepositReceived); totalAddAdjustments = round(totalAddAdjustments);
+    totalDeductAdjustments = round(totalDeductAdjustments); totalRefunded = round(totalRefunded);
+    if (!Number.isFinite(pendingRefundAmount) || pendingRefundAmount < 0) throw Object.assign(new Error('Refund reservations need reconciliation.'), { statusCode: 409 });
+    const netDepositHeld = round(totalDepositReceived + totalAddAdjustments - totalDeductAdjustments - totalRefunded);
+    if (netDepositHeld < 0 || round(pendingRefundAmount) > netDepositHeld) throw Object.assign(new Error('Deposit balance or refund reservations need reconciliation.'), { statusCode: 409 });
+    const availableRefundableBalance = round(Math.max(0, netDepositHeld - pendingRefundAmount));
+    const outstandingDeposit = round(Math.max(0, requiredDeposit - netDepositHeld));
+    const depositStatus: DepositStatus = netDepositHeld === 0 && requiredDeposit > 0 ? 'NOT_COLLECTED' : netDepositHeld < requiredDeposit ? 'PARTIAL' : netDepositHeld === requiredDeposit ? 'FULLY_COLLECTED' : 'OVER_COLLECTED';
 
     const cust = allocation.customerId as any;
     const lock = allocation.lockerId as any;
@@ -146,7 +141,8 @@ export class DepositService {
       totalDeductAdjustments,
       totalRefunded,
       netDepositHeld,
-      pendingRefundAmount,
+      pendingRefundAmount: round(pendingRefundAmount),
+      pendingRefundsCount: pendingRefunds.length,
       availableRefundableBalance,
       outstandingDeposit,
       depositStatus,
@@ -176,7 +172,7 @@ export class DepositService {
     ).populate('customerId').populate('lockerId');
 
     if (!allocation) {
-      throw new Error('Locker allocation not found');
+      throw Object.assign(new Error('Locker allocation not found'), { statusCode: 404 });
     }
 
     const summary = await this.getDepositSummary(allocation._id, session);
@@ -202,10 +198,10 @@ export class DepositService {
 
     // Overcollection check
     if (
-      summary.totalDepositReceived + amount > summary.requiredDeposit &&
+      Math.round((summary.netDepositHeld + amount) * 100) > Math.round(summary.requiredDeposit * 100) &&
       !input.allowOverride
     ) {
-      const excess = summary.totalDepositReceived + amount - summary.requiredDeposit;
+      const excess = Math.round((summary.netDepositHeld + amount - summary.requiredDeposit) * 100) / 100;
       throw new Error(
         `Deposit amount exceeds required deposit by ₹${excess.toLocaleString('en-IN')}. Override permission and reason required.`
       );
@@ -314,7 +310,7 @@ export class DepositService {
       { _id: input.allocationId }, { $set: { updatedAt: new Date() } }, { new: true, session }
     );
     if (!allocation) {
-      throw new Error('Locker allocation not found');
+      throw Object.assign(new Error('Locker allocation not found'), { statusCode: 404 });
     }
 
     if (allocation.status !== 'ACTIVE') throw Object.assign(new Error('Deposit adjustment requires an active allotment.'), { statusCode: 409 });

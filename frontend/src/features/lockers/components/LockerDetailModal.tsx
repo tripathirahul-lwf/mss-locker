@@ -1,4 +1,4 @@
-import { OccupiedLockerSummary, occupiedHealth, money } from './OccupiedLockerSummary';
+import { OccupiedLockerSummary, occupiedHealth, money, referenceId, ledgerDate } from './OccupiedLockerSummary';
 import { LockerCustomerProfileModal } from './LockerCustomerProfileModal';
 import { LockerClosureFlow } from './LockerClosureFlow';
 import { AllocationWizardModal } from '../../allocations/components/AllocationWizardModal';
@@ -169,7 +169,7 @@ export function LockerDetailModal({
   const tenant = currentAlloc?.customerId;
   const tenantId = tenant?._id;
   const canViewDeposits = usePermission('deposits.view');
-  const { data: depositSummary, isError: depositError } = useQuery({ queryKey: ['deposit-summary', currentAlloc?._id], queryFn: () => depositApi.getDepositSummary(currentAlloc!._id), enabled: Boolean(currentAlloc?._id) && canViewDeposits });
+  const { data: depositSummary, isError: depositError, isFetching: depositFetching, refetch: retryDeposit } = useQuery({ queryKey: ['deposit-summary', currentAlloc?._id], queryFn: () => depositApi.getDepositSummary(currentAlloc!._id), enabled: Boolean(currentAlloc?._id) && canViewDeposits });
 
   // 2. Billing & Invoices Query
   const { data: lockerInvoices, isLoading: invoicesLoading, isError: invoicesError, refetch: retryInvoices } = useQuery({
@@ -218,7 +218,7 @@ export function LockerDetailModal({
     enabled: Boolean(currentAlloc?._id) && canViewRefunds,
   });
 
-  const refunds: RefundRequest[] = refundsData?.refunds || [];
+  const refunds: RefundRequest[] = (refundsData?.refunds || []).filter(item => referenceId(item.allocationId) === currentAlloc?._id);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [closureOpen, setClosureOpen] = useState(false);
@@ -415,7 +415,9 @@ export function LockerDetailModal({
       : Math.round(totalAnnualRent / 1.18 * 100) / 100;
   const gstAmount = Math.max(0, Math.round((totalAnnualRent - baseRent) * 100) / 100);
   const deposit = currentAlloc?.depositSnapshot ?? locker.securityDeposit ?? sizeDefinition?.defaultDeposit ?? 0;
-  const depositLabel = !currentAlloc && isOccupied ? !canViewAllocations ? 'Restricted' : allocationError ? 'Unavailable' : allocationLoading ? 'Loading...' : 'No active allotment' : currentAlloc ? !canViewDeposits ? 'Restricted' : depositError ? 'Unavailable' : depositSummary ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(depositSummary.netDepositHeld) : 'Loading...' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(deposit);
+  const depositValid = !!depositSummary && depositSummary.allocationId === currentAlloc?._id && [depositSummary.requiredDeposit, depositSummary.totalDepositReceived, depositSummary.totalAddAdjustments, depositSummary.totalDeductAdjustments, depositSummary.totalRefunded, depositSummary.netDepositHeld, depositSummary.pendingRefundAmount, depositSummary.availableRefundableBalance, depositSummary.outstandingDeposit].every(value => Number.isFinite(value) && value >= 0) && depositSummary.pendingRefundAmount <= depositSummary.netDepositHeld + .001 && Math.abs(depositSummary.totalDepositReceived + depositSummary.totalAddAdjustments - depositSummary.totalDeductAdjustments - depositSummary.totalRefunded - depositSummary.netDepositHeld) < .011;
+  const depositReady = depositValid && !depositError && !depositFetching;
+  const depositLabel = !currentAlloc && isOccupied ? !canViewAllocations ? 'Restricted' : allocationError ? 'Unavailable' : allocationLoading ? 'Loading...' : 'No active allotment' : currentAlloc ? !canViewDeposits ? 'Restricted' : depositError || depositSummary && !depositValid ? 'Unavailable' : depositSummary ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(depositSummary.netDepositHeld) : 'Loading...' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(deposit);
   const totalMoveInPayable = totalAnnualRent + deposit;
 
   // Opening rent, renewal and historical tenancy invoices are distinct.
@@ -893,14 +895,14 @@ export function LockerDetailModal({
               )}
 
               {isOccupied && (currentAlloc ? <OccupiedLockerSummary
-                allocation={currentAlloc} annualRent={currentAlloc.annualRent ?? currentAlloc.rentSnapshot} deposit={depositLabel} depositNote={!canViewDeposits ? 'Deposit balance restricted' : depositError ? 'Could not load deposit balance' : !depositSummary ? 'Loading deposit ledger...' : depositSummary.netDepositHeld < 0 ? 'Ledger needs review' : depositSummary.totalDepositReceived === 0 ? `No collection recorded. Required: ${money(depositSummary.requiredDeposit)}` : depositSummary.netDepositHeld === 0 ? 'Collected deposit has been settled' : 'Deposit held (recorded)'}
+                allocation={currentAlloc} annualRent={currentAlloc.annualRent ?? currentAlloc.rentSnapshot} deposit={depositLabel} depositNote={!canViewDeposits ? 'Deposit balance restricted' : depositError ? 'Could not load deposit balance' : !depositSummary ? 'Loading deposit ledger...' : depositSummary.netDepositHeld < 0 ? 'Ledger needs review' : depositSummary.totalDepositReceived + depositSummary.totalAddAdjustments === 0 ? `No collection recorded. Required: ${money(depositSummary.requiredDeposit)}` : depositSummary.netDepositHeld === 0 ? 'Collected deposit has been settled' : 'Deposit held (recorded)'}
                 identity={!canViewKyc ? 'Restricted' : isKycLoading ? 'Loading...' : isKycError ? 'Unavailable' : identityDoc ? identityRevealed && canViewIdNumber ? identityDoc.documentNumber : identityDoc.maskedDocumentNumber || 'ID on file' : kycDocs.length ? 'Documents on file' : 'Not recorded'}
                 identityControl={identityDoc && !isKycError && !isKycLoading && canViewIdNumber ? <button type="button" className="font-semibold text-emerald-800 underline" onClick={() => setRevealedIdentityKey(value => value === identityKey ? null : identityKey)}>{identityRevealed ? 'Hide ID number' : 'Show ID number'}</button> : undefined}
                 invoices={invoices} payments={lockerPayments}
                 historyState={!canViewInvoices ? 'restricted' : invoicesLoading ? 'loading' : invoicesError ? 'error' : 'ready'}
                 receiptState={!canViewPayments ? 'restricted' : paymentsLoading ? 'loading' : paymentsError ? 'error' : 'ready'}
                 canReceipt={canViewPayments} canRenew={canViewInvoices && !invoicesLoading && !invoicesError && !unpaidInvoice && canGenerateRenewal && ['All good', 'Due soon', 'Renewal overdue'].includes(health.label)}
-                canKyc={canViewKyc} canClose={canCloseLocker} canPay={canRecordPayment && health.label !== 'Billing needs review'} unpaid={unpaidInvoice}
+                canKyc={canViewKyc} canClose={canCloseLocker} canPay={canRecordPayment && !['Billing needs review', 'Coverage needs review', 'Status unavailable'].includes(health.label)} unpaid={unpaidInvoice}
                 loadingReceiptId={loadingReceiptId} receiptError={receiptError} onReceipt={payment => void openReceipt(payment)}
                 onRenew={() => setRenewingAllocation(currentAlloc)} onKyc={() => setActiveTab('kyc')} onCloseLocker={() => setClosureOpen(true)}
                 onPay={setRecordingPaymentInvoiceId} onInvoice={setViewingInvoice} onRetry={() => void retryInvoices()} onRetryReceipts={() => void retryPayments()}
@@ -1071,7 +1073,7 @@ export function LockerDetailModal({
 
           {/* TAB 4: DEPOSIT & ESCROW */}
           {activeTab === 'refunds' && !allocationLoading && !allocationError && (canViewAllocations || !isOccupied) && (
-            <div className="space-y-4">
+            <div role="region" aria-label="Deposit and refunds" className="space-y-4">
               <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -1095,7 +1097,7 @@ export function LockerDetailModal({
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Ledger status:</span>
                     <span className={`font-semibold ${isOccupied ? 'text-emerald-800' : 'text-slate-600'}`}>
-                      {currentAlloc ? !canViewDeposits ? 'Restricted' : depositError ? 'Unavailable' : !depositSummary ? 'Loading...' : depositSummary.netDepositHeld < 0 ? 'Ledger requires review' : depositSummary.netDepositHeld > 0 ? 'Deposit held' : depositSummary.totalDepositReceived > 0 ? 'Deposit settled' : 'No deposit recorded' : 'Unallocated'}
+                      {currentAlloc ? !canViewDeposits ? 'Restricted' : depositError ? 'Unavailable' : !depositSummary ? 'Loading...' : !depositValid ? 'Ledger requires review' : depositSummary.netDepositHeld > 0 ? depositSummary.outstandingDeposit > 0 ? 'Partial deposit held' : 'Deposit held' : depositSummary.totalDepositReceived + depositSummary.totalAddAdjustments > 0 ? 'Deposit settled' : depositSummary.requiredDeposit > 0 ? 'Deposit collection pending' : 'No deposit required' : 'Unallocated'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-3">
@@ -1111,14 +1113,16 @@ export function LockerDetailModal({
                 </div>
               </div>
 
+              {currentAlloc && canViewDeposits && (depositError || depositSummary && !depositValid) && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{depositError ? 'Could not load deposit balance.' : 'Deposit ledger needs reconciliation.'} <button type="button" className="font-semibold underline" onClick={() => void retryDeposit()}>Retry deposit balance</button></p>}
+              {currentAlloc && canViewDeposits && depositFetching && <p role="status">Refreshing deposit balance...</p>}
               {settlementError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{settlementError}</p>}
               {currentAlloc && canViewDeposits && <div className="flex flex-wrap gap-2">
-                {canCollectDeposit && <Button variant="outline" onClick={() => setDepositAction('collect')}>Collect deposit</Button>}
-                {canAdjustDeposit && <Button variant="outline" onClick={() => setDepositAction('adjust')}>Adjust deposit</Button>}
-                {canCreateRefund && <Button variant="outline" disabled={!depositSummary || depositSummary.availableRefundableBalance <= 0} onClick={() => setDepositAction('refund')}>Request refund</Button>}
+                {canCollectDeposit && <Button variant="outline" disabled={!depositReady || !canOverrideDeposit && (depositSummary?.outstandingDeposit || 0) <= 0} onClick={() => setDepositAction('collect')}>Collect deposit</Button>}
+                {canAdjustDeposit && <Button variant="outline" disabled={!depositReady} onClick={() => setDepositAction('adjust')}>Adjust deposit</Button>}
+                {canCreateRefund && <Button variant="outline" disabled={!depositReady || !depositSummary || depositSummary.availableRefundableBalance <= 0} onClick={() => setDepositAction('refund')}>Request refund</Button>}
               </div>}
-              {currentAlloc && depositSummary && canViewDeposits && !depositError && <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-2xl border border-slate-200 p-4 text-xs">
-                {[['Required deposit', depositSummary.requiredDeposit], ['Collected', depositSummary.totalDepositReceived], ['Refunded', depositSummary.totalRefunded], ['Pending refunds', depositSummary.pendingRefundAmount], ['Available for refund', depositSummary.availableRefundableBalance]].map(([label, value]) => <div key={String(label)}><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-semibold text-slate-900">{Number(value || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</dd></div>)}
+              {currentAlloc && depositSummary && canViewDeposits && depositValid && !depositError && <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-2xl border border-slate-200 p-4 text-xs">
+                {[['Required deposit', depositSummary.requiredDeposit], ['Collected', depositSummary.totalDepositReceived], ['Adjustment credits', depositSummary.totalAddAdjustments], ['Deductions', depositSummary.totalDeductAdjustments], ['Deposit still required', depositSummary.outstandingDeposit], ['Refunded', depositSummary.totalRefunded], ['Pending refunds', depositSummary.pendingRefundAmount], ['Available for refund', depositSummary.availableRefundableBalance]].map(([label, value]) => <div key={String(label)}><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-semibold text-slate-900">{typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : 'Not recorded'}</dd></div>)}
               </dl>}
               {!canViewRefunds ? <p>Refund history access is restricted.</p> : refundsLoading ? <p role="status">Loading refund history...</p> : refundsError ? <p role="alert">Could not load refund history. <button type="button" onClick={() => retryRefunds()}>Retry</button></p> : refunds.length === 0 ? (
                 <div className="py-6 text-center text-slate-400 space-y-1 bg-slate-50/60 rounded-2xl border border-slate-100 p-4">
@@ -1127,7 +1131,7 @@ export function LockerDetailModal({
                   </p>
                   <p className="text-[11px] text-slate-500">
                     {isOccupied
-                      ? !canViewDeposits ? 'Deposit balance is restricted.' : depositError ? 'Deposit balance could not be loaded.' : !depositSummary ? 'Loading deposit balance...' : depositSummary.netDepositHeld ? 'Recorded deposit balance is available for settlement through the closure workflow.' : depositSummary.totalDepositReceived > 0 ? 'The collected deposit has been settled; no balance remains held.' : 'No security deposit collection is recorded for this allotment.'
+                      ? !canViewDeposits ? 'Deposit balance is restricted.' : depositError ? 'Deposit balance could not be loaded.' : !depositSummary ? 'Loading deposit balance...' : depositSummary.netDepositHeld ? 'Recorded deposit balance is available for settlement through the closure workflow.' : depositSummary.totalDepositReceived + depositSummary.totalAddAdjustments > 0 ? 'The collected deposit has been settled; no balance remains held.' : 'No security deposit collection is recorded for this allotment.'
                       : `Standard cautionary deposit of ₹${deposit.toLocaleString('en-IN')} is payable when this locker is allocated.`}
                   </p>
                 </div>
@@ -1206,7 +1210,7 @@ export function LockerDetailModal({
 
             {isOccupied && activeTab !== 'details' && <>
               {canCloseLocker && currentAlloc && <Button variant="outline" aria-label="Close Locker" onClick={() => setClosureOpen(true)}>Close locker</Button>}
-              {unpaidInvoice && canRecordPayment && health.label !== 'Billing needs review' && <Button onClick={() => setRecordingPaymentInvoiceId(unpaidInvoice._id)}>Record Payment ({money(unpaidInvoice.balanceAmount)})</Button>}
+              {unpaidInvoice && canRecordPayment && !['Billing needs review', 'Coverage needs review', 'Status unavailable'].includes(health.label) && <Button onClick={() => setRecordingPaymentInvoiceId(unpaidInvoice._id)}>Record Payment ({money(unpaidInvoice.balanceAmount)})</Button>}
               {tenantId && <Button variant="outline" onClick={() => setProfileOpen(true)}>Customer Profile</Button>}
             </>}
             {isMaintenance && canUpdate && (
@@ -1245,16 +1249,34 @@ export function LockerDetailModal({
       {renewingAllocation && (
         <GenerateRenewalModal
           preSelectedAllocation={renewingAllocation}
+          context={{
+            identity: !canViewKyc ? 'Restricted' : isKycLoading ? 'Loading...' : isKycError ? 'Unavailable' : identityDoc ? identityDoc.maskedDocumentNumber || 'ID on file' : kycDocs.length ? 'Documents on file' : 'Not recorded',
+            deposit: depositLabel, key: canViewSensitive ? locker.masterKeyReference || 'Not assigned' : 'Restricted', health,
+            onKyc: canViewKyc ? () => { setRenewingAllocation(null); setActiveTab('kyc'); } : undefined,
+            onCloseLocker: canCloseLocker ? () => { setRenewingAllocation(null); setClosureOpen(true); } : undefined,
+            history: <section aria-label="Renewal bill and receipt history" className="space-y-3">
+              <h3 className="border-b border-slate-200 pb-3 font-extrabold uppercase tracking-wide text-emerald-800">Bill &amp; receipt history</h3>
+              {invoices.filter(item => referenceId(item.allocationId) === renewingAllocation._id).map(item => <article key={item._id} className="space-y-3 border-b border-slate-200 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><strong className="break-all text-slate-950">{item.invoiceNumber}</strong><span className="ml-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">{item.invoiceType === 'NEW_ALLOCATION' ? 'New allotment' : item.invoiceType === 'RENEWAL' ? 'Renewal' : 'Bill'}</span><p className="mt-2 text-sm text-slate-600">{ledgerDate(item.billingPeriodStart)} &rarr; {ledgerDate(item.billingPeriodEnd)} &middot; {item.status}</p></div><div className="flex flex-wrap items-center gap-3"><strong>{money(item.totalAmount)}</strong><Button type="button" variant="outline" disabled={isSubmittingRenewal} onClick={() => { setRenewingAllocation(null); setViewingInvoice(item); }}>View bill</Button></div></div>
+                {canViewPayments && lockerPayments.filter(payment => referenceId(payment.invoiceId) === item._id).map(payment => <div key={payment._id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"><span>{payment.receiptNumber || payment.paymentNumber} &middot; {money(payment.amount)}</span><Button type="button" variant="outline" disabled={isSubmittingRenewal || loadingReceiptId === payment._id} onClick={() => { setRenewingAllocation(null); void openReceipt(payment); }}>View receipt</Button></div>)}
+              </article>)}
+              {paymentsError && <p role="alert">Could not load receipts. <button type="button" className="underline" onClick={() => void retryPayments()}>Retry receipts</button></p>}
+              {paymentsLoading && <p role="status">Loading receipts...</p>}
+              {!canViewPayments && <p>Receipt access is restricted.</p>}
+            </section>,
+          }}
           onClose={() => setRenewingAllocation(null)}
           onSubmit={async (data) => {
             setIsSubmittingRenewal(true);
             try {
-              await renewalApi.generateRenewal(data);
+              const issued = await renewalApi.generateRenewal(data);
               queryClient.invalidateQueries({ queryKey: ['locker-payments', locker._id] });
             queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
               queryClient.invalidateQueries({ queryKey: ['locker-allocations', locker._id] });
               setRenewingAllocation(null);
-              setNotice('Renewal invoice generated successfully.');
+              setNotice('Renewal bill issued. Record payment to confirm collection.');
+              if (canRecordPayment) setRecordingPaymentInvoiceId(issued._id);
+              for (const key of ['renewals', 'renewal-stats', 'lockers', 'allocations', 'invoices']) void queryClient.invalidateQueries({ queryKey: [key] });
             } finally {
               setIsSubmittingRenewal(false);
             }
@@ -1266,7 +1288,7 @@ export function LockerDetailModal({
       {profileOpen && tenantId && <LockerCustomerProfileModal customerId={tenantId} onClose={() => setProfileOpen(false)} onKyc={() => { setProfileOpen(false); setActiveTab('kyc'); }} onInvoices={() => { setProfileOpen(false); setActiveTab('receipts'); }} />}
       {allocationOpen && <AllocationWizardModal mode="allocate" preSelectedLocker={locker} isSubmitting={false} onClose={() => setAllocationOpen(false)} onSubmit={async () => {}} />}
       {closureOpen && currentAlloc && <LockerClosureFlow lockerId={locker._id} allocationId={currentAlloc._id} onClose={() => setClosureOpen(false)} onPayments={id => { setClosureOpen(false); if (id) setRecordingPaymentInvoiceId(id); else setActiveTab('receipts'); }} onDeposits={() => { setClosureOpen(false); setActiveTab('refunds'); }} onCompleted={() => { setClosureOpen(false); onClose(); }} />}
-      {depositAction === 'collect' && currentAlloc && <CollectDepositModal isOpen allocationId={currentAlloc._id} canOverride={canOverrideDeposit} onClose={() => setDepositAction(null)} onSuccess={() => { setDepositAction(null); void refreshSettlement(); }} />}
+      {depositAction === 'collect' && currentAlloc && <CollectDepositModal isOpen allocationId={currentAlloc._id} canOverride={canOverrideDeposit} onClose={() => setDepositAction(null)} onSuccess={result => { setDepositAction(null); void refreshSettlement(); if (canViewPayments && result.payment) void openReceipt(result.payment); }} />}
       {depositAction === 'adjust' && currentAlloc && <AdjustDepositModal isOpen allocationId={currentAlloc._id} onClose={() => setDepositAction(null)} onSuccess={() => { setDepositAction(null); void refreshSettlement(); }} />}
       {depositAction === 'refund' && currentAlloc && <CreateRefundModal isOpen allocationId={currentAlloc._id} onClose={() => setDepositAction(null)} onSuccess={() => { setDepositAction(null); void refreshSettlement(); }} />}
       {approvingRefund && <RefundApprovalModal isOpen refundId={approvingRefund} onClose={() => setApprovingRefund(null)} onSuccess={() => { setApprovingRefund(null); void refreshSettlement(); }} />}

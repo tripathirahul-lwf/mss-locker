@@ -45,7 +45,7 @@ export class RoleController {
 
       res.status(200).json(successResponse('Role updated successfully', role));
     } catch (error: any) {
-      res.status(400).json(errorResponse(error.message || 'Failed to update role'));
+      next(error);
     }
   }
 }

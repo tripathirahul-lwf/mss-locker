@@ -34,6 +34,8 @@ export interface CustomerStatsResult {
   kycExpired: number;
 }
 
+const escapeCustomerSearch = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export class CustomerService {
   /**
    * Generates a unique customer code (e.g. CUS-000001).
@@ -126,15 +128,15 @@ export class CustomerService {
     }
 
     if (city) {
-      filter.city = { $regex: city, $options: 'i' };
+      filter.city = { $regex: escapeCustomerSearch(city), $options: 'i' };
     }
 
     if (state) {
-      filter.state = { $regex: state, $options: 'i' };
+      filter.state = { $regex: escapeCustomerSearch(state), $options: 'i' };
     }
 
     if (search) {
-      const searchRegex = { $regex: search, $options: 'i' };
+      const searchRegex = { $regex: escapeCustomerSearch(search), $options: 'i' };
       filter.$or = [
         { customerCode: searchRegex },
         { fullName: searchRegex },

@@ -10,7 +10,8 @@ export const getReportOverview = async (req: Request, res: Response, next: NextF
 
 export const exportReport = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const report = await reportService.overview(req.query.from as string, req.query.to as string);
+    const report = await reportService.overview(req.query.from as string, req.query.to as string, 10000);
+    if (report.overdueTruncated) throw Object.assign(new Error('Overdue export exceeds 10,000 invoices. Use the paginated invoice register for the full ledger.'), { statusCode: 413 });
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'MSS Locker';
     const summary = workbook.addWorksheet('Summary');

@@ -84,14 +84,24 @@ export interface IncrementalSyncResult {
 export class SyncService {
   private decodeCursor(cursor?: string): Record<string, { updatedAt: string; id: string }> {
     if (!cursor) return {};
-    try {
-      return JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    } catch {
+    const fail = () => Object.assign(new Error('Invalid sync cursor. Restart synchronization without a cursor.'), { statusCode: 400 });
+    if (typeof cursor !== 'string' || cursor.length > 4000) throw fail();
+    // Support the original ISO cursor while rejecting malformed opaque cursors.
+    if (/^\d{4}-\d{2}-\d{2}T/.test(cursor)) {
       const legacy = new Date(cursor);
-      if (isNaN(legacy.getTime())) return {};
+      if (!Number.isFinite(legacy.getTime())) throw fail();
       const point = { updatedAt: legacy.toISOString(), id: '000000000000000000000000' };
       return { lockers: point, customers: point, allocations: point, renewalSummaries: point, payments: point };
     }
+    try {
+      const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+      if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) throw fail();
+      const scopes = ['lockers','customers','allocations','renewalSummaries','payments'];
+      for (const [scope, point] of Object.entries(decoded) as Array<[string, any]>) {
+        if (![...scopes,...scopes.map(value => `deleted:${value}`)].includes(scope) || !point || typeof point !== 'object' || Array.isArray(point) || typeof point.id !== 'string' || !/^[a-f0-9]{24}$/i.test(point.id) || typeof point.updatedAt !== 'string' || !Number.isFinite(Date.parse(point.updatedAt))) throw fail();
+      }
+      return decoded;
+    } catch { throw fail(); }
   }
 
   private filterAfter(point?: { updatedAt: string; id: string }): any {

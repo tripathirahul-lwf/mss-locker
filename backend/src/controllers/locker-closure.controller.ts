@@ -1,3 +1,4 @@
+import { serviceErrorStatus } from '../utils/serviceErrorStatus';
 import { Request, Response } from 'express';
 import { lockerClosureService } from '../services/locker-closure.service';
 import { closureReadinessService } from '../services/closure-readiness.service';
@@ -14,7 +15,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error fetching closures:', error);
-      res.status(500).json({
+      res.status(serviceErrorStatus(error, 500)).json({
         success: false,
         message: error.message || 'Failed to fetch closure records',
       });
@@ -38,7 +39,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error fetching closure by ID:', error);
-      res.status(500).json({
+      res.status(serviceErrorStatus(error, 500)).json({
         success: false,
         message: error.message || 'Failed to fetch closure record',
       });
@@ -69,7 +70,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error calculating closure readiness:', error);
-      res.status(500).json({
+      res.status(serviceErrorStatus(error, 500)).json({
         success: false,
         message: error.message || 'Failed to calculate closure readiness',
       });
@@ -85,7 +86,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error fetching closure stats:', error);
-      res.status(500).json({
+      res.status(serviceErrorStatus(error, 500)).json({
         success: false,
         message: error.message || 'Failed to fetch closure statistics',
       });
@@ -103,7 +104,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error creating closure:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to create closure record',
@@ -123,7 +124,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error submitting closure:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to submit closure',
@@ -149,7 +150,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error reviewing closure:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to review closure',
@@ -184,7 +185,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error approving closure:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to approve closure',
@@ -209,7 +210,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error completing closure:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to complete closure',
@@ -234,7 +235,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error rejecting closure:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to reject closure',
@@ -259,7 +260,7 @@ export class LockerClosureController {
       });
     } catch (error: any) {
       logger.error('Error cancelling closure:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to cancel closure',

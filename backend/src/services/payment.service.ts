@@ -63,8 +63,8 @@ export class PaymentService {
       paymentStatus: 'COMPLETED',
     }).select('amount').session(session || null);
 
-    const totalPaid = completedPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-    const balanceAmount = Math.max(0, invoice.totalAmount - totalPaid);
+    const totalPaid = Math.round(completedPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) * 100) / 100;
+    const balanceAmount = Math.round(Math.max(0, invoice.totalAmount - totalPaid) * 100) / 100;
 
     let paymentStatus: any = 'UNPAID';
     if (balanceAmount <= 0 && invoice.totalAmount > 0) {
@@ -81,26 +81,29 @@ export class PaymentService {
     await invoice.save({ session });
 
     // If fully paid, synchronize allocation paidThroughDate, endDate, and nextRenewalDueDate
-    if (paymentStatus === 'PAID') {
+    if (paymentStatus === 'PAID' && invoice.invoiceType !== 'ADJUSTMENT') {
       const allocation = await LockerAllocation.findById(invoice.allocationId).session(session || null);
       if (allocation) {
         if (!allocation.paidThroughDate || new Date(allocation.paidThroughDate) <= new Date(invoice.billingPeriodEnd)) {
           allocation.paidThroughDate = invoice.billingPeriodEnd;
           allocation.endDate = invoice.billingPeriodEnd;
           const nextDue = new Date(invoice.billingPeriodEnd);
-          nextDue.setDate(nextDue.getDate() + 1);
+          nextDue.setUTCDate(nextDue.getUTCDate() + 1);
           allocation.nextRenewalDueDate = nextDue;
           allocation.lastRenewedAt = new Date();
           await allocation.save({ session });
         }
       }
-    } else if (invoice.allocationId) {
+    } else if (invoice.allocationId && invoice.invoiceType !== 'ADJUSTMENT') {
       // If invoice was previously marked paid but now cancelled/reopened, synchronize to latest valid paid invoice
       const lastPaid = await LockerInvoice.findOne({
         allocationId: invoice.allocationId,
         _id: { $ne: invoice._id },
         paymentStatus: 'PAID',
-        status: { $ne: 'CANCELLED' },
+        status: { $nin: ['CANCELLED', 'DRAFT'] },
+        invoiceType: { $ne: 'ADJUSTMENT' },
+        balanceAmount: 0,
+        $expr: { $lte: [{ $abs: { $subtract: ['$paidAmount', '$totalAmount'] } }, .011] },
       }).sort({ billingPeriodEnd: -1 }).session(session || null);
 
       const allocation = await LockerAllocation.findById(invoice.allocationId).session(session || null);
@@ -109,7 +112,7 @@ export class PaymentService {
           allocation.paidThroughDate = lastPaid.billingPeriodEnd;
           allocation.endDate = lastPaid.billingPeriodEnd;
           const nextDue = new Date(lastPaid.billingPeriodEnd);
-          nextDue.setDate(nextDue.getDate() + 1);
+          nextDue.setUTCDate(nextDue.getUTCDate() + 1);
           allocation.nextRenewalDueDate = nextDue;
         } else {
           allocation.paidThroughDate = undefined;
@@ -177,7 +180,7 @@ export class PaymentService {
       const existing = await Payment.findOne({ idempotencyKey: idempotencyKey.trim() }).session(session);
       if (existing) { assertReplay(existing); paymentId = existing._id; return; }
     }
-    if (!allocation || allocation.status === 'CLOSED') throw Object.assign(new Error('Cannot collect payment for a closed or missing allotment.'), { statusCode: 409 });
+    if (!allocation || allocation.status !== 'ACTIVE') throw Object.assign(new Error('Cannot collect payment for an inactive, closed or missing allotment.'), { statusCode: 409 });
     // Authoritative live invoice check. The no-op update acquires a write lock so
     // concurrent payments cannot both approve against the same stale balance.
     const invoice = await LockerInvoice.findOneAndUpdate(
@@ -198,6 +201,12 @@ export class PaymentService {
       throw Object.assign(new Error('Invoice is already fully paid.'), { statusCode: 409 });
     }
 
+    if (invoice.invoiceType !== 'ADJUSTMENT') {
+      if (!Number.isFinite(invoice.billingPeriodStart?.getTime()) || !Number.isFinite(invoice.billingPeriodEnd?.getTime()) || invoice.billingPeriodStart > invoice.billingPeriodEnd) throw Object.assign(new Error('Bill coverage dates need review before payment.'), { statusCode: 409 });
+      const overlappingPaid = await LockerInvoice.exists({ allocationId: allocation._id, _id: { $ne: invoice._id }, invoiceType: { $ne: 'ADJUSTMENT' }, status: { $nin: ['CANCELLED', 'DRAFT'] }, paymentStatus: 'PAID', balanceAmount: 0, $expr: { $lte: [{ $abs: { $subtract: ['$paidAmount', '$totalAmount'] } }, .011] }, billingPeriodStart: { $lte: invoice.billingPeriodEnd }, billingPeriodEnd: { $gte: invoice.billingPeriodStart } }).session(session);
+      if (overlappingPaid) throw Object.assign(new Error('This bill overlaps recorded paid coverage. Review its billing period before collecting payment.'), { statusCode: 409 });
+    }
+
     // Calculate live outstanding balance from completed payments
     const completedPayments = await Payment.find({
       invoiceId: invoice._id,
@@ -205,6 +214,7 @@ export class PaymentService {
     }).select('amount').session(session);
 
     const currentPaidTotal = completedPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+    if (Math.abs(currentPaidTotal - invoice.paidAmount) > .011) throw Object.assign(new Error('Recorded paid amount and completed receipts do not match. Reconcile the ledger before collecting more payment.'), { statusCode: 409 });
     const liveOutstanding = Math.max(0, invoice.totalAmount - currentPaidTotal);
 
     if (liveOutstanding <= 0) {

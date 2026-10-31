@@ -40,6 +40,7 @@ export function AllotmentDocumentUploadBox({
   category = 'id',
 }: AllotmentDocumentUploadBoxProps) {
   const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -65,6 +66,7 @@ export function AllotmentDocumentUploadBox({
 
   const handleSelect = (selected: File | null) => {
     if (disabled) return;
+    setFileError('');
     if (!selected) {
       onFileChange(null);
       return;
@@ -77,7 +79,8 @@ export function AllotmentDocumentUploadBox({
       ...(imagesOnly ? [] : ['application/pdf']),
     ];
 
-    if (!allowed.includes(selected.type) || selected.size > 5 * 1024 * 1024) {
+    if (!allowed.includes(selected.type) || selected.size === 0 || selected.size > 5 * 1024 * 1024) {
+      setFileError(`Choose ${imagesOnly ? 'a JPG, PNG or WebP image' : 'a PDF, JPG, PNG or WebP file'} between 1 byte and 5 MB.`);
       return;
     }
 
@@ -87,6 +90,7 @@ export function AllotmentDocumentUploadBox({
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (disabled) return;
+    setFileError('');
     onFileChange(null);
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -123,6 +127,7 @@ export function AllotmentDocumentUploadBox({
       {/* Hidden native input */}
       <input
         ref={inputRef}
+        aria-label={label}
         type="file"
         disabled={disabled}
         accept={
@@ -130,13 +135,16 @@ export function AllotmentDocumentUploadBox({
             ? 'image/jpeg,image/png,image/webp'
             : 'image/jpeg,image/png,image/webp,application/pdf'
         }
-        onChange={(e) => handleSelect(e.target.files?.[0] || null)}
+        onChange={(e) => { if (e.target.files?.[0]) handleSelect(e.target.files[0]); e.target.value = ''; }}
         className="hidden"
       />
 
+      {fileError && <p role="alert" className="text-sm text-rose-800">{fileError}</p>}
       {!file ? (
         /* Empty Upload Dropzone */
         <div
+          role="button" tabIndex={disabled ? -1 : 0} aria-disabled={disabled} aria-label={`Upload ${label}`}
+          onKeyDown={e => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); inputRef.current?.click(); } }}
           onClick={() => {
             if (!disabled) inputRef.current?.click();
           }}
@@ -148,6 +156,7 @@ export function AllotmentDocumentUploadBox({
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
+            if (!disabled && e.dataTransfer.files.length > 1) { setFileError('Choose one file at a time.'); return; }
             if (!disabled && e.dataTransfer.files?.[0]) {
               handleSelect(e.dataTransfer.files[0]);
             }
@@ -180,7 +189,7 @@ export function AllotmentDocumentUploadBox({
             {/* Thumbnail or PDF Badge */}
             {thumbnailUrl ? (
               <div
-                onClick={() => onPreview(file, label)}
+                onClick={() => { if (!disabled) onPreview(file, label); }}
                 className="relative group w-12 h-12 rounded-xl overflow-hidden border border-emerald-300 shrink-0 cursor-pointer shadow-2xs"
                 title="Click to preview image"
               >
@@ -195,7 +204,7 @@ export function AllotmentDocumentUploadBox({
               </div>
             ) : (
               <div
-                onClick={() => onPreview(file, label)}
+                onClick={() => { if (!disabled) onPreview(file, label); }}
                 className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 flex flex-col items-center justify-center shrink-0 cursor-pointer shadow-2xs hover:bg-emerald-100 transition-colors"
                 title="Click to preview PDF"
               >
@@ -230,8 +239,10 @@ export function AllotmentDocumentUploadBox({
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
-              onClick={() => onPreview(file, label)}
+              onClick={() => { if (!disabled) onPreview(file, label); }}
               className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+              disabled={disabled}
+              aria-label={`Preview ${label}`}
               title="Preview document"
             >
               <Eye className="w-3.5 h-3.5 text-emerald-700" />

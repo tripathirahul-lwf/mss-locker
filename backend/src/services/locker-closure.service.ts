@@ -28,11 +28,14 @@ export interface CreateClosureInput {
   closureType?: ClosureType;
   closureReason: string;
   requestedClosureDate?: string;
+  submitForReview?: boolean;
   physicalChecklist?: Partial<IPhysicalChecklist>;
   notes?: string;
 }
 
 export interface ClosureQueryParams {
+  allocationId?: string;
+  size?: string;
   page?: number;
   limit?: number;
   search?: string;
@@ -45,6 +48,16 @@ export interface ClosureQueryParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
+
+const validatePhysicalChecklist = (value: unknown) => {
+  const fail = (message: string) => Object.assign(new Error(message), { statusCode: 400 });
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail('Invalid physical checklist.');
+  for (const [key, entry] of Object.entries(value)) {
+    if (['lockerEmptied', 'lockerInspected', 'customerKeyReturned', 'masterKeyCheckCompleted', 'documentsReturned', 'physicalAccessRevoked', 'keyReplacementRequired'].includes(key) && typeof entry !== 'boolean') throw fail('Checklist confirmations must be boolean values.');
+    if (key === 'lockerCondition' && !Object.values(LOCKER_CONDITIONS).includes(entry as any)) throw fail('Choose a valid locker condition.');
+    if (key === 'damageNotes' && (typeof entry !== 'string' || entry.length > 2000)) throw fail('Damage notes must be at most 2000 characters.');
+  }
+};
 
 export class LockerClosureService {
   /**
@@ -68,13 +81,23 @@ export class LockerClosureService {
       throw error;
     }
 
-    if (!input.closureReason || input.closureReason.trim().length < 3) {
+    if (typeof input.closureReason !== 'string' || input.closureReason.trim().length < 3 || input.closureReason.length > 2000) {
       const error: any = new Error('Closure reason is required');
       error.statusCode = 400;
       throw error;
     }
 
-    const allocation = await LockerAllocation.findById(input.allocationId);
+    const fail = (message: string, statusCode = 400) => Object.assign(new Error(message), { statusCode });
+    if (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 2000)) throw fail('Notes must be at most 2000 characters.');
+    if (input.submitForReview !== undefined && typeof input.submitForReview !== 'boolean') throw fail('Invalid submission option.');
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const closingDay = input.requestedClosureDate ?? today;
+    const closingDate = typeof closingDay === 'string' ? new Date(closingDay + 'T00:00:00Z') : new Date(NaN);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(closingDay) || !Number.isFinite(closingDate.getTime()) || closingDate.toISOString().slice(0, 10) !== closingDay || closingDay > today) throw fail('Closing date must be a valid calendar date on or before today.');
+    if (input.closureType && !Object.values(CLOSURE_TYPES).includes(input.closureType)) throw fail('Invalid closure type.');
+    if (input.physicalChecklist !== undefined) validatePhysicalChecklist(input.physicalChecklist);
+    return mongoose.connection.transaction(async (session) => {
+    const allocation = await LockerAllocation.findOneAndUpdate({ _id: input.allocationId }, { $inc: { __v: 1 } }, { new: true, timestamps: false });
     if (!allocation) {
       const error: any = new Error('Allocation not found');
       error.statusCode = 404;
@@ -89,6 +112,7 @@ export class LockerClosureService {
       throw error;
     }
 
+    if (closingDay < allocation.startDate.toISOString().slice(0, 10)) throw fail('Closing date cannot be before the opening date.');
     // 1. Enforce One Open Closure Rule
     const existingOpenClosure = await LockerClosure.findOne({
       allocationId: allocation._id,
@@ -104,28 +128,28 @@ export class LockerClosureService {
     }
 
     const closureNumber = await this.generateClosureNumber();
-    const requestedClosureDate = input.requestedClosureDate
-      ? new Date(input.requestedClosureDate)
-      : new Date();
+    const requestedClosureDate = closingDate;
 
-    const closure = await LockerClosure.create({
+    const [closure] = await LockerClosure.create([{
       closureNumber,
       allocationId: allocation._id,
       customerId: allocation.customerId,
       lockerId: allocation.lockerId,
       closureType: input.closureType || CLOSURE_TYPES.CUSTOMER_REQUEST,
       closureReason: input.closureReason.trim(),
-      status: CLOSURE_STATUSES.DRAFT,
+      status: input.submitForReview ? CLOSURE_STATUSES.PENDING_REVIEW : CLOSURE_STATUSES.DRAFT,
       requestedClosureDate,
       physicalChecklist: input.physicalChecklist || {},
       notes: input.notes?.trim() || '',
       requestedBy: new Types.ObjectId(userId),
       requestedAt: new Date(),
-    });
+    }], { session });
 
     // Audit Log
-    await AuditLog.create({
+    await AuditLog.create([{
       action: 'CLOSURE_CREATED',
+      actorUserId: new Types.ObjectId(userId),
+      description: `Created closure ${closure.closureNumber} for ${allocation.allocationCode}`,
       module: 'CLOSURES',
       performedBy: new Types.ObjectId(userId),
       entityId: closure._id,
@@ -136,16 +160,18 @@ export class LockerClosureService {
         closureType: closure.closureType,
         reason: closure.closureReason,
       },
-    });
+    }], { session });
 
     return closure;
+    });
   }
 
   /**
    * Submits a DRAFT closure for review
    */
   async submitClosure(id: string, userId: string): Promise<ILockerClosure> {
-    const closure = await LockerClosure.findById(id);
+    return mongoose.connection.transaction(async (session) => {
+    const closure = await LockerClosure.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, timestamps: false, session });
     if (!closure) {
       const error: any = new Error('Closure record not found');
       error.statusCode = 404;
@@ -161,7 +187,7 @@ export class LockerClosureService {
     closure.status = CLOSURE_STATUSES.PENDING_REVIEW;
     await closure.save();
 
-    await AuditLog.create({
+    await AuditLog.create([{
       action: 'CLOSURE_SUBMITTED',
       module: 'CLOSURES',
       performedBy: new Types.ObjectId(userId),
@@ -170,9 +196,10 @@ export class LockerClosureService {
       details: {
         closureNumber: closure.closureNumber,
       },
-    });
+    }], { session });
 
     return closure;
+    });
   }
 
   /**
@@ -184,7 +211,8 @@ export class LockerClosureService {
     userId: string,
     updatedChecklist?: Partial<IPhysicalChecklist>
   ): Promise<ILockerClosure> {
-    const closure = await LockerClosure.findById(id);
+    return mongoose.connection.transaction(async (session) => {
+    const closure = await LockerClosure.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, timestamps: false, session });
     if (!closure) {
       const error: any = new Error('Closure record not found');
       error.statusCode = 404;
@@ -201,9 +229,11 @@ export class LockerClosureService {
       throw error;
     }
 
-    if (updatedChecklist) {
+    if (updatedChecklist !== undefined) {
+      validatePhysicalChecklist(updatedChecklist);
+      const previous = (closure.physicalChecklist as any)?.toObject?.() || closure.physicalChecklist;
       closure.physicalChecklist = {
-        ...closure.physicalChecklist,
+        ...previous,
         ...updatedChecklist,
       };
     }
@@ -226,7 +256,7 @@ export class LockerClosureService {
 
     await closure.save();
 
-    await AuditLog.create({
+    await AuditLog.create([{
       action: 'CLOSURE_REVIEWED',
       module: 'CLOSURES',
       performedBy: new Types.ObjectId(userId),
@@ -239,9 +269,10 @@ export class LockerClosureService {
         checklistComplete: readiness.checklistComplete,
         blockers: readiness.blockers,
       },
-    });
+    }], { session });
 
     return closure;
+    });
   }
 
   /**
@@ -367,13 +398,10 @@ export class LockerClosureService {
       throw error;
     }
 
-    if (allocation.status === 'CLOSED') {
-      // Already closed
-      closure.status = CLOSURE_STATUSES.COMPLETED;
-      await closure.save({ session });
-      return closure;
-    }
+    if (allocation.status === 'CLOSED') throw Object.assign(new Error('This agreement is already closed. Review its existing closure record.'), { statusCode: 409 });
 
+    if (allocation.status !== 'ACTIVE' || String(allocation.lockerId) !== String(closure.lockerId) || String(allocation.customerId) !== String(closure.customerId)) throw Object.assign(new Error('Closure agreement is no longer active or its linked records changed.'), { statusCode: 409 });
+    if (await LockerAllocation.exists({ lockerId: allocation.lockerId, _id: { $ne: allocation._id }, status: { $in: ['ACTIVE', 'RESERVED'] } })) throw Object.assign(new Error('Another active tenancy exists for this locker. Review before release.'), { statusCode: 409 });
     const locker = await Locker.findById(closure.lockerId).session(session);
     if (!locker) {
       const error: any = new Error('Linked locker not found');
@@ -386,12 +414,14 @@ export class LockerClosureService {
       throw Object.assign(new Error(`Closure readiness changed after approval: ${readiness.blockers.join(' ')}`), { statusCode: 409 });
     }
 
-    const actualClosureDate = new Date();
+    const actualClosureDate = closure.requestedClosureDate || new Date();
+    const completionDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    if (actualClosureDate.toISOString().slice(0, 10) > completionDay || actualClosureDate.toISOString().slice(0, 10) < allocation.startDate.toISOString().slice(0, 10)) throw Object.assign(new Error('Closing date is outside the valid agreement dates.'), { statusCode: 409 });
 
     // 1. Build Historical Immutable Financial Snapshot
     const allInvoices = await LockerInvoice.find({
       allocationId: allocation._id,
-      status: { $ne: 'CANCELLED' },
+      status: { $nin: ['CANCELLED', 'DRAFT'] },
     }).session(session).lean();
 
     const depositSummary = await depositService.getDepositSummary(allocation._id, session);
@@ -410,19 +440,19 @@ export class LockerClosureService {
       depositDeductions: depositSummary.totalDeductAdjustments,
       depositRefunded: depositSummary.totalRefunded,
       depositBalanceAtClosure: depositSummary.netDepositHeld,
-      snapshotCapturedAt: actualClosureDate,
+      snapshotCapturedAt: new Date(),
     };
 
     // 2. Set Allocation Status to CLOSED
     allocation.status = 'CLOSED' as any;
     allocation.endDate = actualClosureDate;
-    allocation.closedAt = actualClosureDate;
+    allocation.closedAt = new Date();
     allocation.closedBy = new Types.ObjectId(userId);
     await allocation.save({ session });
 
     // 3. Release Physical Locker Unit
     const condition = closure.physicalChecklist?.lockerCondition || LOCKER_CONDITIONS.GOOD;
-    if (['MINOR_DAMAGE', 'DAMAGED', 'KEY_ISSUE'].includes(condition)) {
+    if (['MINOR_DAMAGE', 'DAMAGED', 'KEY_ISSUE', 'OTHER'].includes(condition)) {
       locker.status = 'BLOCKED';
       locker.operationalStatus = condition === 'DAMAGED' ? 'DAMAGED' : 'MAINTENANCE';
       if (closure.physicalChecklist?.damageNotes) {
@@ -441,7 +471,7 @@ export class LockerClosureService {
     closure.status = CLOSURE_STATUSES.COMPLETED;
     closure.actualClosureDate = actualClosureDate;
     closure.completedBy = new Types.ObjectId(userId);
-    closure.completedAt = actualClosureDate;
+    closure.completedAt = new Date();
     closure.financialSnapshot = financialSnapshot;
     if (completionNotes) closure.completionNotes = completionNotes.trim();
 
@@ -505,20 +535,21 @@ export class LockerClosureService {
    * Rejects a closure request with operational remarks
    */
   async rejectClosure(id: string, rejectionReason: string, userId: string): Promise<ILockerClosure> {
-    if (!rejectionReason || rejectionReason.trim().length < 3) {
+    if (typeof rejectionReason !== 'string' || rejectionReason.trim().length < 3 || rejectionReason.length > 2000) {
       const error: any = new Error('Rejection reason is required');
       error.statusCode = 400;
       throw error;
     }
 
-    const closure = await LockerClosure.findById(id);
+    return mongoose.connection.transaction(async (session) => {
+    const closure = await LockerClosure.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, timestamps: false, session });
     if (!closure) {
       const error: any = new Error('Closure record not found');
       error.statusCode = 404;
       throw error;
     }
 
-    if (closure.status === CLOSURE_STATUSES.COMPLETED) {
+    if ([CLOSURE_STATUSES.COMPLETED, CLOSURE_STATUSES.CANCELLED, CLOSURE_STATUSES.REJECTED].includes(closure.status as any)) {
       const error: any = new Error('Cannot reject an already completed closure');
       error.statusCode = 400;
       throw error;
@@ -530,7 +561,7 @@ export class LockerClosureService {
     closure.rejectionReason = rejectionReason.trim();
     await closure.save();
 
-    await AuditLog.create({
+    await AuditLog.create([{
       action: 'CLOSURE_REJECTED',
       module: 'CLOSURES',
       performedBy: new Types.ObjectId(userId),
@@ -540,29 +571,31 @@ export class LockerClosureService {
         closureNumber: closure.closureNumber,
         reason: rejectionReason.trim(),
       },
-    });
+    }], { session });
 
     return closure;
+    });
   }
 
   /**
    * Cancels a closure request
    */
   async cancelClosure(id: string, cancellationReason: string, userId: string): Promise<ILockerClosure> {
-    if (!cancellationReason || cancellationReason.trim().length < 3) {
+    if (typeof cancellationReason !== 'string' || cancellationReason.trim().length < 3 || cancellationReason.length > 2000) {
       const error: any = new Error('Cancellation reason is required');
       error.statusCode = 400;
       throw error;
     }
 
-    const closure = await LockerClosure.findById(id);
+    return mongoose.connection.transaction(async (session) => {
+    const closure = await LockerClosure.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, timestamps: false, session });
     if (!closure) {
       const error: any = new Error('Closure record not found');
       error.statusCode = 404;
       throw error;
     }
 
-    if (closure.status === CLOSURE_STATUSES.COMPLETED) {
+    if ([CLOSURE_STATUSES.COMPLETED, CLOSURE_STATUSES.CANCELLED, CLOSURE_STATUSES.REJECTED].includes(closure.status as any)) {
       const error: any = new Error('Cannot cancel an already completed closure');
       error.statusCode = 400;
       throw error;
@@ -574,7 +607,7 @@ export class LockerClosureService {
     closure.cancellationReason = cancellationReason.trim();
     await closure.save();
 
-    await AuditLog.create({
+    await AuditLog.create([{
       action: 'CLOSURE_CANCELLED',
       module: 'CLOSURES',
       performedBy: new Types.ObjectId(userId),
@@ -584,9 +617,10 @@ export class LockerClosureService {
         closureNumber: closure.closureNumber,
         reason: cancellationReason.trim(),
       },
-    });
+    }], { session });
 
     return closure;
+    });
   }
 
   /**
@@ -612,8 +646,10 @@ export class LockerClosureService {
    * Retrieves paginated closures with search & filtering
    */
   async getClosures(params: ClosureQueryParams) {
-    const page = Math.max(1, Number(params.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    for (const key of ['search', 'size', 'status', 'closureType', 'customerId', 'lockerId', 'allocationId', 'sortBy', 'sortOrder'] as const) if (params[key] !== undefined && typeof params[key] !== 'string') throw Object.assign(new Error(`Invalid ${key}.`), { statusCode: 400 });
+    if (params.status && params.status !== 'ALL' && !Object.values(CLOSURE_STATUSES).includes(params.status)) throw Object.assign(new Error('Invalid closure status.'), { statusCode: 400 });
+    const page = Number.isFinite(Number(params.page)) ? Math.max(1, Math.floor(Number(params.page))) : 1;
+    const limit = Number.isFinite(Number(params.limit)) ? Math.min(100, Math.max(1, Math.floor(Number(params.limit)))) : 20;
     const skip = (page - 1) * limit;
 
     const query: any = {};
@@ -626,8 +662,16 @@ export class LockerClosureService {
       query.closureType = params.closureType;
     }
 
-    if (params.customerId) query.customerId = new Types.ObjectId(params.customerId);
-    if (params.lockerId) query.lockerId = new Types.ObjectId(params.lockerId);
+    for (const key of ['customerId', 'lockerId', 'allocationId'] as const) {
+      if (params[key]) {
+        if (!Types.ObjectId.isValid(params[key]!)) throw Object.assign(new Error(`Invalid ${key}.`), { statusCode: 400 });
+        query[key] = new Types.ObjectId(params[key]);
+      }
+    }
+    if (params.size) {
+      const ids = await Locker.find({ size: params.size }).distinct('_id');
+      query.lockerId = query.lockerId ? { $in: ids.filter(id => String(id) === String(query.lockerId)) } : { $in: ids };
+    }
 
     if (params.dateFrom || params.dateTo) {
       query.requestedClosureDate = {};
@@ -640,17 +684,21 @@ export class LockerClosureService {
     }
 
     if (params.search && params.search.trim()) {
-      const searchRegex = new RegExp(params.search.trim(), 'i');
+      const escaped = params.search.trim().slice(0, 200).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escaped, 'i');
+      const [customers, lockers] = await Promise.all([Customer.find({ $or: [{ fullName: searchRegex }, { customerCode: searchRegex }, { phone: searchRegex }] }).distinct('_id'), Locker.find({ $or: [{ lockerNumber: searchRegex }, { lockerCode: searchRegex }, { rackNumber: searchRegex }] }).distinct('_id')]);
       query.$or = [
+        { customerId: { $in: customers } },
+        { lockerId: { $in: lockers } },
         { closureNumber: searchRegex },
         { closureReason: searchRegex },
         { notes: searchRegex },
       ];
     }
 
-    const sortField = params.sortBy || 'requestedAt';
+    const sortField = ['requestedAt', 'actualClosureDate', 'closureNumber', 'createdAt'].includes(params.sortBy || '') ? params.sortBy! : 'requestedAt';
     const sortDir = params.sortOrder === 'asc' ? 1 : -1;
-    const sort: any = { [sortField]: sortDir };
+    const sort: any = { [sortField]: sortDir, _id: sortDir };
 
     const [closures, total] = await Promise.all([
       LockerClosure.find(query)

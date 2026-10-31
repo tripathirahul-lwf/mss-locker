@@ -15,7 +15,7 @@ router.get('/', searchController.globalSearch);
 /**
  * GET /api/search/customers/:id/quick-preview
  */
-router.get('/customers/:id/quick-preview', requirePermission(PERMISSIONS.CUSTOMERS_VIEW), searchController.getCustomerQuickPreview);
+router.get('/customers/:id/quick-preview', requirePermission(PERMISSIONS.CUSTOMERS_VIEW, PERMISSIONS.CUSTOMERS_VIEW_SENSITIVE, PERMISSIONS.ALLOCATIONS_VIEW, PERMISSIONS.RENEWALS_VIEW, PERMISSIONS.PAYMENTS_VIEW, PERMISSIONS.DEPOSITS_VIEW), searchController.getCustomerQuickPreview);
 
 /**
  * GET /api/search/customers/:id/renewal-history

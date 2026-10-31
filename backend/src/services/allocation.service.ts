@@ -41,22 +41,27 @@ export interface AllocationActor {
 export class LockerAllocationService {
   /** Read-only presentation: agreement dates are not evidence of payment. */
   private static async presentAllocations(records: any[]): Promise<any[]> {
-    const invoices = await LockerInvoice.find({ allocationId: { $in: records.map(record => record._id) }, status: { $nin: ['CANCELLED', 'DRAFT'] } })
+    const invoices = await LockerInvoice.find({ allocationId: { $in: records.map(record => record._id) }, invoiceType: { $ne: 'ADJUSTMENT' }, status: { $nin: ['CANCELLED', 'DRAFT'] } })
       .select('allocationId billingPeriodStart billingPeriodEnd paymentStatus balanceAmount paidAmount totalAmount').lean();
     return records.map(record => {
       const value = record.toObject ? record.toObject() : { ...record };
       const related = invoices.filter(invoice => String(invoice.allocationId) === String(value._id));
-      const settled = related.filter(invoice => invoice.paymentStatus === 'PAID' && invoice.balanceAmount <= 0 && invoice.paidAmount >= invoice.totalAmount && invoice.totalAmount >= 0)
+      const settled = related.filter(invoice => [invoice.totalAmount, invoice.paidAmount, invoice.balanceAmount].every(v => Number.isFinite(v) && v >= 0) && invoice.paymentStatus === 'PAID' && invoice.balanceAmount === 0 && Math.abs(invoice.paidAmount - invoice.totalAmount) <= .011 && Number.isFinite(new Date(invoice.billingPeriodStart).getTime()) && Number.isFinite(new Date(invoice.billingPeriodEnd).getTime()) && invoice.billingPeriodStart <= invoice.billingPeriodEnd)
         .sort((a,b) => new Date(b.billingPeriodEnd).getTime() - new Date(a.billingPeriodEnd).getTime());
       const planned = value.startDate ? calculateBillingPeriod(new Date(value.startDate), value.billingCycle || 'ANNUAL') : undefined;
       const nextDue = value.nextRenewalDueDate || planned?.nextDueDate;
       const targetEnd = nextDue ? new Date(nextDue).getTime() - 86400000 : NaN;
-      const coverageConfirmed = Number.isFinite(targetEnd) && settled.some(invoice => new Date(invoice.billingPeriodStart).getTime() <= targetEnd && new Date(invoice.billingPeriodEnd).getTime() >= targetEnd);
+      const unpaid = related.filter(invoice => invoice.balanceAmount > 0);
+      const overlapsPaid = unpaid.some(invoice => settled.some(paid => new Date(invoice.billingPeriodStart).getTime() <= new Date(paid.billingPeriodEnd).getTime() && new Date(invoice.billingPeriodEnd).getTime() >= new Date(paid.billingPeriodStart).getTime()));
+      const paidThrough = settled[0]?.billingPeriodEnd;
+      const coverageIssue = overlapsPaid ? 'An unpaid bill overlaps recorded paid coverage.' : paidThrough && nextDue && new Date(paidThrough).getTime() >= new Date(nextDue).getTime() ? 'The next renewal date is within the recorded paid coverage.' : undefined;
+      const coverageConfirmed = !coverageIssue && Number.isFinite(targetEnd) && settled.some(invoice => new Date(invoice.billingPeriodStart).getTime() <= targetEnd && new Date(invoice.billingPeriodEnd).getTime() === targetEnd);
       return { ...value,
         endDate: value.endDate || planned?.periodEnd,
         nextRenewalDueDate: value.nextRenewalDueDate || planned?.nextDueDate,
         paidThroughDate: related.length ? settled[0]?.billingPeriodEnd : value.paidThroughDate,
         paymentCoverageConfirmed: coverageConfirmed,
+        coverageIssue,
       };
     });
   }
@@ -81,7 +86,7 @@ export class LockerAllocationService {
     return mongoose.connection.transaction(session => this.createAllocationInSession(input, actor, session));
   }
 
-  static async createAllocationInSession(input: CreateAllocationInput, actor: AllocationActor, session: mongoose.ClientSession, kycCharge = 0, annualBaseRent?: number): Promise<ILockerAllocation> {
+  static async createAllocationInSession(input: CreateAllocationInput, actor: AllocationActor, session: mongoose.ClientSession, kycCharge = 0, annualBaseRent?: number, renewalDateOverride?: string): Promise<ILockerAllocation> {
     // 1. Validate Customer
     const customer = await Customer.findOne({
       _id: input.customerId,
@@ -154,8 +159,10 @@ export class LockerAllocationService {
 
     const cycle = (input.billingCycle || BILLING_CYCLE.ANNUAL) as BillingCycle;
     const { periodEnd, nextDueDate } = calculateBillingPeriod(startDate, cycle);
-    const calculatedEndDate = input.endDate ? new Date(input.endDate) : periodEnd;
-    const nextRenewalDueDate = nextDueDate;
+    const nextRenewalDueDate = renewalDateOverride ? new Date(renewalDateOverride + 'T00:00:00Z') : nextDueDate;
+    if (!Number.isFinite(nextRenewalDueDate.getTime()) || nextRenewalDueDate <= startDate) throw new AppHttpError('Next renewal must be after the opening date.');
+    const customPeriodEnd = new Date(nextRenewalDueDate); customPeriodEnd.setUTCDate(customPeriodEnd.getUTCDate() - 1);
+    const calculatedEndDate = renewalDateOverride ? customPeriodEnd : input.endDate ? new Date(input.endDate) : periodEnd;
 
     const allocation = new LockerAllocation({
       allocationCode,

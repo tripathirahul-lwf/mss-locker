@@ -97,7 +97,7 @@ export const customerApi = {
     file: File,
     folder: 'photos' | 'kyc' | 'general' | 'payments' = 'general',
     onProgress?: (percentage: number) => void
-  ): Promise<{ fileUrl: string; fileKey: string; fileName: string; size: number }> => {
+  ): Promise<{ fileUrl: string; fileKey: string; fileName: string; size: number; mimeType?: string }> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', folder);

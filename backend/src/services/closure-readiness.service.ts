@@ -27,6 +27,8 @@ export interface ClosureReadinessSummary {
 
   // Deposit ledger
   depositRequired: number;
+  depositCollected: number;
+  depositCredits: number;
   netDepositHeld: number;
   totalDeductions: number;
   totalRefunded: number;
@@ -42,6 +44,7 @@ export interface ClosureReadinessSummary {
   isFinanciallyCleared: boolean;
   isReadyForApproval: boolean;
   blockers: string[];
+  financialBlockers: string[];
 }
 
 export class ClosureReadinessService {
@@ -52,25 +55,27 @@ export class ClosureReadinessService {
     allocationId: string | Types.ObjectId,
     checklist?: Partial<IPhysicalChecklist>
   ): Promise<ClosureReadinessSummary> {
+    if (!Types.ObjectId.isValid(allocationId)) throw Object.assign(new Error('Invalid allocation ID.'), { statusCode: 400 });
     const allocId = new Types.ObjectId(allocationId);
     const allocation = await LockerAllocation.findById(allocId).lean();
 
     if (!allocation) {
-      throw new Error(`Allocation ${allocationId} not found`);
+      throw Object.assign(new Error(`Allocation ${allocationId} not found`), { statusCode: 404 });
     }
 
     // 1. Live Billing & Invoices Check
     const allInvoices = await LockerInvoice.find({
       allocationId: allocId,
-      status: { $ne: 'CANCELLED' },
+      status: { $nin: ['CANCELLED', 'DRAFT'] },
     }).lean();
 
+    const billingConsistent = allInvoices.every(inv => ['UNPAID', 'PARTIALLY_PAID', 'PAID'].includes(inv.paymentStatus) && ['ISSUED', 'PAID'].includes(inv.status) && [inv.totalAmount, inv.paidAmount, inv.balanceAmount].every(v => Number.isFinite(v) && v >= 0) && Math.abs(inv.totalAmount - inv.paidAmount - inv.balanceAmount) <= .011 && !(inv.paymentStatus === 'PAID' && inv.balanceAmount > 0));
     const totalInvoicesCount = allInvoices.length;
     const totalBilledAmount = allInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
     const totalPaidAmount = allInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
 
     const openInvoices = allInvoices.filter(
-      (inv) => inv.balanceAmount > 0 && ['UNPAID', 'PARTIALLY_PAID'].includes(inv.paymentStatus)
+      (inv) => inv.balanceAmount > 0
     );
     const outstandingInvoicesCount = openInvoices.length;
     const outstandingInvoiceAmount = openInvoices.reduce((sum, inv) => sum + (inv.balanceAmount || 0), 0);
@@ -81,11 +86,11 @@ export class ClosureReadinessService {
     // 3. Physical Checklist Evaluation
     const missingChecklistItems: string[] = [];
     if (checklist) {
-      if (!checklist.lockerEmptied) missingChecklistItems.push('Locker must be completely emptied');
-      if (!checklist.lockerInspected) missingChecklistItems.push('Locker physical inspection must be confirmed');
-      if (!checklist.customerKeyReturned) missingChecklistItems.push('Customer key must be returned to vault custody');
-      if (!checklist.documentsReturned) missingChecklistItems.push('Original allocation and surrender documents returned');
-      if (!checklist.physicalAccessRevoked) missingChecklistItems.push('Physical biometric & vault access must be revoked');
+      if (checklist.lockerEmptied !== true) missingChecklistItems.push('Locker must be completely emptied');
+      if (checklist.lockerInspected !== true) missingChecklistItems.push('Locker physical inspection must be confirmed');
+      if (checklist.customerKeyReturned !== true) missingChecklistItems.push('Customer key must be returned to vault custody');
+      if (checklist.documentsReturned !== true) missingChecklistItems.push('Customer documents must be returned');
+      if (checklist.physicalAccessRevoked !== true) missingChecklistItems.push('Physical biometric & vault access must be revoked');
     } else {
       missingChecklistItems.push('Physical inspection checklist has not been completed');
     }
@@ -95,6 +100,9 @@ export class ClosureReadinessService {
     // 4. Financial Clearance Evaluation
     // Financially cleared means no outstanding invoices, no pending unapproved refunds, and deposit balance is 0 (either refunded or deducted)
     const blockers: string[] = [];
+    const ledgerConsistent = [depositSummary.netDepositHeld, depositSummary.pendingRefundAmount, depositSummary.availableRefundableBalance].every(v => Number.isFinite(v) && v >= 0);
+    if (!billingConsistent) blockers.push('Invoice balances need reconciliation before closure.');
+    if (!ledgerConsistent) blockers.push('Deposit ledger needs reconciliation before closure.');
 
     if (outstandingInvoiceAmount > 0) {
       blockers.push(
@@ -119,7 +127,7 @@ export class ClosureReadinessService {
     }
 
     const isFinanciallyCleared =
-      outstandingInvoiceAmount === 0 &&
+      billingConsistent && ledgerConsistent && outstandingInvoiceAmount === 0 &&
       depositSummary.pendingRefundAmount === 0 &&
       depositSummary.availableRefundableBalance === 0;
 
@@ -145,11 +153,13 @@ export class ClosureReadinessService {
         dueDate: inv.dueDate,
       })),
 
-      depositRequired: allocation.securityDeposit,
+      depositRequired: depositSummary.requiredDeposit,
+      depositCollected: depositSummary.totalDepositReceived,
+      depositCredits: depositSummary.totalAddAdjustments,
       netDepositHeld: depositSummary.netDepositHeld,
       totalDeductions: depositSummary.totalDeductAdjustments,
       totalRefunded: depositSummary.totalRefunded,
-      pendingRefundsCount: depositSummary.pendingRefundAmount > 0 ? 1 : 0,
+      pendingRefundsCount: depositSummary.pendingRefundsCount,
       pendingRefundAmount: depositSummary.pendingRefundAmount,
       availableRefundableBalance: depositSummary.availableRefundableBalance,
 
@@ -159,6 +169,7 @@ export class ClosureReadinessService {
       isFinanciallyCleared,
       isReadyForApproval,
       blockers,
+      financialBlockers: blockers.filter(message => !missingChecklistItems.includes(message)),
     };
   }
 }

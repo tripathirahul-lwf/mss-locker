@@ -43,8 +43,10 @@ export class CustomerKycService {
       return 'REJECTED';
     }
 
-    const verifiedDocs = docs.filter((d) => d.verificationStatus === 'VERIFIED' && (!d.expiryDate || d.expiryDate >= new Date()));
-    if (!verifiedDocs.length && docs.some(d => d.expiryDate && d.expiryDate < new Date())) return 'EXPIRED';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const expired = (doc: ICustomerKycDocument) => !!doc.expiryDate && doc.expiryDate.toISOString().slice(0, 10) < today;
+    const verifiedDocs = docs.filter((d) => d.verificationStatus === 'VERIFIED' && !expired(d));
+    if (!verifiedDocs.length && docs.some(expired)) return 'EXPIRED';
     const hasPrimaryVerified = verifiedDocs.some((d) =>
       KYC_POLICY.PRIMARY_DOC_TYPES.includes(d.documentType)
     );
@@ -76,7 +78,7 @@ export class CustomerKycService {
       }
     }
 
-    await Customer.findByIdAndUpdate(customerId, updateData);
+    await Customer.findByIdAndUpdate(customerId, calculatedStatus === 'VERIFIED' ? { $set: updateData } : { $set: updateData, $unset: { kycVerifiedAt: '', kycVerifiedBy: '' } });
     return calculatedStatus;
   }
 
@@ -139,7 +141,7 @@ export class CustomerKycService {
       throw new Error('Invalid customer ID');
     }
 
-    return mongoose.connection.transaction(async () => {
+    return mongoose.connection.transaction(async session => {
     const customer = await Customer.findOneAndUpdate({ _id: customerId }, { $inc: { __v: 1 } }, { new: true, timestamps: false });
     if (!customer) {
       throw new Error('Customer not found');
@@ -183,7 +185,7 @@ export class CustomerKycService {
         documentType: doc.documentType,
         maskedDocumentNumber: maskKycDocumentNumber(doc.documentType, doc.documentNumber),
       },
-    });
+    }, session);
 
     return this.sanitizeKycDoc(doc, true);
     });
@@ -205,7 +207,7 @@ export class CustomerKycService {
     }
 
     let replacedDocumentUrl: string | undefined;
-    const result = await mongoose.connection.transaction(async () => {
+    const result = await mongoose.connection.transaction(async session => {
     const doc = await CustomerKycDocument.findOne({ _id: docId, isActive: true });
     if (!doc) {
       throw new Error('KYC document not found');
@@ -251,7 +253,7 @@ export class CustomerKycService {
         documentType: doc.documentType,
         maskedDocumentNumber: maskKycDocumentNumber(doc.documentType, doc.documentNumber),
       },
-    });
+    }, session);
 
     return this.sanitizeKycDoc(doc, true);
     });
@@ -274,14 +276,14 @@ export class CustomerKycService {
       throw new Error('Invalid document ID');
     }
 
-    return mongoose.connection.transaction(async () => {
+    return mongoose.connection.transaction(async session => {
     const doc = await CustomerKycDocument.findOne({ _id: docId, isActive: true });
     if (!doc) {
       throw new Error('KYC document not found');
     }
     await Customer.findOneAndUpdate({ _id: doc.customerId }, { $inc: { __v: 1 } }, { timestamps: false });
 
-    if (input.status === 'VERIFIED' && doc.expiryDate && doc.expiryDate < new Date()) throw Object.assign(new Error('Cannot verify an expired document.'), { statusCode: 400 });
+    if (input.status === 'VERIFIED' && doc.expiryDate && doc.expiryDate.toISOString().slice(0, 10) < new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())) throw Object.assign(new Error('Cannot verify an expired document.'), { statusCode: 400 });
     doc.verificationStatus = input.status;
     doc.verifiedAt = new Date();
     if (actorUserId) {
@@ -314,7 +316,7 @@ export class CustomerKycService {
         rejectionReason: doc.rejectionReason,
         customerKycStatus: newKycStatus,
       },
-    });
+    }, session);
 
     return this.sanitizeKycDoc(doc, true);
     });
@@ -335,7 +337,7 @@ export class CustomerKycService {
     }
 
     let deletedUrl: string | undefined;
-    await mongoose.connection.transaction(async () => {
+    await mongoose.connection.transaction(async session => {
     const doc = await CustomerKycDocument.findOne({ _id: docId, isActive: true });
     if (!doc) {
       throw new Error('KYC document not found');
@@ -360,7 +362,7 @@ export class CustomerKycService {
       metadata: {
         documentType: doc.documentType,
       },
-    });
+    }, session);
     });
     if (deletedUrl) await this.removeUnusedAttachment(deletedUrl);
   }

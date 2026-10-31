@@ -1,7 +1,9 @@
-import { Role } from '../models/Role';
+import mongoose from 'mongoose';
+import { Role, IRole } from '../models/Role';
+import { Session } from '../models/Session';
 import { User } from '../models/User';
 import { recordAuditLog } from '../utils/auditLogger';
-import { PERMISSION_GROUPS, ALL_PERMISSIONS } from '../constants/permissions';
+import { PERMISSION_GROUPS, ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLE_CODES } from '../constants/permissions';
 
 export class RoleService {
   static async getRoles() {
@@ -63,10 +65,23 @@ export class RoleService {
     ipAddress?: string,
     userAgent?: string
   ) {
+    return mongoose.connection.transaction(async session => {
+    function fail(message: string, statusCode = 403): never { throw Object.assign(new Error(message), { statusCode }); }
+    const actor = await User.findById(actorUserId).populate<{ role: IRole }>('role');
+    if (!actor || actor.status !== 'ACTIVE' || actor.role?.status !== 'ACTIVE') fail('Active operator required');
+    const superAdmin = actor!.role.code === SYSTEM_ROLE_CODES.SUPER_ADMIN;
+    const ownPermissions = new Set<string>(actor!.role.permissions);
+    actor!.permissionsOverride?.grant?.forEach(p => ownPermissions.add(p));
+    actor!.permissionsOverride?.revoke?.forEach(p => ownPermissions.delete(p));
+    if (!superAdmin && !ownPermissions.has(PERMISSIONS.ROLES_MANAGE)) fail('Role management permission required');
     const role = await Role.findById(roleId);
     if (!role) {
-      throw new Error('Role not found');
+      fail('Role not found', 404);
     }
+    if (!superAdmin && (role!.code === SYSTEM_ROLE_CODES.SUPER_ADMIN || role!.permissions.some(p => !ownPermissions.has(p)))) fail('Cannot modify a role with permissions beyond your own');
+    if (!superAdmin && data.permissions && (String(actor!.role._id) === roleId || data.permissions.some(p => !ownPermissions.has(p)))) fail('Cannot increase role privileges or change your own role permissions');
+    if (data.permissions?.some(p => !ALL_PERMISSIONS.includes(p as any))) fail('Unknown permission code', 400);
+    const permissionsChanged = !!data.permissions && [...new Set(data.permissions)].sort().join('|') !== [...role!.permissions].sort().join('|');
 
     if (data.name) role.name = data.name.trim();
     if (data.description !== undefined) role.description = data.description.trim();
@@ -75,6 +90,11 @@ export class RoleService {
     }
 
     await role.save();
+    if (permissionsChanged) {
+      const users = await User.find({ role: role._id }).select('_id');
+      await User.updateMany({ role: role._id }, { $inc: { tokenVersion: 1 } });
+      await Session.updateMany({ userId: { $in: users.map(user => user._id) }, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } });
+    }
 
     await recordAuditLog({
       actorUserId,
@@ -86,7 +106,7 @@ export class RoleService {
       ipAddress,
       userAgent,
       metadata: { permissionsCount: role.permissions.length },
-    });
+    }, session);
 
     return {
       id: role._id.toString(),
@@ -97,5 +117,6 @@ export class RoleService {
       isSystemRole: role.isSystemRole,
       status: role.status,
     };
+    });
   }
 }

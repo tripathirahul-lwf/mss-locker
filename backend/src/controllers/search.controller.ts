@@ -1,14 +1,17 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+const searchQuery = z.object({ q: z.string().trim().max(160).default(''), limit: z.coerce.number().int().min(1).max(20).default(6), types: z.string().max(100).optional() });
+const historyQuery = z.object({ page: z.coerce.number().int().min(1).max(100000).default(1), limit: z.coerce.number().int().min(1).max(50).default(10) });
+const entityId = z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid record ID');
 import { searchService } from '../services/search.service';
 import { quickPreviewService } from '../services/quick-preview.service';
 import { logger } from '../utils/logger';
 
 export class SearchController {
-  async globalSearch(req: Request, res: Response): Promise<void> {
+  async globalSearch(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const q = String(req.query.q || '');
-      const limit = Math.min(20, Math.max(1, Number(req.query.limit) || 6));
-      const types = req.query.types ? String(req.query.types).split(',') : undefined;
+      const { q, limit, types: typeList } = searchQuery.parse(req.query);
+      const types = typeList?.split(',');
 
       const userPermissions = (req.user?.permissions as string[]) || [];
       const isSuperAdmin = Boolean(req.user?.isSuperAdmin);
@@ -27,16 +30,13 @@ export class SearchController {
       });
     } catch (error: any) {
       logger.error('Error during global search:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Global search failed',
-      });
+      next(error);
     }
   }
 
-  async getCustomerQuickPreview(req: Request, res: Response): Promise<void> {
+  async getCustomerQuickPreview(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const id = String(req.params.id);
+      const id = entityId.parse(req.params.id);
       const preview = await quickPreviewService.getCustomerQuickPreview(id);
       if (!preview) {
         res.status(404).json({
@@ -51,18 +51,14 @@ export class SearchController {
       });
     } catch (error: any) {
       logger.error('Error fetching customer quick preview:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to fetch customer quick preview',
-      });
+      next(error);
     }
   }
 
-  async getCustomerRenewalHistory(req: Request, res: Response): Promise<void> {
+  async getCustomerRenewalHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const id = String(req.params.id);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+      const id = entityId.parse(req.params.id);
+      const { page, limit } = historyQuery.parse(req.query);
 
       const result = await quickPreviewService.getCustomerRenewalHistory(
         id,
@@ -77,16 +73,13 @@ export class SearchController {
       });
     } catch (error: any) {
       logger.error('Error fetching customer renewal history:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to fetch customer renewal history',
-      });
+      next(error);
     }
   }
 
-  async getLockerQuickPreview(req: Request, res: Response): Promise<void> {
+  async getLockerQuickPreview(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const id = String(req.params.id);
+      const id = entityId.parse(req.params.id);
       const userPermissions = (req.user?.permissions as string[]) || [];
       const isSuperAdmin = Boolean(req.user?.isSuperAdmin);
       const preview = await quickPreviewService.getLockerQuickPreview(
@@ -109,10 +102,7 @@ export class SearchController {
       });
     } catch (error: any) {
       logger.error('Error fetching locker quick preview:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to fetch locker quick preview',
-      });
+      next(error);
     }
   }
 }

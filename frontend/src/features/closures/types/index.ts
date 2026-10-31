@@ -167,6 +167,8 @@ export interface ClosureReadinessSummary {
   }[];
 
   depositRequired: number;
+  depositCollected: number;
+  depositCredits: number;
   netDepositHeld: number;
   totalDeductions: number;
   totalRefunded: number;
@@ -180,6 +182,7 @@ export interface ClosureReadinessSummary {
   isFinanciallyCleared: boolean;
   isReadyForApproval: boolean;
   blockers: string[];
+  financialBlockers?: string[];
 }
 
 export interface ClosureStats {
@@ -194,6 +197,8 @@ export interface ClosureStats {
 }
 
 export interface ClosureQueryParams {
+  allocationId?: string;
+  size?: string;
   page?: number;
   limit?: number;
   search?: string;

@@ -1,3 +1,12 @@
+import { RoleService } from '../../src/services/role.service';
+import { ImportJob } from '../../src/models/ImportJob';
+import { importCommitService } from '../../src/services/import-commit.service';
+import { settingService } from '../../src/services/setting.service';
+import { SystemSetting } from '../../src/models/SystemSetting';
+import { TariffPlan } from '../../src/models/TariffPlan';
+import { reportService, reportRange } from '../../src/services/report.service';
+import { closureReadinessService } from '../../src/services/closure-readiness.service';
+import { LockerClosure } from '../../src/models/LockerClosure';
 import { UserService } from '../../src/services/user.service';
 import { AuthService } from '../../src/services/auth.service';
 import { hashPassword } from '../../src/utils/password';
@@ -40,7 +49,7 @@ import { Customer } from '../../src/models/Customer';
 import { LockerAllocation } from '../../src/models/LockerAllocation';
 import { LockerService } from '../../src/services/locker.service';
 import { lockerQuerySchema } from '../../src/validators/locker.validator';
-import { calculateBillingPeriod } from '../../src/utils/billingCalculator';
+import { calculateBillingPeriod, determineDueStatus } from '../../src/utils/billingCalculator';
 import { LockerAllocationService } from '../../src/services/allocation.service';
 import { LockerInvoice } from '../../src/models/LockerInvoice';
 import { PERMISSIONS } from '../../src/constants/permissions';
@@ -754,6 +763,416 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     const result = (await LockerAllocationService.getLockerAllocations(String(allocation!.lockerId))).currentAllocation;
     expect(result.paymentCoverageConfirmed).toBe(false);
     expect(result.paidThroughDate).toBeTruthy();
+  });
+
+  it('saves an editable allotment renewal date consistently with invoice coverage and retry protection', async () => {
+    const input = allotmentSchema.parse({ ...await allotment('903'), nextRenewalDueDate: '2029-02-01' });
+    const result = await AllotmentService.complete(input, actor);
+    expect(result.allocation!.nextRenewalDueDate?.toISOString().slice(0, 10)).toBe('2029-02-01');
+    expect(result.allocation!.endDate?.toISOString().slice(0, 10)).toBe('2029-01-31');
+    expect(result.invoice!.billingPeriodEnd.toISOString().slice(0, 10)).toBe('2029-01-31');
+    expect(result.allocation!.paidThroughDate?.toISOString().slice(0, 10)).toBe('2029-01-31');
+    expect(result.invoice!.totalAmount).toBe(3590);
+    const again = await AllotmentService.complete(input, actor);
+    expect(String(again.allocation!._id)).toBe(String(result.allocation!._id));
+    await expect(AllotmentService.complete({ ...input, nextRenewalDueDate: '2029-02-02' }, actor)).rejects.toThrow('different details');
+    for (const value of ['2026-01-01', '2025-12-31', '2029-02-30']) expect(allotmentSchema.safeParse({ ...input, nextRenewalDueDate: value }).success).toBe(false);
+  });
+
+  it('historical invoice period edits preserve the current paid agreement and reject stale or overlapping dates', async () => {
+    const result = await AllotmentService.complete(await allotment('904'), actor);
+    const id = String(result.allocation!._id);
+    const renewal = await renewalService.generateRenewalInvoice({ allocationId: id, billingCycle: 'ANNUAL', userId: actor.userId });
+    await paymentService.recordPayment({ invoiceId: String(renewal._id), amount: renewal.totalAmount, paymentMethod: 'CASH' }, actor.userId, randomUUID());
+    const before = await LockerAllocation.findById(id).lean();
+    const old = await LockerInvoice.findById(result.invoice!._id);
+    await billingService.updateInvoiceBillingPeriod(String(old!._id), '2026-01-01', '2028-12-30', actor.userId, old!.updatedAt.toISOString());
+    const after = await LockerAllocation.findById(id).lean();
+    expect(after?.nextRenewalDueDate).toEqual(before?.nextRenewalDueDate); expect(after?.endDate).toEqual(before?.endDate); expect(after?.paidThroughDate).toEqual(before?.paidThroughDate);
+    await expect(billingService.updateInvoiceBillingPeriod(String(old!._id), '2026-01-01', '2028-12-29', actor.userId, old!.updatedAt.toISOString())).rejects.toThrow('changed');
+    await expect(billingService.updateInvoiceBillingPeriod(String(old!._id), '2026-01-01', '2030-01-01', actor.userId)).rejects.toThrow('overlaps');
+    await expect(billingService.updateInvoiceBillingPeriod(String(old!._id), '2026-02-30', '2028-12-30', actor.userId)).rejects.toThrow('valid');
+    await LockerInvoice.updateOne({ _id: old!._id }, { status: 'CANCELLED' });
+    await expect(billingService.updateInvoiceBillingPeriod(String(old!._id), '2026-01-01', '2028-12-30', actor.userId)).rejects.toThrow('Cancelled');
+  });
+
+  it('invoice period and agreement changes roll back if the audit write fails', async () => {
+    const result = await AllotmentService.complete(await allotment('905'), actor);
+    const old = await LockerInvoice.findById(result.invoice!._id).lean();
+    const agreement = await LockerAllocation.findById(result.allocation!._id).lean();
+    const end = new Date(old!.billingPeriodEnd); end.setUTCDate(end.getUTCDate() + 10);
+    const audit = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('Simulated audit failure') as never);
+    try { await expect(billingService.updateInvoiceBillingPeriod(String(old!._id), old!.billingPeriodStart, end, actor.userId)).rejects.toThrow('Simulated'); } finally { audit.mockRestore(); }
+    expect((await LockerInvoice.findById(old!._id))?.billingPeriodEnd).toEqual(old!.billingPeriodEnd);
+    expect((await LockerAllocation.findById(agreement!._id))?.nextRenewalDueDate).toEqual(agreement!.nextRenewalDueDate);
+  });
+
+  it('invoice print keeps zero recorded GST and avoids invented bank payment instructions', async () => {
+    const result = await AllotmentService.complete(await allotment('906'), actor);
+    await LockerInvoice.updateOne({ _id: result.invoice!._id }, { baseRent: 1180, taxAmount: 0, otherCharges: 0, totalAmount: 1180, paidAmount: 1180, balanceAmount: 0 });
+    const html = await billingService.generateInvoiceHtml(String(result.invoice!._id));
+    expect(html).toContain('GST (recorded)</td><td class="amount">&#8377;0.00');
+    expect(html).not.toContain('upi://'); expect(html).not.toContain('997212'); expect(html).not.toContain('certified computer-generated');
+    await LockerInvoice.collection.updateOne({ _id: result.invoice!._id }, { $set: { paymentStatus: '<script>alert(1)</script>' } });
+    const malformed = await billingService.generateInvoiceHtml(String(result.invoice!._id));
+    expect(malformed).not.toContain('<script>alert(1)</script>'); expect(malformed).toContain('BILLING NEEDS REVIEW');
+  });
+
+  it('invoice cancellation and collection cannot both commit', async () => {
+    const result = await AllotmentService.complete(await allotment('907'), actor);
+    const renewal = await renewalService.generateRenewalInvoice({ allocationId: String(result.allocation!._id), userId: actor.userId });
+    const results = await Promise.allSettled([
+      billingService.cancelInvoice(String(renewal._id), 'Duplicate invoice', actor.userId),
+      paymentService.recordPayment({ invoiceId: String(renewal._id), amount: renewal.totalAmount, paymentMethod: 'CASH' }, actor.userId, randomUUID()),
+    ]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const saved = await LockerInvoice.findById(renewal._id);
+    if (saved!.status === 'CANCELLED') expect(saved!.paidAmount).toBe(0); else expect(saved!.paymentStatus).toBe('PAID');
+  });
+
+  it('invoice period API validates requests and enforces edit permission', async () => {
+    const result = await AllotmentService.complete(await allotment('908'), actor);
+    const path = `/api/renewals/${result.invoice!._id}/billing-period`;
+    const viewer = await apiOperator([PERMISSIONS.RENEWALS_VIEW]);
+    expect((await request(app).patch(path).set('Authorization', `Bearer ${viewer}`).send({ billingPeriodStart: '2026-01-01', billingPeriodEnd: '2028-12-30' })).status).toBe(403);
+    const editor = await apiOperator([PERMISSIONS.RENEWALS_VIEW, PERMISSIONS.RENEWALS_CREATE]);
+    expect((await request(app).patch(path).set('Authorization', `Bearer ${editor}`).send({})).status).toBe(400);
+    expect((await request(app).patch(path).set('Authorization', `Bearer ${editor}`).send({ billingPeriodStart: '2026-02-30', billingPeriodEnd: '2028-12-30' })).status).toBe(400);
+    expect((await request(app).patch(path).set('Authorization', `Bearer ${editor}`).send({ billingPeriodStart: '2026-01-01', billingPeriodEnd: '2028-12-30', expectedUpdatedAt: '2000-01-01T00:00:00.000Z' })).status).toBe(409);
+  });
+
+  it('validates renewal dates and money, prevents overlapping coverage, and preserves paid dates until collection', async () => {
+    const saved = await AllotmentService.complete(await allotment('901'), actor);
+    const allocationId = String(saved.allocation!._id), original = await LockerAllocation.findById(allocationId);
+    for (const fields of [{ startDate: '2029-02-30' }, { baseRent: -1 }, { baseRent: '100' }, { taxAmount: Infinity }, { baseRent: 1.001 }, { billingCycle: 'INVALID' }, { baseRent: 10, discount: 11 }, { nextRenewalDueDate: '2028-01-01' }]) {
+      await expect(renewalService.generateRenewalInvoice({ allocationId, ...fields } as any)).rejects.toMatchObject({ statusCode: 400 });
+    }
+    await expect(renewalService.generateRenewalInvoice({ allocationId, startDate: '2028-12-01' })).rejects.toMatchObject({ statusCode: 409 });
+    const invoice = await renewalService.generateRenewalInvoice({ allocationId, billingCycle: 'HALF_YEARLY', nextRenewalDueDate: '2029-08-15', userId: actor.userId });
+    expect(invoice.baseRent).toBe(500); expect(invoice.taxAmount).toBe(90); expect(invoice.totalAmount).toBe(590);
+    expect(invoice.billingPeriodEnd.toISOString().slice(0, 10)).toBe('2029-08-14');
+    const pending = await LockerAllocation.findById(allocationId);
+    expect(pending?.nextRenewalDueDate).toEqual(original?.nextRenewalDueDate);
+    expect(pending?.lastRenewedAt).toEqual(original?.lastRenewedAt);
+    expect(invoice.billingCycle).toBe('CUSTOM');
+    await expect(renewalService.generateRenewalInvoice({ allocationId, startDate: '2030-01-01' })).rejects.toMatchObject({ statusCode: 409 });
+    await paymentService.recordPayment({ invoiceId: String(invoice._id), amount: 590, paymentMethod: 'CASH' }, actor.userId, randomUUID());
+    expect((await LockerAllocation.findById(allocationId))?.nextRenewalDueDate?.toISOString().slice(0, 10)).toBe('2029-08-15');
+  });
+
+  it('rounds monthly renewal charges and rolls back issuance when audit recording fails', async () => {
+    const saved = await AllotmentService.complete(await allotment('902'), actor);
+    const allocationId = String(saved.allocation!._id);
+    const audit = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('audit unavailable'));
+    try { await expect(renewalService.generateRenewalInvoice({ allocationId })).rejects.toThrow('audit unavailable'); }
+    finally { audit.mockRestore(); }
+    expect(await LockerInvoice.countDocuments({ allocationId, invoiceType: 'RENEWAL' })).toBe(0);
+    const invoice = await renewalService.generateRenewalInvoice({ allocationId, billingCycle: 'MONTHLY', lateFee: .1, otherCharges: .2, discount: .1 });
+    expect(invoice.baseRent).toBe(83.33); expect(invoice.taxAmount).toBe(15.04); expect(invoice.totalAmount).toBe(98.57);
+    expect(await AuditLog.countDocuments({ action: 'RENEWAL_GENERATED', entityId: String(invoice._id) })).toBe(1);
+  });
+
+  it('serializes closure creation and rolls back requests and review when audit logging fails', async () => {
+    const saved = await AllotmentService.complete(await allotment('910', 0), actor);
+    const allocationId = String(saved.allocation!._id);
+    const input = { allocationId, closureReason: 'Customer requested closure', submitForReview: true };
+    const results = await Promise.allSettled([lockerClosureService.createClosure(input, actor.userId), lockerClosureService.createClosure(input, actor.userId)]);
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+    expect(await LockerClosure.countDocuments({ allocationId })).toBe(1);
+    const record = await LockerClosure.findOne({ allocationId });
+    expect(record?.status).toBe('PENDING_REVIEW');
+    const audit = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('audit unavailable'));
+    try { await expect(lockerClosureService.reviewClosure(String(record!._id), undefined, checker)).rejects.toThrow('audit unavailable'); } finally { audit.mockRestore(); }
+    expect((await LockerClosure.findById(record!._id))?.status).toBe('PENDING_REVIEW');
+    await lockerClosureService.cancelClosure(String(record!._id), 'Test cancelled closure', actor.userId);
+    const failedAudit = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('audit unavailable'));
+    try { await expect(lockerClosureService.createClosure(input, actor.userId)).rejects.toThrow('audit unavailable'); } finally { failedAudit.mockRestore(); }
+    expect(await LockerClosure.countDocuments({ allocationId })).toBe(1);
+  });
+
+  it('validates closure dates and keeps completed customer history searchable after locker release', async () => {
+    const saved = await AllotmentService.complete(await allotment('911', 0), actor);
+    const allocationId = String(saved.allocation!._id), input = { allocationId, closureReason: 'Customer requested closure' };
+    for (const requestedClosureDate of ['2026-02-30', '2025-12-31', '2099-01-01']) await expect(lockerClosureService.createClosure({ ...input, requestedClosureDate }, actor.userId)).rejects.toMatchObject({ statusCode: 400 });
+    const record = await lockerClosureService.createClosure({ ...input, requestedClosureDate: '2026-02-01', physicalChecklist: { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true, lockerCondition: 'GOOD' } }, actor.userId);
+    await lockerClosureService.reviewClosure(String(record._id), undefined, checker);
+    await expect(lockerClosureService.approveClosure(String(record._id), undefined, actor.userId)).rejects.toThrow('Maker-Checker');
+    await lockerClosureService.approveClosure(String(record._id), undefined, checker);
+    await lockerClosureService.completeClosure(String(record._id), undefined, checker);
+    const completed = await LockerClosure.findById(record._id);
+    expect(completed?.actualClosureDate?.toISOString().slice(0, 10)).toBe('2026-02-01');
+    await Locker.updateOne({ _id: saved.allocation!.lockerId }, { $set: { status: 'OCCUPIED' } });
+    const history = await lockerClosureService.getClosures({ status: 'COMPLETED', search: 'Counter Customer', size: 'A' });
+    expect(history.pagination.total).toBe(1); expect(String(history.closures[0].customerId._id)).toBe(String((saved.allocation!.customerId as any)._id || saved.allocation!.customerId));
+    expect((await lockerClosureService.getClosures({ status: 'COMPLETED', search: '.*' })).pagination.total).toBe(0);
+    expect((await lockerClosureService.getClosures({ status: 'COMPLETED', size: 'B' })).pagination.total).toBe(0);
+    expect((await lockerClosureService.getClosures({ allocationId })).pagination.total).toBe(1);
+  });
+
+  it('does not clear closure readiness for contradictory paid invoice balances', async () => {
+    const saved = await AllotmentService.complete(await allotment('912', 0), actor);
+    await LockerInvoice.updateOne({ _id: saved.invoice!._id }, { $set: { balanceAmount: 1 } });
+    const readiness = await closureReadinessService.getReadiness(String(saved.allocation!._id), { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true });
+    expect(readiness.isFinanciallyCleared).toBe(false); expect(readiness.outstandingInvoiceAmount).toBe(1);
+    expect(readiness.blockers.join(' ')).toContain('reconciliation');
+  });
+
+  it('flags paid-through renewal conflicts and rejects payment for overlapping paid coverage', async () => {
+    const saved = await AllotmentService.complete(await allotment('920'), actor);
+    const allocationId = String(saved.allocation!._id), original = await LockerInvoice.findById(saved.invoice!._id);
+    await LockerAllocation.updateOne({ _id: allocationId }, { nextRenewalDueDate: original!.billingPeriodEnd });
+    const bad = await LockerInvoice.create({ ...original!.toObject(), _id: new mongoose.Types.ObjectId(), invoiceNumber: 'OVERLAP-920', invoiceType: 'RENEWAL', billingPeriodStart: original!.billingPeriodEnd, billingPeriodEnd: new Date('2029-12-31'), dueDate: original!.billingPeriodEnd, status: 'ISSUED', paymentStatus: 'UNPAID', paidAmount: 0, baseRent: 1000, taxAmount: 180, otherCharges: 0, totalAmount: 1180, balanceAmount: 1180 });
+    const result = (await LockerAllocationService.getLockerAllocations(String(original!.lockerId))).currentAllocation;
+    expect(result.paymentCoverageConfirmed).toBe(false); expect(result.coverageIssue).toContain('overlaps');
+    const count = await Payment.countDocuments();
+    await expect(paymentService.recordPayment({ invoiceId: String(bad._id), amount: 1180, paymentMethod: 'CASH' }, actor.userId)).rejects.toMatchObject({ statusCode: 409 });
+    expect(await Payment.countDocuments()).toBe(count);
+    expect((await LockerInvoice.findById(bad._id))?.balanceAmount).toBe(1180);
+  });
+
+  it('does not erase imported partial paid amounts or extend rent coverage for adjustments', async () => {
+    const saved = await AllotmentService.complete(await allotment('921'), actor);
+    const allocationId = String(saved.allocation!._id), before = await LockerAllocation.findById(allocationId);
+    const renewal = await renewalService.generateRenewalInvoice({ allocationId });
+    await LockerInvoice.updateOne({ _id: renewal._id }, { source: 'LEGACY_IMPORT', paidAmount: 100, balanceAmount: renewal.totalAmount - 100, paymentStatus: 'PARTIALLY_PAID' });
+    await expect(paymentService.recordPayment({ invoiceId: String(renewal._id), amount: renewal.totalAmount - 100, paymentMethod: 'CASH' }, actor.userId)).rejects.toThrow('Reconcile');
+    expect((await LockerInvoice.findById(renewal._id))?.paidAmount).toBe(100);
+    const adjustment = await LockerInvoice.create({ ...renewal.toObject(), _id: new mongoose.Types.ObjectId(), invoiceNumber: 'ADJUSTMENT-921', invoiceType: 'ADJUSTMENT', billingPeriodStart: new Date('2040-01-01'), billingPeriodEnd: new Date('2040-12-31'), baseRent: 100, taxAmount: 0, totalAmount: 100, paidAmount: 0, balanceAmount: 100, paymentStatus: 'UNPAID' });
+    await paymentService.recordPayment({ invoiceId: String(adjustment._id), amount: 100, paymentMethod: 'CASH' }, actor.userId);
+    const after = await LockerAllocation.findById(allocationId);
+    expect(after?.paidThroughDate).toEqual(before?.paidThroughDate); expect(after?.nextRenewalDueDate).toEqual(before?.nextRenewalDueDate);
+  });
+
+  it('uses the India calendar day for due status across UTC midnight boundaries', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-30T19:00:00Z'));
+      expect(determineDueStatus(new Date('2026-10-30T00:00:00Z'), 100)).toBe('OVERDUE');
+      expect(determineDueStatus(new Date('2026-10-31T00:00:00Z'), 100)).toBe('DUE_TODAY');
+      expect(determineDueStatus(new Date('2026-11-01T00:00:00Z'), 100)).toBe('UPCOMING');
+      expect(determineDueStatus(new Date('2026-10-30T00:00:00Z'), 0)).toBe('UPCOMING');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('calculates deposit coverage from held funds including adjustment credits and allows exact replenishment', async () => {
+    const saved = await AllotmentService.complete(await allotment('930'), actor);
+    const id = String(saved.allocation!._id);
+    await depositService.adjustDeposit({ allocationId: id, transactionType: 'DEPOSIT_ADJUSTMENT_DEDUCT', amount: 500, reason: 'Key replacement charge' }, actor.userId);
+    expect((await depositService.getDepositSummary(id)).outstandingDeposit).toBe(500);
+    await depositService.collectDeposit({ allocationId: id, amount: 500, paymentMethod: 'CASH' }, actor.userId, randomUUID());
+    const summary = await depositService.getDepositSummary(id);
+    expect(summary.totalDepositReceived).toBe(2500); expect(summary.netDepositHeld).toBe(2000);
+    expect(summary.outstandingDeposit).toBe(0); expect(summary.depositStatus).toBe('FULLY_COLLECTED');
+    await expect(depositService.collectDeposit({ allocationId: id, amount: 1, paymentMethod: 'CASH' }, actor.userId)).rejects.toThrow('exceeds required');
+  });
+  it('rounds fractional deposit credits and prevents an addition adjustment from enabling overcollection', async () => {
+    const saved = await AllotmentService.complete(await allotment('931', 0), actor); const id = String(saved.allocation!._id);
+    await LockerAllocation.updateOne({ _id: id }, { securityDeposit: 1, depositSnapshot: 1 });
+    await depositService.adjustDeposit({ allocationId: id, transactionType: 'DEPOSIT_ADJUSTMENT_ADD', amount: .1, reason: 'Verified opening balance' }, actor.userId);
+    await depositService.adjustDeposit({ allocationId: id, transactionType: 'DEPOSIT_ADJUSTMENT_ADD', amount: .2, reason: 'Verified opening balance' }, actor.userId);
+    const summary = await depositService.getDepositSummary(id);
+    expect(summary.netDepositHeld).toBe(.3); expect(summary.outstandingDeposit).toBe(.7); expect(summary.depositStatus).toBe('PARTIAL');
+    await expect(depositService.collectDeposit({ allocationId: id, amount: 1, paymentMethod: 'CASH' }, actor.userId)).rejects.toThrow('exceeds required');
+  });
+  it('rolls back refund requests when their audit record cannot be written', async () => {
+    const saved = await AllotmentService.complete(await allotment('932'), actor); const id = String(saved.allocation!._id);
+    const audit = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('audit unavailable'));
+    try { await expect(refundService.createRefundRequest({ allocationId: id, requestedAmount: 100, reason: 'Requested partial refund' }, actor.userId)).rejects.toThrow('audit unavailable'); } finally { audit.mockRestore(); }
+    expect(await RefundRequest.countDocuments({ allocationId: id })).toBe(0);
+    expect((await depositService.getDepositSummary(id)).pendingRefundAmount).toBe(0);
+  });
+
+  it('saves numberless KYC as a generic pending attachment without creating a fake ID number', async () => {
+    const input = allotmentSchema.parse({ ...await allotment('940'), idDocument: { fileUrl: '/uploads/kyc/generic-id.png', fileName: 'generic-id.png', size: 100, mimeType: 'image/png', documentType: 'OTHER' } });
+    const saved = await AllotmentService.complete(input, actor);
+    const document = await CustomerKycDocument.findOne({ customerId: saved.allocation!.customerId });
+    expect(document?.documentType).toBe('OTHER'); expect(document?.documentNumber).toBe(''); expect(document?.verificationStatus).toBe('PENDING');
+    expect(allotmentSchema.safeParse({ ...input, idDocument: { ...input.idDocument, documentType: 'AADHAAR', documentNumber: '' } }).success).toBe(false);
+  });
+  it('allotment replay returns only its original collections after later rent payments', async () => {
+    const input = await allotment('941'); const saved = await AllotmentService.complete(input, actor);
+    const renewed = await renewalService.generateRenewalInvoice({ allocationId: String(saved.allocation!._id) });
+    await paymentService.recordPayment({ invoiceId: String(renewed._id), amount: renewed.totalAmount, paymentMethod: 'CASH' }, actor.userId);
+    const replay = await AllotmentService.complete(input, actor);
+    expect(replay.payments.map(p => p.receiptNumber).sort()).toEqual([input.receiptNumber, `${input.receiptNumber}-DEP`].sort());
+    expect(await Payment.countDocuments({ allocationId: saved.allocation!._id })).toBe(3);
+  });
+
+  it('closure checklist checks boolean truth and partial review preserves existing confirmations', async () => {
+    const saved = await AllotmentService.complete(await allotment('950', 0), actor); const id = String(saved.allocation!._id);
+    const checklist = { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true, lockerCondition: 'GOOD' as const };
+    const readiness = await closureReadinessService.getReadiness(id, { ...checklist, lockerEmptied: 'false' } as any);
+    expect(readiness.checklistComplete).toBe(false);
+    await expect(lockerClosureService.createClosure({ allocationId: id, closureReason: 'Customer requested closure', physicalChecklist: { ...checklist, lockerCondition: 'INVALID' } as any }, actor.userId)).rejects.toMatchObject({ statusCode: 400 });
+    const closure = await lockerClosureService.createClosure({ allocationId: id, closureReason: 'Customer requested closure', physicalChecklist: checklist }, actor.userId);
+    await expect(lockerClosureService.reviewClosure(String(closure._id), undefined, checker, { customerKeyReturned: 'false' } as any)).rejects.toMatchObject({ statusCode: 400 });
+    const reviewed = await lockerClosureService.reviewClosure(String(closure._id), undefined, checker, { customerKeyReturned: false });
+    expect(reviewed.physicalChecklist.lockerEmptied).toBe(true); expect(reviewed.physicalChecklist.lockerInspected).toBe(true); expect(reviewed.physicalChecklist.customerKeyReturned).toBe(false);
+    expect(reviewed.status).toBe('PENDING_SETTLEMENT');
+  });
+  it('closure readiness returns recorded deposit credits, snapshot requirement and all pending refund requests', async () => {
+    const saved = await AllotmentService.complete(await allotment('951'), actor); const id = String(saved.allocation!._id);
+    await LockerAllocation.updateOne({ _id: id }, { securityDeposit: 5000 });
+    await refundService.createRefundRequest({ allocationId: id, requestedAmount: 50, reason: 'Requested partial refund' }, actor.userId);
+    await refundService.createRefundRequest({ allocationId: id, requestedAmount: 75, reason: 'Requested partial refund' }, actor.userId);
+    const readiness = await closureReadinessService.getReadiness(id);
+    expect(readiness.depositRequired).toBe(2000); expect(readiness.depositCollected).toBe(2000); expect(readiness.depositCredits).toBe(0);
+    expect(readiness.pendingRefundsCount).toBe(2); expect(readiness.pendingRefundAmount).toBe(125);
+    expect(readiness.financialBlockers.length).toBeGreaterThan(0);
+  });
+  it('does not invent a completed closure for an already closed agreement and keeps OTHER condition unavailable', async () => {
+    const saved = await AllotmentService.complete(await allotment('952', 0), actor); const id = String(saved.allocation!._id);
+    const closure = await lockerClosureService.createClosure({ allocationId: id, closureReason: 'Customer requested closure', physicalChecklist: { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true, lockerCondition: 'OTHER' } }, actor.userId);
+    await lockerClosureService.reviewClosure(String(closure._id), undefined, checker); await lockerClosureService.approveClosure(String(closure._id), undefined, checker);
+    await LockerAllocation.updateOne({ _id: id }, { status: 'CLOSED' });
+    await expect(lockerClosureService.completeClosure(String(closure._id), undefined, checker)).rejects.toMatchObject({ statusCode: 409 });
+    const stillApproved = await LockerClosure.findById(closure._id); expect(stillApproved?.status).toBe('APPROVED'); expect(stillApproved?.actualClosureDate).toBeUndefined(); expect(stillApproved?.financialSnapshot).toBeUndefined();
+    await LockerAllocation.updateOne({ _id: id }, { status: 'ACTIVE' });
+    await lockerClosureService.completeClosure(String(closure._id), undefined, checker);
+    const unit = await Locker.findById((saved.allocation!.lockerId as any)._id || saved.allocation!.lockerId);
+    expect(unit?.status).toBe('BLOCKED'); expect(unit?.operationalStatus).toBe('MAINTENANCE');
+  });
+
+  it('rotates refresh tokens once across concurrent requests and never returns an unrecorded grace cookie', async () => {
+    const role = await Role.create({ name: 'Session test', code: 'SESSION_TEST', permissions: [] });
+    const user = await User.create({ name: 'Session User', username: 'session-user', email: 'session@example.test', passwordHash: 'unused', role: role._id });
+    const payload = { userId: String(user._id), username: user.username, roleCode: role.code };
+    const original = generateRefreshToken(payload);
+    expect(generateRefreshToken(payload)).not.toBe(original);
+    const session = await Session.create({ userId: user._id, refreshTokenHash: hashRefreshToken(original), expiresAt: new Date(Date.now()+86400000) });
+    const results = await Promise.all(Array.from({ length: 8 }, () => AuthService.refresh(original)));
+    const winners = results.filter(result => result.newRefreshToken);
+    expect(winners).toHaveLength(1);
+    const current = winners[0].newRefreshToken!;
+    expect((await Session.findById(session._id))?.refreshTokenHash).toBe(hashRefreshToken(current));
+    expect((await AuthService.refresh(original)).newRefreshToken).toBeUndefined();
+    await Session.updateOne({ _id: session._id }, { rotatedAt: new Date(Date.now()-61000) });
+    await expect(AuthService.refresh(original)).rejects.toThrow('expired or revoked');
+    expect((await AuthService.refresh(current)).newRefreshToken).toBeTruthy();
+  });
+
+  it('reports all overdue invoices while limiting only preview rows and validates real IST date ranges', async () => {
+    expect(reportRange('2026-10-01', '2026-10-31').start.toISOString()).toBe('2026-09-30T18:30:00.000Z');
+    expect(reportRange('2026-10-01', '2026-10-31').end.toISOString()).toBe('2026-10-31T18:29:59.999Z');
+    expect(() => reportRange('2026-02-31', '2026-03-31')).toThrow('Invalid report');
+    const saved = await AllotmentService.complete(await allotment('970', 0), actor);
+    const source = (await LockerInvoice.findById(saved.invoice._id))!.toObject();
+    const { _id, ...base } = source;
+    await LockerInvoice.insertMany(Array.from({length: 205}, (_, index) => ({ ...base, invoiceNumber: `OVERDUE-TEST-${index}`, dueDate: new Date('2025-01-01'), issueDate: new Date('2025-01-01'), totalAmount: 1180, paidAmount: 0, balanceAmount: 1180, status: index < 201 ? 'ISSUED' : 'DRAFT', paymentStatus: 'UNPAID' })));
+    const preview = await reportService.overview('2025-01-01', '2025-12-31');
+    expect(preview.summary.overdueAccounts).toBe(201); expect(preview.overdue).toHaveLength(200); expect(preview.overdueTruncated).toBe(true);
+    expect(preview.summary.count).toBe(201);
+    expect((await reportService.overview('2025-01-01', '2025-12-31', 10000)).overdue).toHaveLength(201);
+  });
+
+  it('rolls back settings and tariff changes if the audit write fails', async () => {
+    await settingService.updateSettings({ businessName: 'Before audit' }, actor.userId);
+    const fail = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('Audit unavailable'));
+    await expect(settingService.updateSettings({ businessName: 'Must roll back' }, actor.userId)).rejects.toThrow('Audit unavailable');
+    fail.mockRestore(); expect((await SystemSetting.findOne({key:'GLOBAL'}))?.businessName).toBe('Before audit');
+    await TariffPlan.create({ size: 'A', annualRent: 1180, securityDeposit: 2000, version: 1, effectiveFrom: new Date('2025-01-01'), isActive: true });
+    const failTariff = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('Tariff audit unavailable'));
+    await expect(settingService.reviseTariff({ size:'A', annualRent:1300, securityDeposit:2000, effectiveFrom:new Date('2027-01-01') }, actor.userId)).rejects.toThrow('Tariff audit unavailable');
+    failTariff.mockRestore(); expect(await TariffPlan.countDocuments()).toBe(1); expect((await TariffPlan.findOne())?.isActive).toBe(true);
+  });
+
+  it('accepts KYC on its expiry day and clears stale verified metadata when verification is revoked', async () => {
+    const { customer } = await tenancy('971', 30);
+    const today = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    const doc = await CustomerKycDocument.create({ customerId: customer._id, documentType:'AADHAAR', documentNumber:'123412341234', documentUrl:'/api/upload/private/test.jpg', expiryDate:new Date(today), verificationStatus:'PENDING' });
+    await CustomerKycService.verifyKycDocument(String(doc._id), {status:'VERIFIED'}, actor.userId, actor.username);
+    expect(await CustomerKycService.calculateCustomerKycStatus(customer._id)).toBe('VERIFIED');
+    await CustomerKycService.verifyKycDocument(String(doc._id), {status:'REJECTED', rejectionReason:'Incorrect uploaded proof'}, actor.userId, actor.username);
+    const updated = await Customer.findById(customer._id); expect(updated?.kycVerifiedAt).toBeUndefined(); expect(updated?.kycVerifiedBy).toBeUndefined();
+  });
+
+  it('rejects malformed search identifiers and pagination as client errors', async () => {
+    const token = await apiOperator([PERMISSIONS.CUSTOMERS_VIEW,PERMISSIONS.RENEWALS_VIEW,PERMISSIONS.LOCKERS_VIEW]);
+    for (const path of ['/api/search?q=Tenant&limit=1.5','/api/search?q=Tenant&limit=Infinity','/api/search/customers/not-id/renewal-history','/api/search/lockers/not-id/quick-preview']) {
+      expect((await request(app).get(path).set('Authorization',`Bearer ${token}`)).status).toBe(400);
+    }
+  });
+
+  it('commits validated imports once and rolls back an unused import with sync tombstones', async () => {
+    const upload = await ImportJob.create({jobNumber:'IMP-UPLOADED',fileName:'fixture.xlsx',fileHash:'unvalidated',status:'UPLOADED'});
+    await expect(importCommitService.commitJob(String(upload._id), actor.userId)).rejects.toMatchObject({statusCode:409});
+    const job = await ImportJob.create({jobNumber:'IMP-READY',fileName:'fixture.xlsx',fileHash:'validated',status:'READY', rowResults:[{sheet:'Lockers',rowNumber:2,status:'VALID',data:{lockerNumber:'972',size:'A',rackNumber:'R1',annualRent:1180,securityDeposit:2000,status:'VACANT'}}]});
+    const results = await Promise.allSettled([importCommitService.commitJob(String(job._id),actor.userId),importCommitService.commitJob(String(job._id),actor.userId)]);
+    expect(results.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+    expect(await Locker.countDocuments({lockerNumber:'972'})).toBe(1);
+    const completed = (await ImportJob.findById(job._id))!;
+    expect(completed.commitSummary.insertedRows).toBe(1);
+    await importCommitService.rollbackJob(String(job._id),actor.userId,'Disposable fixture rollback');
+    expect(await Locker.countDocuments({lockerNumber:'972'})).toBe(0);
+    expect(await SyncTombstone.countDocuments({scope:'lockers',recordId:String(completed.createdRecordIds.lockers[0])})).toBe(1);
+    expect(await AuditLog.countDocuments({entityId:String(job._id)})).toBe(2);
+  });
+
+  it('blocks import rollback when deposit ledger entries exist and preserves every record', async () => {
+    const saved = await AllotmentService.complete(await allotment('973'),actor);
+    const allocation = saved.allocation!;
+    const receipts = await Payment.find({allocationId:allocation._id});
+    const job = await ImportJob.create({jobNumber:'IMP-DEPOSIT',fileName:'fixture.xlsx',fileHash:'deposit-protected',status:'COMPLETED',completedAt:new Date(Date.now()+1000),createdRecordIds:{lockers:[allocation.lockerId],customers:[allocation.customerId],allocations:[allocation._id],invoices:[saved.invoice._id],payments:receipts.map(p=>p._id)}});
+    await expect(importCommitService.rollbackJob(String(job._id),actor.userId,'Must not delete ledger')).rejects.toMatchObject({statusCode:409});
+    expect(await LockerAllocation.exists({_id:allocation._id})).toBeTruthy();
+    expect(await DepositTransaction.countDocuments({allocationId:allocation._id})).toBeGreaterThan(0);
+    expect((await ImportJob.findById(job._id))?.status).toBe('COMPLETED');
+    expect(await SyncTombstone.countDocuments()).toBe(0);
+  });
+
+  it('rolls back import records and their IDs if the transactional audit fails', async () => {
+    const job = await ImportJob.create({jobNumber:'IMP-AUDIT',fileName:'fixture.xlsx',fileHash:'audit-failure',status:'READY',rowResults:[{sheet:'Lockers',rowNumber:2,status:'VALID',data:{lockerNumber:'974',size:'A',status:'VACANT'}}]});
+    const fail = vi.spyOn(AuditLog,'create').mockRejectedValueOnce(new Error('Import audit failed'));
+    await expect(importCommitService.commitJob(String(job._id),actor.userId)).rejects.toThrow('Import audit failed'); fail.mockRestore();
+    expect(await Locker.countDocuments({lockerNumber:'974'})).toBe(0);
+    const failed = (await ImportJob.findById(job._id))!; expect(failed.status).toBe('FAILED'); expect(failed.createdRecordIds.lockers).toHaveLength(0);
+  });
+
+  it('role management cannot escalate privileges or edit protected roles and revokes sessions on legitimate changes', async () => {
+    const { admin, target, superRole, staffRole } = await staffFixture();
+    const managerRole = await Role.create({name:'Role Manager',code:'ROLE_MANAGER',permissions:[PERMISSIONS.ROLES_MANAGE,PERMISSIONS.USERS_VIEW]});
+    const manager = await User.create({name:'Role Manager',username:'role-manager',email:'role-manager@example.test',passwordHash:'unused',role:managerRole._id});
+    await expect(RoleService.updateRole(String(superRole._id),{name:'Unauthorized'},String(manager._id),manager.username)).rejects.toMatchObject({statusCode:403});
+    await expect(RoleService.updateRole(String(managerRole._id),{permissions:[PERMISSIONS.ROLES_MANAGE,PERMISSIONS.USERS_VIEW]},String(manager._id),manager.username)).rejects.toMatchObject({statusCode:403});
+    await expect(RoleService.updateRole(String(staffRole._id),{permissions:[PERMISSIONS.USERS_RESET_PASSWORD]},String(manager._id),manager.username)).rejects.toMatchObject({statusCode:403});
+    const refresh = generateRefreshToken({userId:String(target._id),username:target.username,roleCode:staffRole.code});
+    const session = await Session.create({userId:target._id,refreshTokenHash:hashRefreshToken(refresh),expiresAt:new Date(Date.now()+86400000)});
+    const tokenVersion = target.tokenVersion || 0;
+    await RoleService.updateRole(String(staffRole._id),{permissions:[]},String(admin._id),admin.username);
+    expect((await User.findById(target._id))?.tokenVersion).toBe(tokenVersion+1);
+    expect((await Session.findById(session._id))?.revokedAt).toBeTruthy();
+    const fail = vi.spyOn(AuditLog,'create').mockRejectedValueOnce(new Error('Role audit failed'));
+    await expect(RoleService.updateRole(String(staffRole._id),{name:'Should roll back'},String(admin._id),admin.username)).rejects.toThrow('Role audit failed'); fail.mockRestore();
+    expect((await Role.findById(staffRole._id))?.name).toBe(staffRole.name);
+  });
+
+  it('customer searches treat regex operators literally and financial quick previews enforce their own permissions', async () => {
+    const {customer,locker} = await tenancy('975',20);
+    expect((await CustomerService.getCustomers({search:'.*'} as any,true)).pagination.total).toBe(0);
+    expect((await CustomerService.getCustomers({search:'('} as any,true)).pagination.total).toBe(0);
+    expect((await CustomerService.getCustomers({search:'Tenant'} as any,true)).pagination.total).toBe(1);
+    const viewer = await apiOperator([PERMISSIONS.CUSTOMERS_VIEW,PERMISSIONS.LOCKERS_VIEW]);
+    expect((await request(app).get(`/api/search/customers/${customer._id}/quick-preview`).set('Authorization',`Bearer ${viewer}`)).status).toBe(403);
+    const preview = await request(app).get(`/api/search/lockers/${locker._id}/quick-preview`).set('Authorization',`Bearer ${viewer}`);
+    expect(preview.status).toBe(200); expect(preview.body.data.dues).toBeNull(); expect(preview.body.data.currentTenant.phone).toBe('Restricted');
+  });
+
+  it('KYC verification rolls back when its audit record cannot be written', async () => {
+    const {customer} = await tenancy('976',20);
+    const doc = await CustomerKycDocument.create({customerId:customer._id,documentType:'AADHAAR',documentNumber:'123412341234',documentUrl:'/api/upload/private/test.jpg',verificationStatus:'PENDING'});
+    const fail = vi.spyOn(AuditLog,'create').mockRejectedValueOnce(new Error('KYC audit unavailable'));
+    await expect(CustomerKycService.verifyKycDocument(String(doc._id),{status:'VERIFIED'},actor.userId,actor.username)).rejects.toThrow('KYC audit unavailable'); fail.mockRestore();
+    expect((await CustomerKycDocument.findById(doc._id))?.verificationStatus).toBe('PENDING');
+    expect((await Customer.findById(customer._id))?.kycStatus).toBe('PENDING');
+  });
+
+  it('rejects malformed offline sync cursors without silently restarting or failing internally', async () => {
+    for (const payload of [null, [], { lockers: {updatedAt:'not-date',id:'bad'} }, {unknown:{updatedAt:new Date().toISOString(),id:actor.userId}}]) {
+      await expect(syncService.getIncrementalSync(Buffer.from(JSON.stringify(payload)).toString('base64url'),10,[PERMISSIONS.LOCKERS_VIEW])).rejects.toMatchObject({statusCode:400});
+    }
+    const token = await apiOperator([PERMISSIONS.LOCKERS_VIEW]);
+    expect((await request(app).get('/api/sync?limit=1.5').set('Authorization',`Bearer ${token}`)).status).toBe(400);
+    expect((await request(app).get('/api/sync?cursor=invalid').set('Authorization',`Bearer ${token}`)).status).toBe(400);
   });
 
 });

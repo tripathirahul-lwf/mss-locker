@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { apiClient } from '../../services/apiClient';
+const healthUrl = `${(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')}/health/ready`;
 
 export type ConnectionState = 'ONLINE' | 'DEGRADED' | 'OFFLINE';
 
@@ -18,9 +18,10 @@ export function useConnectionStatus() {
       return;
     }
     try {
-      const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
-      // Any response under 500 (including 200, 304, 429) confirms server connectivity
-      if (res.ok || (res.status >= 200 && res.status < 500)) {
+      const res = await fetch(healthUrl, { method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+      // Readiness requires a healthy API and database, not an HTML fallback or rate-limit response.
+      const body = res.ok && res.headers.get('content-type')?.includes('application/json') ? await res.json() : null;
+      if (res.ok && body?.success === true && body?.readiness === 'ready') {
         consecutiveFailuresRef.current = 0;
         setServerReachable(true);
       } else {

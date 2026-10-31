@@ -11,6 +11,7 @@ import { customerApi } from '../api/customerApi';
 import { CustomerPhotoUploader } from './CustomerPhotoUploader';
 
 interface CustomerFormModalProps {
+  layer?: number;
   customer?: Customer | null;
   onClose: () => void;
   onSubmit: (data: CreateCustomerInput | UpdateCustomerInput) => Promise<void>;
@@ -29,6 +30,7 @@ export function CustomerFormModal({
   onClose,
   onSubmit,
   isSubmitting,
+  layer = 100,
 }: CustomerFormModalProps) {
   const isEdit = Boolean(customer);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -282,7 +284,7 @@ export function CustomerFormModal({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in-0 duration-150">
+    <div style={{ zIndex: layer }} className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in-0 duration-150">
       <div
         ref={dialogRef}
         role="dialog"

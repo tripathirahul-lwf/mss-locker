@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 const renderWarnings = new WeakMap<object, string[]>();
 test.beforeEach(async ({ page }) => {
   const warnings: string[] = [];
@@ -36,30 +36,42 @@ test('sign in, allot with documents and receipt, filter and reopen KYC', async (
   await modal.getByLabel('ID proof (image or PDF)', { exact: true }).setInputFiles({ name: 'id.png', mimeType: 'image/png', buffer: fixturePng });
   await modal.getByLabel('Receipt image or PDF (optional)', { exact: true }).setInputFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: fixturePng });
   await modal.getByRole('button', { name: 'Preview Receipt image or PDF (optional)', exact: true }).click();
-  await expect(modal.getByRole('img', { name: 'Receipt image or PDF (optional) preview', exact: true })).toBeVisible();
-  await modal.getByRole('button', { name: 'Close Receipt image or PDF (optional) preview', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'receipt.png Preview', exact: true }).getByRole('img', { name: 'receipt.png', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
   await modal.getByRole('button', { name: 'Preview KYC photo', exact: true }).click();
-  await expect(modal.getByRole('img', { name: 'KYC photo preview', exact: true })).toBeVisible();
-  await modal.getByRole('button', { name: 'Close KYC photo preview', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'photo.png Preview', exact: true }).getByRole('img', { name: 'photo.png', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
   await modal.getByLabel('ID proof (image or PDF)', { exact: true }).setInputFiles({ name: 'id.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF') });
   await modal.getByRole('button', { name: 'Preview ID proof (image or PDF)', exact: true }).click();
-  await expect(modal.locator('iframe[title="ID proof (image or PDF) preview"]')).toBeVisible();
-  await modal.getByRole('button', { name: 'Remove ID proof (image or PDF)', exact: true }).click();
-  await expect(modal.locator('iframe[title="ID proof (image or PDF) preview"]')).toHaveCount(0);
+  await expect(page.locator('iframe[title="id.pdf"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+  await modal.getByRole('button', { name: 'Delete ID proof (image or PDF)', exact: true }).click();
+  await expect(page.locator('iframe[title="id.pdf"]')).toHaveCount(0);
   await modal.getByLabel('ID proof (image or PDF)', { exact: true }).setInputFiles({ name: 'id.png', mimeType: 'image/png', buffer: fixturePng });
 
+  await expect(modal.getByLabel('Next renewal', { exact: true })).toHaveValue('2029-10-30');
+  await modal.getByRole('checkbox').check();
+  await modal.getByLabel('Next renewal', { exact: true }).fill('2029-11-15');
+  await expect(modal.getByRole('checkbox')).not.toBeChecked();
+  await modal.getByRole('button', { name: 'Use tenure date', exact: true }).click();
+  await expect(modal.getByLabel('Next renewal', { exact: true })).toHaveValue('2029-10-30');
+  await modal.getByLabel('Next renewal', { exact: true }).fill('2029-11-15');
   await modal.getByRole('checkbox').check();
   await page.screenshot({ path: `test-results/form-${testInfo.project.name}.png`, fullPage: true });
+  const savedResponse = page.waitForResponse(response => response.url().endsWith('/api/allocations/complete') && response.request().method() === 'POST');
   await modal.getByRole('button', { name: 'Collect & Allot Locker' }).click();
+  const saved = (await (await savedResponse).json()).data;
+  expect(saved.allocation.nextRenewalDueDate.slice(0, 10)).toBe('2029-11-15');
+  expect(saved.invoice.billingPeriodEnd.slice(0, 10)).toBe('2029-11-14');
   await expect(page.getByRole('heading', { name: 'Allotment complete' })).toBeVisible();
-  await expect(page.getByRole('button', { name: new RegExp(`View deposit receipt BROWSER-${unit}-DEP`) })).toBeVisible();
+  await expect(page.getByRole('button', { name: new RegExp(`Caution Deposit Receipt.*BROWSER-${unit}-DEP`) })).toBeVisible();
   await page.screenshot({ path: `test-results/allotment-${testInfo.project.name}.png`, fullPage: true });
-  await page.getByRole('button', { name: new RegExp(`View rent receipt BROWSER-${unit}`) }).click();
+  await page.getByRole('button', { name: new RegExp(`Rent Receipt.*BROWSER-${unit}`) }).click();
   const receiptDialog = page.getByRole('dialog', { name: `Payment receipt BROWSER-${unit}`, exact: true });
   await expect(receiptDialog).toBeVisible();
   await receiptDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Allotment complete' })).toBeVisible();
-  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Done & Close', exact: true }).click();
   await page.getByRole('button', { name: /Total Lockers/ }).click();
   await expect(page.getByRole('button', { name: `Open locker ${unit}`, exact: true })).toBeVisible();
   await page.getByRole('button', { name: `Open locker ${unit}`, exact: true }).getByRole('button', { name: 'Upload KYC' }).click();
@@ -150,7 +162,7 @@ test('allotment validates before uploads and resets cash confirmation after char
   await expect(modal.getByRole('alert')).toContainText('valid ID number');
   expect(uploads).toBe(0); expect(writes).toBe(0);
   await modal.getByLabel('KYC photo', { exact: true }).setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: Buffer.alloc(5 * 1024 * 1024 + 1) });
-  await expect(modal.getByRole('alert')).toContainText('5 MB');
+  await expect(modal.getByRole('alert').filter({ hasText: '5 MB' })).toBeVisible();
   await expect(modal.getByLabel('KYC photo', { exact: true })).toHaveValue('');
   expect(uploads).toBe(0);
   const footer = modal.locator('footer');
@@ -188,7 +200,7 @@ test('lost allotment response retries the frozen request without duplicate colle
   const response = await page.request.get(`/api/allocations?lockerId=${input.lockerId}`);
   expect(response.status()).toBe(200);
   expect((await response.json()).data.allocations).toHaveLength(1);
-  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Done & Close', exact: true }).click();
 });
 
 
@@ -286,7 +298,7 @@ test('locker tabs distinguish failed billing, legacy KYC, lease rates and record
   await page.getByRole('button', { name: /Sign In/i }).click();
   await page.getByRole('button', { name: 'Open locker 123', exact: true }).press('Enter');
   const modal = page.getByRole('dialog', { name: 'Locker #123' });
-  await expect(modal.getByText('Annual rent (+18% GST)').locator('..')).toContainText('0.00');
+  await expect(modal.getByText('Annual rent (before GST)').locator('..')).toContainText('0.00');
   await modal.getByRole('button', { name: /Invoices/ }).click();
   await expect(modal.getByText('Could not load invoices.', { exact: false })).toBeVisible();
   await expect(modal.getByText('No Invoices Recorded', { exact: true })).toHaveCount(0);
@@ -303,7 +315,7 @@ test('locker tabs distinguish failed billing, legacy KYC, lease rates and record
   await expect(modal.getByText('Legacy verification', { exact: true })).toBeVisible();
   await expect(modal.getByRole('status')).toContainText('no digital KYC documents');
   await modal.getByRole('button', { name: /Deposit & Refunds/ }).click();
-  await expect(modal.getByText('No deposit recorded', { exact: true })).toBeVisible();
+  await expect(modal.getByText('Deposit collection pending', { exact: true })).toBeVisible();
   await expect(modal.getByText(/Held in Bank Escrow/)).toHaveCount(0);
   await expect(modal.getByText('Required deposit', { exact: true }).locator('..')).toContainText('2,000.00');
   await expect(modal.getByText('Collected', { exact: true }).locator('..')).toContainText('0.00');
@@ -345,11 +357,12 @@ test('customer profile, editing and closure stay on the locker page', async ({ p
   await expect(locker.getByRole('region', { name: 'Locker KYC documents' })).toBeVisible();
   expect(page.url()).toBe(url);
   await locker.getByRole('button', { name: 'Close Locker', exact: true }).click();
-  const closure = page.getByRole('dialog', { name: 'Close Locker', exact: true });
+  const closure = page.getByRole('dialog', { name: 'Close Locker 123', exact: true });
   await expect(closure).toBeVisible();
-  await expect(closure.getByPlaceholder(/Search by customer name/)).toBeDisabled();
+  await expect(closure).toContainText('Opening Due Customer');
+  await expect(closure.getByLabel('Deposit refund (INR)', { exact: true })).toHaveJSProperty('readOnly', true);
   expect(page.url()).toBe(url);
-  await closure.getByRole('button', { name: 'Close closure wizard', exact: true }).click();
+  await closure.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(locker).toBeVisible();
   const lockerResponse = await page.request.get('/api/lockers?search=123');
   const lockerRecord = (await lockerResponse.json()).data.lockers.find((item: any) => item.lockerNumber === '123');
@@ -375,11 +388,16 @@ test('customer profile, editing and closure stay on the locker page', async ({ p
 
 
 test('draft refund submission and lost payout response remain safe on the locker page', async ({ page }) => {
-  let submitted = false, paid = false;
+  let submitted = false, paid = false, allocationId = '';
   const draftId = '000000000000000000000090', approvedId = '000000000000000000000091';
-  const refund = (id: string, amount: number, status: string) => ({ _id: id, refundNumber: `AUDIT-${id.slice(-2)}`, requestedAmount: amount, approvedAmount: amount, status, createdAt: '2026-10-30T00:00:00.000Z', customerId: { fullName: 'Refund Customer' }, lockerId: { lockerNumber: '123' } });
-  await page.route('**/api/refunds?**', route => route.fulfill({ json: { success: true, data: { refunds: [refund(draftId, 500, submitted ? 'PENDING_APPROVAL' : 'DRAFT'), refund(approvedId, 1000, paid ? 'PAID' : 'APPROVED')], pagination: { page: 1, total: 2, totalPages: 1 } } } }));
-  await page.route('**/api/deposits/allocation/*/summary', route => route.fulfill({ json: { success: true, data: { requiredDeposit: 2000, totalDepositReceived: 2000, totalRefunded: paid ? 1000 : 0, netDepositHeld: paid ? 1000 : 2000, pendingRefundAmount: (submitted ? 500 : 0) + (paid ? 0 : 1000), availableRefundableBalance: submitted ? 500 : 1000 } } }));
+  const refund = (id: string, amount: number, status: string) => ({ _id: id, allocationId, refundNumber: `AUDIT-${id.slice(-2)}`, requestedAmount: amount, approvedAmount: amount, status, createdAt: '2026-10-30T00:00:00.000Z', customerId: { fullName: 'Refund Customer' }, lockerId: { lockerNumber: '123' } });
+  await page.route('**/api/refunds?**', route => { allocationId = new URL(route.request().url()).searchParams.get('allocationId') || ''; return route.fulfill({ json: { success: true, data: { refunds: [refund(draftId, 500, submitted ? 'PENDING_APPROVAL' : 'DRAFT'), refund(approvedId, 1000, paid ? 'PAID' : 'APPROVED')], pagination: { page: 1, total: 2, totalPages: 1 } } } }); });
+  await page.route('**/api/deposits/allocation/*/summary', route => route.fulfill({ json: { success: true, data: {
+    allocationId: new URL(route.request().url()).pathname.split('/')[4], requiredDeposit: 2000, totalDepositReceived: 2000,
+    totalAddAdjustments: 0, totalDeductAdjustments: 0, outstandingDeposit: 0, totalRefunded: paid ? 1000 : 0,
+    netDepositHeld: paid ? 1000 : 2000, pendingRefundsCount: (submitted ? 1 : 0) + (paid ? 0 : 1),
+    pendingRefundAmount: (submitted ? 500 : 0) + (paid ? 0 : 1000), availableRefundableBalance: submitted ? 500 : 1000,
+  } } }));
   await page.route(`**/api/refunds/${draftId}/submit`, async route => { submitted = true; await route.fulfill({ json: { success: true, data: refund(draftId, 500, 'PENDING_APPROVAL') } }); });
   const requests: { key?: string; body: string | null }[] = [];
   await page.route(`**/api/refunds/${approvedId}/pay`, async route => {
@@ -399,7 +417,7 @@ test('draft refund submission and lost payout response remain safe on the locker
   await expect(locker.getByRole('button', { name: 'Review refund', exact: true })).toBeVisible();
   await locker.getByRole('button', { name: 'Pay refund', exact: true }).click();
   const payout = page.getByRole('dialog', { name: 'Refund payout', exact: true });
-  await expect(payout).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(payout.locator('.bg-white').first()).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await payout.getByRole('button', { name: 'CASH', exact: true }).click();
   await payout.getByRole('button', { name: 'Confirm Payout & Update Ledger', exact: true }).click();
   await expect(payout.getByText(/Do not pay again/)).toBeVisible();
@@ -423,13 +441,12 @@ test('closure creation and cancellation refresh safely without trapping the user
   const url = page.url();
   const locker = page.getByRole('dialog', { name: 'Locker #123' });
   await locker.getByRole('button', { name: 'Close Locker', exact: true }).click();
-  const wizard = page.getByRole('dialog', { name: 'Close Locker', exact: true });
-  await expect(wizard.getByText('Opening Due Customer', { exact: true }).first()).toBeVisible();
-  await wizard.getByRole('button', { name: 'Next Step', exact: true }).click();
-  await wizard.getByRole('button', { name: /No Longer Needed/ }).click();
-  for (let step = 0; step < 3; step++) await wizard.getByRole('button', { name: 'Next Step', exact: true }).click();
+  const wizard = page.getByRole('dialog', { name: 'Close Locker 123', exact: true });
+  await expect(wizard).toContainText('Opening Due Customer');
+  await wizard.getByLabel('Reason / notes (optional)', { exact: true }).fill('No longer needed');
+  await wizard.getByRole('checkbox').check();
   const responsePromise = page.waitForResponse(response => response.url().endsWith('/api/closures') && response.request().method() === 'POST');
-  await wizard.getByRole('button', { name: 'Initiate Closure Workflow', exact: true }).click();
+  await wizard.getByRole('button', { name: 'Confirm close', exact: true }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(201);
   const created = (await response.json()).data;
@@ -439,7 +456,7 @@ test('closure creation and cancellation refresh safely without trapping the user
   await workflow.getByPlaceholder('Enter mandatory reason...').fill('Customer withdrew this test request');
   await workflow.getByRole('button', { name: 'Confirm Action', exact: true }).click();
   await expect(wizard).toBeVisible();
-  await wizard.getByRole('button', { name: 'Close closure wizard', exact: true }).click();
+  await wizard.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(wizard).not.toBeVisible();
   await expect(locker).toBeVisible();
   expect(page.url()).toBe(url);

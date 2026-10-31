@@ -3,10 +3,10 @@ import { ALL_PERMISSIONS } from '../constants/permissions';
 
 export const updateRoleSchema = z.object({
   params: z.object({
-    id: z.string().min(1, 'Role ID is required'),
+    id: z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid role ID'),
   }),
   body: z.object({
-    name: z.string().min(2, 'Role name must be at least 2 characters').trim().optional(),
+    name: z.string().trim().min(2, 'Role name must be at least 2 characters').max(120).optional(),
     description: z.string().trim().max(500).optional(),
     permissions: z
       .array(z.string().refine((val) => ALL_PERMISSIONS.includes(val as any), {

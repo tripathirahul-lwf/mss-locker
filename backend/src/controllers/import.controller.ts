@@ -141,7 +141,7 @@ export class ImportController {
       });
     } catch (error: any) {
       logger.error('Error committing import job:', error);
-      res.status(500).json({ success: false, message: error.message || 'Commit failed' });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Commit failed' });
     }
   }
 
@@ -263,7 +263,7 @@ export class ImportController {
       });
     } catch (error: any) {
       logger.error('Error rolling back import job:', error);
-      res.status(500).json({ success: false, message: error.message || 'Rollback failed' });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Rollback failed' });
     }
   }
 

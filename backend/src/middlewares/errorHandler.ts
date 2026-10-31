@@ -34,7 +34,7 @@ export const errorHandler = (
   }
 
   // Handle Mongoose buffering and connection timeout errors
-  if (err.message && err.message.includes('buffering timed out')) {
+  if (/Mongo(Network|ServerSelection|TopologyClosed|NotConnected)|MongooseServerSelection/.test(err.name) || /buffering timed out|before initial connection is complete/i.test(err.message || '')) {
     res.status(503).json(
       errorResponse(
         'Database temporarily unavailable. Please retry shortly.'

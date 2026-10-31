@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 export type ConfirmationVariant = 'danger' | 'warning' | 'info' | 'emerald';
 
 export interface ConfirmationModalProps {
+  layer?: number;
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void | Promise<void>;
@@ -22,6 +23,7 @@ export interface ConfirmationModalProps {
 }
 
 export function ConfirmationModal({
+  layer = 120,
   isOpen,
   onClose,
   onConfirm,
@@ -38,6 +40,7 @@ export function ConfirmationModal({
 }: ConfirmationModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const state = useRef({ onClose, isLoading }); state.current = { onClose, isLoading };
 
   const displayDescription = message ?? description ?? '';
   const displayConfirmText = confirmLabel ?? confirmText ?? 'Confirm';
@@ -52,14 +55,14 @@ export function ConfirmationModal({
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        if (!isLoading) onClose();
+        if (!state.current.isLoading) state.current.onClose();
       }
       if (e.key === 'Tab') {
-        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex="0"]') || []);
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex="0"]') || []).filter(control => control.getClientRects().length > 0);
         if (!controls.length) { e.preventDefault(); return; }
         const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
       }
     };
     document.body.style.overflow = 'hidden';
@@ -73,7 +76,7 @@ export function ConfirmationModal({
       window.removeEventListener('keydown', onKeyDown, true);
       if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, [isOpen, isLoading, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -102,6 +105,7 @@ export function ConfirmationModal({
 
   const modalContent = (
     <div
+      style={{ zIndex: layer }}
       className="fixed inset-0 z-[120] w-screen h-screen flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px] select-none animate-in fade-in-0 duration-150 font-sans"
       role="presentation"
       onMouseDown={(e) => {

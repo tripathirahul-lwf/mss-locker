@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { DepositDialogLayer } from './DepositDialogLayer';
+import React, { useState, useEffect, useRef } from 'react';
 import { depositApi } from '../api/depositApi';
 import { RefundRequest, DepositSummary } from '../types';
 import { useAuth } from '../../../context/AuthContext';
@@ -18,6 +19,8 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuth();
+  const submissionLock = useRef(false);
+  const loadVersion = useRef(0);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -34,19 +37,22 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
     if (isOpen && refundId) {
       loadDetails(refundId);
     }
+    return () => { loadVersion.current++; };
   }, [isOpen, refundId]);
 
   const loadDetails = async (id: string) => {
+    const version = ++loadVersion.current; setRefund(null); setSummary(null); setErrorMessage(null);
     try {
       setLoading(true);
       const res = await depositApi.getRefundById(id);
+      if (version !== loadVersion.current) return;
       setRefund(res.refund);
       setSummary(res.summary);
       setApprovedAmount(String(res.refund.approvedAmount || res.refund.requestedAmount));
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to load refund details');
+      if (version === loadVersion.current) setErrorMessage(err?.response?.data?.message || 'Failed to load refund details');
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   };
 
@@ -57,7 +63,7 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
   const numApproved = Number(approvedAmount) || 0;
 
   const maxHeadroom = summary && refund
-    ? summary.availableRefundableBalance + refund.requestedAmount
+    ? Math.max(0, summary.netDepositHeld - summary.pendingRefundAmount + refund.requestedAmount)
     : 0;
 
   const isExceedingHeadroom = numApproved > maxHeadroom;
@@ -87,6 +93,8 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
       return;
     }
 
+    if (submissionLock.current) return;
+    submissionLock.current = true;
     try {
       setSubmitting(true);
       const updated = await depositApi.approveRefund(refund._id, {
@@ -99,6 +107,7 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
     } catch (err: any) {
       setErrorMessage(err?.response?.data?.message || 'Failed to approve refund');
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };
@@ -112,6 +121,8 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
       return;
     }
 
+    if (submissionLock.current) return;
+    submissionLock.current = true;
     try {
       setSubmitting(true);
       const updated = await depositApi.rejectRefund(refund._id, {
@@ -123,11 +134,13 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
     } catch (err: any) {
       setErrorMessage(err?.response?.data?.message || 'Failed to reject refund');
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };
 
   return (
+    <DepositDialogLayer title="Review refund" busy={submitting} onClose={onClose}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
       <div className="relative w-full max-w-xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden my-8">
         {/* Header */}
@@ -144,6 +157,7 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
             </div>
           </div>
           <button
+            aria-label="Close deposit action"
             onClick={onClose}
             className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           >
@@ -343,5 +357,6 @@ export const RefundApprovalModal: React.FC<RefundApprovalModalProps> = ({
         )}
       </div>
     </div>
+    </DepositDialogLayer>
   );
 };

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 async function openStaff(page: any, viewer = false) {
   await page.goto('/login');
   await page.getByLabel('Username or Email').fill(viewer ? 'staff-viewer' : 'browser-test');

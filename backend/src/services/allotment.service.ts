@@ -21,7 +21,7 @@ export class AllotmentService {
   static async complete(input: AllotmentInput, actor: AllocationActor) {
     const fingerprint = createHash('sha256').update(JSON.stringify(input)).digest('hex');
     const actorId = actor.userId || 'SYSTEM';
-    const result = async (allocationId: unknown) => ({ allocation: await LockerAllocation.findById(allocationId).populate('customerId').populate('lockerId'), payments: await Payment.find({ allocationId }).populate('customerId', 'fullName customerCode phone').populate('lockerId', 'lockerNumber size rackNumber').populate('invoiceId').populate('allocationId', 'allocationCode startDate billingCycle').populate('recordedBy', 'name username'), invoice: await LockerInvoice.findOne({ allocationId, invoiceType: 'NEW_ALLOCATION' }) });
+    const result = async (allocationId: unknown) => ({ allocation: await LockerAllocation.findById(allocationId).populate('customerId').populate('lockerId'), payments: await Payment.find({ allocationId, idempotencyKey: { $in: [`${input.requestId}:rent`, `${input.requestId}:deposit`] } }).populate('customerId', 'fullName customerCode phone').populate('lockerId', 'lockerNumber size rackNumber').populate('invoiceId').populate('allocationId', 'allocationCode startDate billingCycle').populate('recordedBy', 'name username'), invoice: await LockerInvoice.findOne({ allocationId, invoiceType: 'NEW_ALLOCATION' }) });
     const previous = await AllotmentRequest.findOne({ requestId: input.requestId });
     if (previous) {
       if (previous.actorId !== actorId || previous.fingerprint !== fingerprint) throw fail('This request token was already used for different details.');
@@ -52,7 +52,7 @@ export class AllotmentService {
       if (!customer || !customer.isActive || customer.status !== 'ACTIVE') throw fail('Select an active customer.', 400);
       locker.masterKeyReference = input.keyNumber;
       await locker.save({ session });
-      const allocation = await LockerAllocationService.createAllocationInSession({ customerId: String(customer._id), lockerId: input.lockerId, startDate: input.startDate, billingCycle: input.billingCycle, annualRent: input.annualRent, securityDeposit: input.securityDeposit, allocationType: 'NEW' }, actor, session, 50, input.annualBaseRent);
+      const allocation = await LockerAllocationService.createAllocationInSession({ customerId: String(customer._id), lockerId: input.lockerId, startDate: input.startDate, billingCycle: input.billingCycle, annualRent: input.annualRent, securityDeposit: input.securityDeposit, allocationType: 'NEW' }, actor, session, 50, input.annualBaseRent, input.nextRenewalDueDate);
       allocationId = allocation._id;
       const invoice = await LockerInvoice.findOne({ allocationId, invoiceType: 'NEW_ALLOCATION' }).session(session);
       if (!invoice) throw fail('Initial invoice could not be created.', 500);
@@ -68,7 +68,7 @@ export class AllotmentService {
       }
       if (input.photo) customer.photoUrl = input.photo.fileUrl;
       if (input.idDocument) {
-        await CustomerKycDocument.create([{ customerId: customer._id, documentType: input.idDocument.documentType, documentNumber: input.idDocument.documentNumber, documentUrl: input.idDocument.fileUrl, documentName: input.idDocument.fileName, mimeType: input.idDocument.mimeType, fileSize: input.idDocument.size, isPrimary: !(await CustomerKycDocument.exists({ customerId: customer._id, isPrimary: true, isActive: true }).session(session)), verificationStatus: 'PENDING', createdBy: actor.userId }], { session });
+        await CustomerKycDocument.create([{ customerId: customer._id, documentType: input.idDocument.documentType, documentNumber: input.idDocument.documentType === 'OTHER' ? input.idDocument.documentNumber : input.idDocument.documentNumber.replace(/\s/g, '').toUpperCase(), documentUrl: input.idDocument.fileUrl, documentName: input.idDocument.fileName, mimeType: input.idDocument.mimeType, fileSize: input.idDocument.size, isPrimary: !(await CustomerKycDocument.exists({ customerId: customer._id, isPrimary: true, isActive: true }).session(session)), verificationStatus: 'PENDING', createdBy: actor.userId }], { session });
         if (customer.kycStatus !== 'VERIFIED') customer.kycStatus = 'PARTIAL';
       }
       await customer.save({ session });

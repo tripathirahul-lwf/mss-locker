@@ -6,6 +6,10 @@ import { CustomerKycDocument } from '../models/CustomerKycDocument';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { Payment } from '../models/Payment';
+import { DepositTransaction } from '../models/DepositTransaction';
+import { RefundRequest } from '../models/RefundRequest';
+import { LockerClosure } from '../models/LockerClosure';
+import { recordAuditLog } from '../utils/auditLogger';
 import { ALLOCATION_TYPE } from '../constants/allocation.constants';
 import { SyncTombstone, SyncScope } from '../models/SyncTombstone';
 
@@ -14,17 +18,9 @@ export class ImportCommitService {
    * Commits validated import job rows in dependency-safe order
    */
   async commitJob(jobId: string, userId: string): Promise<IImportJob> {
-    const job = await ImportJob.findById(jobId);
-    if (!job) throw new Error('Import job not found');
-
-    if (!['READY', 'UPLOADED', 'VALIDATING'].includes(job.status)) {
-      throw new Error(`Cannot commit job in status: ${job.status}`);
-    }
-
-    job.status = 'IMPORTING';
-    job.startedAt = new Date();
-    job.startedBy = new Types.ObjectId(userId);
-    await job.save();
+    if (!Types.ObjectId.isValid(jobId)) throw Object.assign(new Error('Invalid import job ID'), { statusCode: 400 });
+    let job = await ImportJob.findOneAndUpdate({ _id: jobId, status: 'READY' }, { $set: { status: 'IMPORTING', startedAt: new Date(), startedBy: new Types.ObjectId(userId) } }, { new: true });
+    if (!job) throw Object.assign(new Error('Only a validated READY import can be committed; it may already be processing.'), { statusCode: 409 });
 
     let insertedRows = 0;
     let updatedRows = 0;
@@ -37,7 +33,12 @@ export class ImportCommitService {
     const allocationLockerMap = new Map<string, any>(); // normLockerNum -> LockerAllocation doc
 
     try {
-      return await mongoose.connection.transaction(async () => {
+      return await mongoose.connection.transaction(async session => {
+      // Reset mutable state on MongoDB transaction retries; never reuse rolled-back documents/IDs.
+      job = (await ImportJob.findById(jobId))!;
+      insertedRows = updatedRows = skippedRows = failedRows = 0;
+      lockerDocMap.clear(); customerPhoneMap.clear(); allocationLockerMap.clear();
+      if (!job.rowResults.length || (!job.options.allowPartial && job.rowResults.some(row => row.status === 'INVALID'))) throw Object.assign(new Error('Import validation must produce eligible rows before commit.'), { statusCode: 409 });
       const lockerRows = job.rowResults.filter(
         (r) => r.sheet.toLowerCase().includes('locker') || r.sheet.toLowerCase().includes('sheet1')
       );
@@ -306,13 +307,12 @@ export class ImportCommitService {
       job.completedAt = new Date();
       job.completedBy = new Types.ObjectId(userId);
       await job.save();
+      await recordAuditLog({ actorUserId: userId, action: 'IMPORT_COMMITTED', entityType: 'ImportJob', entityId: jobId, description: `Committed import ${job.jobNumber}` }, session);
 
       return job;
       }, { readPreference: 'primary', writeConcern: { w: 'majority' } });
     } catch (err: any) {
-      job.status = 'FAILED';
-      job.completedAt = new Date();
-      await job.save();
+      await ImportJob.updateOne({ _id: jobId, status: 'IMPORTING' }, { $set: { status: 'FAILED', completedAt: new Date() } });
       throw err;
     }
   }
@@ -321,8 +321,9 @@ export class ImportCommitService {
    * Safely rolls back an imported job if no downstream dependencies exist
    */
   async rollbackJob(jobId: string, userId: string, reason: string): Promise<IImportJob> {
-    return mongoose.connection.transaction(async () => {
-    const job = await ImportJob.findById(jobId);
+    return mongoose.connection.transaction(async session => {
+    if (!Types.ObjectId.isValid(jobId)) throw Object.assign(new Error('Invalid import job ID'), { statusCode: 400 });
+    const job = await ImportJob.findOneAndUpdate({ _id: jobId }, { $inc: { __v: 1 } }, { new: true, timestamps: false });
     if (!job) throw new Error('Import job not found');
 
     if (!['COMPLETED', 'COMPLETED_WITH_ERRORS'].includes(job.status)) {
@@ -331,6 +332,25 @@ export class ImportCommitService {
 
     const { lockers, customers, allocations, invoices, payments, kycDocs } =
       job.createdRecordIds;
+
+    if (!job.completedAt || job.commitSummary.updatedRows > 0) throw Object.assign(new Error('This import changed existing records; automatic rollback requires manual review.'), { statusCode: 409 });
+    // Serialize with tenant financial mutations and new allotments before checking dependencies.
+    await Locker.updateMany({ _id: { $in: lockers } }, { $inc: { __v: 1 } }, { timestamps: false });
+    await Customer.updateMany({ _id: { $in: customers } }, { $inc: { __v: 1 } }, { timestamps: false });
+    await LockerAllocation.updateMany({ _id: { $in: allocations } }, { $inc: { __v: 1 } }, { timestamps: false });
+    const links = [{ allocationId: { $in: allocations } }, { customerId: { $in: customers } }, { lockerId: { $in: lockers } }];
+    const dependencyQueries = [
+      Payment.exists({ _id: { $nin: payments }, $or: [...links, { invoiceId: { $in: invoices } }] }),
+      LockerInvoice.exists({ _id: { $nin: invoices }, $or: links }),
+      LockerAllocation.exists({ _id: { $nin: allocations }, $or: [{ customerId: { $in: customers } }, { lockerId: { $in: lockers } }] }),
+      CustomerKycDocument.exists({ _id: { $nin: kycDocs }, customerId: { $in: customers } }),
+      DepositTransaction.exists({ $or: links }), RefundRequest.exists({ $or: links }), LockerClosure.exists({ $or: links }),
+      ...[[Locker, lockers], [Customer, customers], [LockerAllocation, allocations], [LockerInvoice, invoices], [Payment, payments], [CustomerKycDocument, kycDocs]].map(([model, ids]: any) => model.exists({ _id: { $in: ids }, updatedAt: { $gt: job.completedAt } })),
+    ];
+    const dependencies = [];
+    // The MongoDB driver does not support parallel operations on one transaction session.
+    for (const query of dependencyQueries) dependencies.push(await query);
+    if (dependencies.some(Boolean)) throw Object.assign(new Error('Imported records have later changes or dependent ledger entries. Automatic rollback is blocked.'), { statusCode: 409 });
 
     const deletedAt = new Date();
     const tombstones: Array<{ scope: SyncScope; ids: Types.ObjectId[] }> = [
@@ -372,6 +392,7 @@ export class ImportCommitService {
     job.rolledBackBy = new Types.ObjectId(userId);
     job.rollbackReason = reason || 'Admin requested rollback';
     await job.save();
+    await recordAuditLog({ actorUserId: userId, action: 'IMPORT_ROLLED_BACK', entityType: 'ImportJob', entityId: jobId, description: `Rolled back import ${job.jobNumber}` }, session);
 
     return job;
     }, { readPreference: 'primary', writeConcern: { w: 'majority' } });

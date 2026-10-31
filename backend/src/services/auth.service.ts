@@ -221,7 +221,7 @@ export class AuthService {
     };
   }
 
-  static async refresh(refreshToken: string, ipAddress?: string, userAgent?: string): Promise<{ accessToken: string; newRefreshToken: string; user: AuthResult['user'] }> {
+  static async refresh(refreshToken: string, ipAddress?: string, userAgent?: string): Promise<{ accessToken: string; newRefreshToken?: string; user: AuthResult['user'] }> {
     let decoded;
     try {
       decoded = verifyRefreshToken(refreshToken);
@@ -273,21 +273,26 @@ export class AuthService {
     const newAccessToken = generateAccessToken(tokenPayload);
     const newRefreshToken = generateRefreshToken(tokenPayload);
 
+    let rotatedToken: string | undefined;
     if (!isGracePeriodRecovery) {
-      // Normal rotation: Move current hash to previous, store new hash, extend session
-      session.previousRefreshTokenHash = session.refreshTokenHash;
-      session.refreshTokenHash = hashRefreshToken(newRefreshToken);
-      session.rotatedAt = new Date();
-      session.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-      session.lastUsedAt = new Date();
-      session.ipAddress = ipAddress || session.ipAddress;
-      session.userAgent = userAgent || session.userAgent;
-      await session.save();
+      // Compare-and-swap: concurrent requests must not overwrite each other's rotation.
+      const rotated = await Session.findOneAndUpdate({
+        _id: session._id, refreshTokenHash, revokedAt: { $exists: false }, expiresAt: { $gt: new Date() },
+      }, { $set: {
+        previousRefreshTokenHash: refreshTokenHash, refreshTokenHash: hashRefreshToken(newRefreshToken),
+        rotatedAt: new Date(), expiresAt: new Date(Date.now() + 30 * 86400000), lastUsedAt: new Date(),
+        ipAddress: ipAddress || session.ipAddress, userAgent: userAgent || session.userAgent,
+      } });
+      if (rotated) rotatedToken = newRefreshToken;
+      else {
+        const recovered = await Session.exists({ _id: session._id, previousRefreshTokenHash: refreshTokenHash, rotatedAt: { $gte: sixtySecondsAgo }, revokedAt: { $exists: false }, expiresAt: { $gt: new Date() } });
+        if (!recovered) throw new Error('Session expired or revoked');
+      }
     } else {
-      // Grace period request: update lastUsedAt, don't break rotation chain
-      session.lastUsedAt = new Date();
-      await session.save();
+      const touched = await Session.updateOne({ _id: session._id, revokedAt: { $exists: false }, expiresAt: { $gt: new Date() } }, { $set: { lastUsedAt: new Date() } });
+      if (!touched.matchedCount) throw new Error('Session expired or revoked');
     }
+    // Grace responses must not overwrite the winner's cookie with an unrecorded token.
 
     const rolePermissions = new Set<string>(user.role.permissions || []);
     user.permissionsOverride?.grant?.forEach((permission) => rolePermissions.add(permission));
@@ -295,7 +300,7 @@ export class AuthService {
 
     return {
       accessToken: newAccessToken,
-      newRefreshToken,
+      newRefreshToken: rotatedToken,
       user: {
         id: user._id.toString(), name: user.name, email: user.email, username: user.username, phone: user.phone,
         role: { id: user.role._id.toString(), name: user.role.name, code: user.role.code },

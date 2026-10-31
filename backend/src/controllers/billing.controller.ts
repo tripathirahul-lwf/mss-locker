@@ -1,3 +1,4 @@
+import { serviceErrorStatus } from '../utils/serviceErrorStatus';
 import { Request, Response } from 'express';
 import { billingService } from '../services/billing.service';
 import { renewalService } from '../services/renewal.service';
@@ -107,7 +108,7 @@ export class BillingController {
       });
     } catch (error: any) {
       logger.error('Error generating renewal invoice:', error);
-      const statusCode = error.statusCode || 500;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to generate renewal invoice',
@@ -128,7 +129,7 @@ export class BillingController {
       });
     } catch (error: any) {
       logger.error('Error cancelling invoice:', error);
-      res.status(400).json({
+      res.status(serviceErrorStatus(error, 500)).json({
         success: false,
         message: error.message || 'Failed to cancel invoice',
       });
@@ -139,7 +140,7 @@ export class BillingController {
     try {
       const id = String(req.params.id);
       const userId = (req as any).user?._id;
-      const { billingPeriodStart, billingPeriodEnd } = req.body;
+      const { billingPeriodStart, billingPeriodEnd, expectedUpdatedAt } = req.body;
 
       if (!billingPeriodStart || !billingPeriodEnd) {
         res.status(400).json({
@@ -153,7 +154,8 @@ export class BillingController {
         id,
         billingPeriodStart,
         billingPeriodEnd,
-        userId
+        userId,
+        expectedUpdatedAt
       );
 
       res.status(200).json({
@@ -163,7 +165,7 @@ export class BillingController {
       });
     } catch (error: any) {
       logger.error('Error updating invoice billing period:', error);
-      const statusCode = error.statusCode || 400;
+      const statusCode = serviceErrorStatus(error, 500);
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to update billing period',

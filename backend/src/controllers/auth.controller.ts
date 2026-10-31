@@ -71,7 +71,7 @@ export class AuthController {
   static async refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const refreshToken =
-        req.cookies[REFRESH_COOKIE_NAME] ||
+        req.cookies?.[REFRESH_COOKIE_NAME] ||
         req.cookies?.['vault_refresh_token'] ||
         req.cookies?.['__Host-vault_refresh_token'];
       if (!refreshToken) {
@@ -83,7 +83,7 @@ export class AuthController {
       const userAgent = req.headers['user-agent'];
 
       const result = await AuthService.refresh(refreshToken, ipAddress, userAgent);
-      setRefreshCookie(res, result.newRefreshToken);
+      if (result.newRefreshToken) setRefreshCookie(res, result.newRefreshToken);
 
       res.status(200).json(
         successResponse('Token refreshed successfully', {
@@ -92,15 +92,21 @@ export class AuthController {
         })
       );
     } catch (error: any) {
-      clearRefreshCookie(res);
-      res.status(401).json(errorResponse(error.message || 'Session expired, please login again'));
+      const rejected = ['Invalid or expired refresh token', 'Session expired or revoked', 'User inactive or not found'].includes(error.message);
+      if (rejected) {
+        clearRefreshCookie(res);
+        res.status(401).json(errorResponse('Session expired, please login again'));
+      } else {
+        // Database/network failures do not revoke an otherwise valid session.
+        next(error);
+      }
     }
   }
 
   static async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const refreshToken =
-        req.cookies[REFRESH_COOKIE_NAME] ||
+        req.cookies?.[REFRESH_COOKIE_NAME] ||
         req.cookies?.['vault_refresh_token'] ||
         req.cookies?.['__Host-vault_refresh_token'];
       const userId = req.user?.userId;

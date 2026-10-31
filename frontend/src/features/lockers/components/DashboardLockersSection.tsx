@@ -1,3 +1,4 @@
+import { ClosedLockerRecords } from './ClosedLockerRecords';
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -75,6 +76,7 @@ export const DashboardLockersSection = forwardRef<
     : 'cards';
 
   const [statusParam, setStatusParamState] = useState<string>(initialResolvedStatus);
+  const closedView = ['CLOSED', 'CLOSED_RECORDS'].includes(statusParam);
   const [viewMode, setViewModeState] = useState<'cards' | 'table' | 'by_rack'>(initialResolvedView);
   const [page, setPageState] = useState<number>(() => Math.max(1, Number(searchParams.get('page')) || 1));
   const [limit, setLimit] = useState<number>(12);
@@ -192,7 +194,7 @@ export const DashboardLockersSection = forwardRef<
   let apiOpStatus: string | undefined = undefined;
   let apiIsActive: boolean | undefined = true;
 
-  if (statusParam === 'CLOSED') {
+  if (closedView) {
     apiIsActive = false;
   } else if (statusParam === 'MAINTENANCE') {
     apiOpStatus = 'MAINTENANCE';
@@ -227,6 +229,7 @@ export const DashboardLockersSection = forwardRef<
     refetch: refetchList,
   } = useQuery({
     queryKey: ['lockers', queryFilters],
+    enabled: !closedView,
     queryFn: async ({ signal }) => {
       if (viewMode !== 'by_rack') return lockerApi.getLockers(queryFilters, signal);
       const allLockers = await lockerApi.getAllLockers(queryFilters, signal);
@@ -373,7 +376,7 @@ export const DashboardLockersSection = forwardRef<
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetchList()}
+            onClick={() => { if (closedView) void queryClient.invalidateQueries({ queryKey: ['closed-locker-records'] }); else void refetchList(); }}
             disabled={isFetching}
             className="h-8 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold gap-1.5 px-3 cursor-pointer shadow-2xs"
             title="Refresh lockers data"
@@ -439,13 +442,12 @@ export const DashboardLockersSection = forwardRef<
             ]
               .filter((item) => item.show !== false)
               .map((item) => {
-                const isSelected = statusParam === item.key;
+                const isSelected = statusParam === item.key || item.key === 'CLOSED_RECORDS' && closedView;
                 return (
                   <button
                     key={item.key}
                     type="button"
                     onClick={() => {
-                      if (item.key === 'CLOSED_RECORDS') { navigate('/closed-lockers'); return; }
                       setStatusParam(item.key);
                       setPage(1);
                     }}
@@ -479,6 +481,7 @@ export const DashboardLockersSection = forwardRef<
           <div className="vault-view-switcher flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 shrink-0 self-start lg:self-auto">
             <button
               type="button"
+              disabled={closedView}
               onClick={() => setViewMode('cards')}
               className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
                 viewMode === 'cards'
@@ -493,6 +496,7 @@ export const DashboardLockersSection = forwardRef<
 
             <button
               type="button"
+              disabled={closedView}
               onClick={() => setViewMode('table')}
               className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
                 viewMode === 'table'
@@ -507,6 +511,7 @@ export const DashboardLockersSection = forwardRef<
 
             <button
               type="button"
+              disabled={closedView}
               onClick={() => setViewMode('by_rack')}
               className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
                 viewMode === 'by_rack'
@@ -532,7 +537,7 @@ export const DashboardLockersSection = forwardRef<
             )}
             <input
               type="text"
-              placeholder="Search locker no., name, phone or key no."
+              placeholder={closedView ? "Search closed locker, customer or phone" : "Search locker no., name, phone or key no."}
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -587,6 +592,7 @@ export const DashboardLockersSection = forwardRef<
             <div className="relative flex items-center min-w-[145px] bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-2.5 transition focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-600 shadow-2xs">
               <ArrowUpDown className="h-3.5 w-3.5 text-emerald-700 shrink-0 pointer-events-none mr-1.5" />
               <select
+                disabled={closedView}
                 value={`${sortBy}-${sortOrder}`}
                 onChange={(e) => {
                   const [sb, so] = e.target.value.split('-');
@@ -619,7 +625,7 @@ export const DashboardLockersSection = forwardRef<
             )}
 
             {/* Mini Pagination Controls */}
-            {viewMode !== 'by_rack' && totalPages > 1 && (
+            {!closedView && viewMode !== 'by_rack' && totalPages > 1 && (
               <div className="flex items-center gap-1 pl-1 border-l border-slate-200 ml-1">
                 <Button
                   variant="outline"
@@ -651,7 +657,7 @@ export const DashboardLockersSection = forwardRef<
       </div>
 
       {/* Main Lockers Content Display */}
-      {isListError ? (
+      {closedView ? <ClosedLockerRecords search={search} size={size} page={page} onPage={setPage} /> : isListError ? (
         <div
           role="alert"
           className="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center"

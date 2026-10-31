@@ -274,11 +274,11 @@ export class QuickPreviewService {
 
     if (currentAllocation) {
       const cust: any = currentAllocation.customerId || {};
-      tenantSummary = {
+      if (isSuperAdmin || userPermissions.includes(PERMISSIONS.CUSTOMERS_VIEW)) tenantSummary = {
         customerId: cust._id ? cust._id.toString() : '',
         fullName: cust.fullName || 'N/A',
         customerCode: cust.customerCode || 'N/A',
-        phone: cust.phone || 'N/A',
+        phone: isSuperAdmin || userPermissions.includes(PERMISSIONS.CUSTOMERS_VIEW_SENSITIVE) ? cust.phone || 'N/A' : 'Restricted',
         photoUrl: cust.photoUrl,
         kycStatus: cust.kycStatus,
         customerStatus: cust.status,
@@ -297,7 +297,7 @@ export class QuickPreviewService {
 
       const outstandingAmount = openInvoices.reduce((sum, inv) => sum + (inv.balanceAmount || 0), 0);
 
-      duesSummary = {
+      if (isSuperAdmin || userPermissions.includes(PERMISSIONS.RENEWALS_VIEW)) duesSummary = {
         outstandingAmount,
         openInvoicesCount: openInvoices.length,
       };

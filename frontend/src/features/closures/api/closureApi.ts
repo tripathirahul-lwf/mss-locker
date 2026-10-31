@@ -9,6 +9,7 @@ import {
 } from '../types';
 
 export interface CreateClosurePayload {
+  submitForReview?: boolean;
   allocationId: string;
   closureType?: ClosureType;
   closureReason: string;

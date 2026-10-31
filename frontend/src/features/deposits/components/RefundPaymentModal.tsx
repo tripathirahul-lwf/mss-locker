@@ -1,3 +1,4 @@
+import { DepositDialogLayer } from './DepositDialogLayer';
 import React, { useEffect, useRef, useState } from 'react';
 import { depositApi } from '../api/depositApi';
 import { RefundRequest } from '../types';
@@ -63,8 +64,9 @@ export const RefundPaymentModal: React.FC<RefundPaymentModalProps> = ({
   };
 
   return (
+    <DepositDialogLayer title="Refund payout" busy={submitting} onClose={onClose}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div role="dialog" aria-modal="true" aria-label="Refund payout" className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden my-8">
+      <div  className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden my-8">
         {/* Header */}
         <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-3">
@@ -205,5 +207,6 @@ export const RefundPaymentModal: React.FC<RefundPaymentModalProps> = ({
         </form>
       </div>
     </div>
+    </DepositDialogLayer>
   );
 };

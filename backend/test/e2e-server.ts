@@ -1,6 +1,7 @@
 // Isolated browser-test fixture: no configured database or Cloudinary writes.
 import mongoose from 'mongoose';
 import path from 'path';
+import express from 'express';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 async function main() {
   process.chdir(path.resolve(__dirname, '..'));
@@ -45,7 +46,23 @@ async function main() {
   const { CustomerKycDocument } = await import('../src/models/CustomerKycDocument');
   await CustomerKycDocument.create({ customerId: (await Customer.findOne({ fullName: 'Reference Customer' }))!._id, documentType: 'AADHAAR', documentNumber: '704724216043', documentUrl: '/uploads/kyc/browser-fixture-reference.png', documentName: 'reference-id.png', mimeType: 'image/png', isPrimary: true, isActive: true, verificationStatus: 'PENDING' });
   const { app } = await import('../src/app');
-  const server = app.listen(25099, '127.0.0.1', () => console.log('Browser test API ready'));
+  // Snapshot only this disposable replica; each browser test starts from identical data.
+  const db = mongoose.connection.db!;
+  const snapshots = new Map<string, Buffer>();
+  for (const collection of await db.collections()) snapshots.set(collection.collectionName, Buffer.from(mongoose.mongo.BSON.serialize({ records: await collection.find({}).toArray() })));
+  const testApp = express();
+  testApp.post('/__test/reset', async (_req, res, next) => {
+    try {
+      for (const collection of await db.collections()) await collection.deleteMany({});
+      for (const [name, snapshot] of snapshots) {
+        const records = mongoose.mongo.BSON.deserialize(snapshot).records;
+        if (records.length) await db.collection(name).insertMany(records);
+      }
+      res.json({ success: true });
+    } catch (error) { next(error); }
+  });
+  testApp.use(app);
+  const server = testApp.listen(25099, '127.0.0.1', () => console.log('Browser test API ready'));
   const stop = async () => { server.close(); await mongoose.disconnect(); await replica.stop(); process.exit(0); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);
 }

@@ -68,6 +68,7 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
+        originalRequest._retry = true;
         // Queue subsequent failed requests while refresh is in flight
         return new Promise((resolve, reject) => {
           failedQueue.push({
@@ -91,7 +92,7 @@ apiClient.interceptors.response.use(
         const refreshResponse = await axios.post(
           `${baseURL}/auth/refresh`,
           {},
-          { withCredentials: true }
+          { withCredentials: true, timeout: 15000 }
         );
 
         const newAccessToken = refreshResponse.data.data.accessToken;
