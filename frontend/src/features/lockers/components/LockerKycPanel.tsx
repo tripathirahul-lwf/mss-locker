@@ -9,6 +9,7 @@ import { ConfirmationModal } from '../../../components/common/ConfirmationModal'
 import { DocumentPreviewModal } from '../../customers/components/DocumentPreviewModal';
 
 export interface LockerKycPanelProps {
+  confirmationLayer?: number;
   customerId?: string;
   customerName?: string;
   customerCode?: string;
@@ -23,7 +24,7 @@ export interface LockerKycPanelProps {
 }
 
 
-export function LockerKycPanel({ customerId, customerName = 'Customer', customerCode = '', documents, loading, failed, onRetry, kycStatus, onBusyChange }: LockerKycPanelProps) {
+export function LockerKycPanel({ customerId, customerName = 'Customer', customerCode = '', documents, loading, failed, onRetry, kycStatus, onBusyChange, confirmationLayer = 120 }: LockerKycPanelProps) {
   const queryClient = useQueryClient();
   const canManage = usePermission('customers.kyc.manage');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -135,7 +136,7 @@ export function LockerKycPanel({ customerId, customerName = 'Customer', customer
         </div>
       )}
       <input ref={inputRef} type="file" aria-label="KYC document file" accept=".pdf,image/jpeg,image/png,image/webp" className="hidden" disabled={busy || !canManage || loading || failed} onChange={event => void upload(event.target.files?.[0])} />
-      <ConfirmationModal
+      <ConfirmationModal layer={confirmationLayer}
         isOpen={Boolean(deleting)}
         title="Delete KYC document?"
         description={<><p>This document will be removed from the customer's KYC records.</p><p className="break-words font-semibold text-slate-800">{documents.find(doc => doc._id === deleting)?.documentName || 'KYC Document'}</p></>}

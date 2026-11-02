@@ -197,7 +197,7 @@ export function LockerDetailModal({
   const { data: refundsData, isLoading: refundsLoading, isError: refundsError, refetch: retryRefunds } = useQuery({
     queryKey: ['locker-refunds', locker._id, currentAlloc?._id, refundPage],
     queryFn: () => depositApi.getRefunds({ allocationId: currentAlloc!._id, page: refundPage, limit: 20 }),
-    enabled: Boolean(currentAlloc?._id) && canViewRefunds,
+    enabled: Boolean(currentAlloc?._id) && canViewRefunds && activeTab === 'refunds',
   });
 
   const refunds: RefundRequest[] = (refundsData?.refunds || []).filter(item => referenceId(item.allocationId) === currentAlloc?._id);

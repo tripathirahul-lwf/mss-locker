@@ -12,6 +12,6 @@ export const updateRoleSchema = z.object({
       .array(z.string().refine((val) => ALL_PERMISSIONS.includes(val as any), {
         message: 'Invalid permission code provided',
       }))
-      .optional(),
-  }),
+      .max(200).optional(),
+  }).strict().refine(body => Object.keys(body).length > 0, 'At least one role field is required'),
 });

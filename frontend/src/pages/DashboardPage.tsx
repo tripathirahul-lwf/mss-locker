@@ -11,7 +11,7 @@ export function DashboardPage() {
   const canView = hasPermission('lockers.view');
   const stats = useQuery({
     queryKey: ['locker-stats'], queryFn: () => lockerApi.getLockerStats(),
-    enabled: canView, staleTime: 15_000,
+    enabled: canView, staleTime: 60_000, refetchOnWindowFocus: false,
   });
   const data = stats.data;
   const metrics = [

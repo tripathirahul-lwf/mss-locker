@@ -68,13 +68,17 @@ export class LockerService {
   }
 
   private static async ledgerGroups() {
-    const today = this.ledgerDate();
-    const horizon = this.ledgerDate(new Date(Date.now() + 30 * 86400000));
     const allocations = await LockerAllocation.find({ status: 'ACTIVE' })
       .select('lockerId customerId nextRenewalDueDate endDate startDate billingCycle paidThroughDate')
       .populate('customerId', 'kycStatus').lean();
     const invoices = await LockerInvoice.find({ invoiceType: 'RENEWAL', allocationId: { $in: allocations.map(a => a._id) }, status: { $ne: 'CANCELLED' }, balanceAmount: { $gt: 0 } })
       .select('lockerId dueDate').lean();
+    return this.classifyLedgerGroups(allocations, invoices);
+  }
+
+  private static classifyLedgerGroups(allocations: any[], invoices: any[]) {
+    const today = this.ledgerDate();
+    const horizon = this.ledgerDate(new Date(Date.now() + 30 * 86400000));
     const groups = { dueSoon: new Set<string>(), overdue: new Set<string>(), kycPending: new Set<string>(), kycDone: new Set<string>() };
     const activeIds = new Set(allocations.map(a => String(a.lockerId)));
     const classify = (id: string, value: unknown) => {
@@ -250,10 +254,10 @@ export class LockerService {
 
     const filter = await this.buildLockerFilter({ search, size, status, operationalStatus, rackNumber, section, isActive }, canViewSensitive);
 
-    const groups = await this.ledgerGroups();
-    const virtualIds = status === 'RENEWAL_DUE' ? new Set([...groups.dueSoon, ...groups.overdue])
-      : status === 'DUE_SOON' ? groups.dueSoon : status === 'OVERDUE' ? groups.overdue
-      : status === 'KYC_PENDING' ? groups.kycPending : status === 'KYC_DONE' ? groups.kycDone : undefined;
+    const groups = ['RENEWAL_DUE', 'DUE_SOON', 'OVERDUE', 'KYC_PENDING', 'KYC_DONE'].includes(status || '') ? await this.ledgerGroups() : undefined;
+    const virtualIds = status === 'RENEWAL_DUE' ? new Set([...groups!.dueSoon, ...groups!.overdue])
+      : status === 'DUE_SOON' ? groups!.dueSoon : status === 'OVERDUE' ? groups!.overdue
+      : status === 'KYC_PENDING' ? groups!.kycPending : status === 'KYC_DONE' ? groups!.kycDone : undefined;
     if (virtualIds) filter._id = { $in: [...virtualIds].map(id => new Types.ObjectId(id)) };
 
     const sortOptions: Record<string, 1 | -1> = {
@@ -296,7 +300,7 @@ export class LockerService {
         status: { $ne: 'CANCELLED' },
         balanceAmount: { $gt: 0 },
       })
-        .select('lockerId allocationId dueDate balanceAmount paymentStatus dueStatus').sort({ dueDate: 1 })
+        .select('lockerId allocationId invoiceType dueDate balanceAmount paymentStatus dueStatus').sort({ dueDate: 1 })
         .lean(),
     ]);
 
@@ -314,6 +318,7 @@ export class LockerService {
       }
     });
 
+    const pageGroups = groups ?? this.classifyLedgerGroups(activeAllocations, pendingInvoices.filter(invoice => invoice.invoiceType === 'RENEWAL' && String(invoice.allocationId) === String(allocMap.get(String(invoice.lockerId))?._id)));
     const enrichedLockers = (sanitizedLockers as any[]).map((l) => {
       const lockerIdStr = String(l._id);
       const alloc = allocMap.get(lockerIdStr);
@@ -324,8 +329,8 @@ export class LockerService {
       const base = typeof (l as any).toObject === 'function' ? (l as any).toObject() : l;
       return {
         ...base,
-        isRenewalDue: groups.dueSoon.has(lockerIdStr) || groups.overdue.has(lockerIdStr),
-        isOverdue: groups.overdue.has(lockerIdStr),
+        isRenewalDue: pageGroups.dueSoon.has(lockerIdStr) || pageGroups.overdue.has(lockerIdStr),
+        isOverdue: pageGroups.overdue.has(lockerIdStr),
         tenantKycStatus: alloc?.customerId?.kycStatus,
         tenantName: alloc?.customerId?.fullName,
         tenantCode: alloc?.customerId?.customerCode,
@@ -405,33 +410,22 @@ export class LockerService {
     if (subset) match._id = { $in: [...subset].map(id => new Types.ObjectId(id)) };
 
 
-    const [total, statusCounts, operationalCounts, sizeMatrix, availableCount] =
-      await Promise.all([
-        Locker.countDocuments(match),
-        Locker.aggregate([
-          { $match: match },
-          { $group: { _id: '$status', count: { $sum: 1 } } },
-        ]),
-        Locker.aggregate([
-          { $match: match },
-          { $group: { _id: '$operationalStatus', count: { $sum: 1 } } },
-        ]),
-        Locker.aggregate([
-          { $match: match },
-          {
-            $group: {
-              _id: { size: '$size', status: '$status' },
-              count: { $sum: 1 },
-            },
-          },
-        ]),
-        Locker.countDocuments({ ...match,
-          status: 'VACANT',
-          operationalStatus: 'ACTIVE',
-        }),
-      ]);
-
-    const matchedIds = new Set((await Locker.find(match).select('_id').lean()).map(l => String(l._id)));
+    const [facets] = await Locker.aggregate([
+      { $match: match },
+      { $facet: {
+        total: [{ $count: 'count' }],
+        statusCounts: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+        operationalCounts: [{ $group: { _id: '$operationalStatus', count: { $sum: 1 } } }],
+        sizeMatrix: [{ $group: { _id: { size: '$size', status: '$status' }, count: { $sum: 1 } } }],
+        available: [{ $match: { status: 'VACANT', operationalStatus: 'ACTIVE' } }, { $count: 'count' }],
+        ids: [{ $project: { _id: 1 } }],
+      } },
+    ]);
+    const total = facets.total[0]?.count || 0, availableCount = facets.available[0]?.count || 0;
+    const statusCounts: Array<{_id: string; count: number}> = facets.statusCounts;
+    const operationalCounts: Array<{_id: string; count: number}> = facets.operationalCounts;
+    const sizeMatrix: Array<{_id: {size: string; status: string}; count: number}> = facets.sizeMatrix;
+    const matchedIds = new Set<string>(facets.ids.map((item: {_id: Types.ObjectId}) => String(item._id)));
     const countGroup = (ids: Set<string>) => [...ids].filter(id => matchedIds.has(id)).length;
     const renewalDueCount = countGroup(new Set([...groups.dueSoon, ...groups.overdue]));
 

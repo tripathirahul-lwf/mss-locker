@@ -61,6 +61,10 @@ export class UserService {
     return { user: actor, superAdmin: actor.role.code === SYSTEM_ROLE_CODES.SUPER_ADMIN, permissions };
   }
 
+  private static requireAction(actor: Awaited<ReturnType<typeof UserService.actor>>, permission: string) {
+    if (!actor.superAdmin && !actor.permissions.has(permission as any)) this.fail('Permission required: ' + permission);
+  }
+
   private static canManage(actor: Awaited<ReturnType<typeof UserService.actor>>, role: IRole, grants: string[] = []) {
     if (actor.superAdmin) return true;
     return role.code !== SYSTEM_ROLE_CODES.SUPER_ADMIN && [...role.permissions, ...grants].every(p => actor.permissions.has(p));
@@ -189,6 +193,7 @@ export class UserService {
   }
   private static async createUserTransaction(params: CreateUserParams, session: ClientSession) {
     const actor = await this.actor(params.actorUserId, true);
+    this.requireAction(actor, PERMISSIONS.USERS_CREATE);
     const normalizedEmail = params.email.trim().toLowerCase();
     const normalizedUsername = params.username.trim().toLowerCase();
 
@@ -262,6 +267,8 @@ export class UserService {
   }
   private static async updateUserTransaction(params: UpdateUserParams, session: ClientSession) {
     const actor = await this.actor(params.actorUserId, true);
+    const profileChange = params.name !== undefined || params.phone !== undefined || params.roleId !== undefined || params.permissionsOverride !== undefined;
+    this.requireAction(actor, profileChange ? PERMISSIONS.USERS_UPDATE : PERMISSIONS.USERS_DEACTIVATE);
     const user = await User.findById(params.userId).populate<{ role: IRole }>('role');
     if (!user) {
       this.fail('User not found', 404);
@@ -354,6 +361,7 @@ export class UserService {
   }
   private static async resetPasswordTransaction(userId: string, newPass: string, actorUserId: string, actorUsername: string, isActorSuperAdmin: boolean, session: ClientSession, ipAddress?: string, userAgent?: string) {
     const actor = await this.actor(actorUserId, true);
+    this.requireAction(actor, PERMISSIONS.USERS_RESET_PASSWORD);
     const user = await User.findById(userId).populate<{ role: IRole }>('role');
     if (!user) {
       this.fail('User not found', 404);

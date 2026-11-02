@@ -19,6 +19,18 @@ test('invoice uses recorded zero GST and same-page profile/matrix with contained
   await expect(modal.getByText(/GST 18%/)).toHaveCount(0); await expect(modal).not.toContainText('SAC 997212');
   await modal.getByRole('button', { name: 'Profile', exact: true }).click();
   const profile = page.getByRole('dialog', { name: 'Customer Profile', exact: true }); await expect(profile).toBeVisible();
+  await profile.getByRole('button',{name:'KYC documents',exact:true}).click();
+  const kyc=page.getByRole('dialog',{name:'KYC & ID documents',exact:true});await expect(kyc).toBeVisible();
+  await expect(page.getByRole('dialog',{name:'Invoice customer KYC',exact:true})).toHaveCount(0);
+  await kyc.getByLabel('KYC document file',{exact:true}).setInputFiles({name:'invoice-kyc.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6lWQAAAAASUVORK5CYII=','base64')});
+  await expect(kyc).toContainText('uploaded successfully');
+  await kyc.getByRole('group').filter({hasText:'invoice-kyc.png'}).getByRole('button',{name:'Delete',exact:true}).click();
+  const deleteKyc=page.getByRole('alertdialog',{name:'Delete KYC document?',exact:true});await expect(deleteKyc).toBeVisible();
+  await deleteKyc.getByRole('button',{name:'Delete document',exact:true}).click();await expect(deleteKyc).toHaveCount(0);
+
+  await kyc.getByRole('button',{name:'Close',exact:true}).click();await expect(kyc).toHaveCount(0);await expect(modal).toBeVisible();
+  await modal.getByRole('button',{name:'Profile',exact:true}).click();await expect(profile).toBeVisible();
+
   await profile.getByRole('button', { name: 'Edit customer', exact: true }).click();
   const form = page.getByRole('dialog', { name: /Edit Customer/ }); await expect(form).toBeVisible();
   await form.locator('#customer-email').click(); await page.keyboard.press('Escape'); await expect(profile).toBeVisible();

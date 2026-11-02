@@ -8,6 +8,7 @@ import { PERMISSIONS } from '../constants/permissions';
 const router = Router();
 
 router.use(authenticate);
+router.use((_req,res,next)=>{res.setHeader('Cache-Control','private, no-store');next();});
 
 router.get(
   '/',
@@ -18,6 +19,7 @@ router.get(
 router.get(
   '/:id',
   requirePermission(PERMISSIONS.ROLES_VIEW),
+  validateRequest(updateRoleSchema.pick({ params: true })),
   RoleController.getRoleById
 );
 

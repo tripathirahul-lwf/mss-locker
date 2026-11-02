@@ -24,7 +24,7 @@ export const createUserSchema = z.object({
       .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
       .regex(/[0-9]/, 'Password must contain at least one number').refine(value => Buffer.byteLength(value, 'utf8') <= 72, 'Password cannot exceed 72 bytes'),
     status: z.enum(['ACTIVE', 'INACTIVE', 'LOCKED']).default('ACTIVE'),
-  }),
+  }).strict(),
 });
 
 export const updateUserSchema = z.object({
@@ -40,7 +40,7 @@ export const updateUserSchema = z.object({
       .object({
         grant: z.array(z.enum(ALL_PERMISSIONS as [string, ...string[]])).max(200).optional(),
         revoke: z.array(z.enum(ALL_PERMISSIONS as [string, ...string[]])).max(200).optional(),
-      })
+      }).strict()
       .optional(),
   }).strict().refine(body => Object.keys(body).length > 0, 'At least one profile field is required'),
 });
@@ -56,7 +56,7 @@ export const resetUserPasswordSchema = z.object({
       .regex(/[A-Z]/, 'New password must contain at least one uppercase letter')
       .regex(/[a-z]/, 'New password must contain at least one lowercase letter')
       .regex(/[0-9]/, 'New password must contain at least one number').refine(value => Buffer.byteLength(value, 'utf8') <= 72, 'Password cannot exceed 72 bytes'),
-  }),
+  }).strict(),
 });
 
 export const queryUsersSchema = z.object({

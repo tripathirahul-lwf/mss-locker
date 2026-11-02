@@ -1,5 +1,5 @@
 import { ClosedLockerRecords } from './ClosedLockerRecords';
-import { useState,useEffect,useRef,useImperativeHandle,forwardRef,useMemo,useCallback } from 'react';
+import { lazy,Suspense,useState,useEffect,useRef,useImperativeHandle,forwardRef,useMemo,useCallback } from 'react';
 import { useQuery,useQueryClient,keepPreviousData } from '@tanstack/react-query';
 import { useNavigate,useSearchParams } from 'react-router-dom';
 import {
@@ -26,9 +26,10 @@ import { LOCKER_SIZES } from '../constants';
 import { LockerModernCard } from './LockerModernCard';
 import { LockerTable } from './LockerTable';
 import { LockerVaultGrid } from './LockerVaultGrid';
-import { LockerDetailModal } from './LockerDetailModal';
-import { LockerFormModal } from './LockerFormModal';
-import { AllocationWizardModal } from '../../allocations/components/AllocationWizardModal';
+const LockerCardKycModal = lazy(() => import('./LockerCardKycModal').then(module => ({default: module.LockerCardKycModal})));
+const LockerDetailModal = lazy(() => import('./LockerDetailModal').then(module => ({default: module.LockerDetailModal})));
+const LockerFormModal = lazy(() => import('./LockerFormModal').then(module => ({default: module.LockerFormModal})));
+const AllocationWizardModal = lazy(() => import('../../allocations/components/AllocationWizardModal').then(module => ({default: module.AllocationWizardModal})));
 import { CreateAllocationInput,ReserveLockerInput } from '../../allocations/types';
 import { CreateLockerInput,UpdateLockerInput } from '../types';
 import { allocationApi } from '../../allocations/api/allocationApi';
@@ -54,6 +55,9 @@ export const DashboardLockersSection = forwardRef<
   const queryClient = useQueryClient();
   const sectionRef = useRef<HTMLDivElement>(null);
 
+  const canViewKyc=usePermission('customers.kyc.view');
+  const canViewAllocations=usePermission('allocations.view');
+  const detailRequest=useRef(0);
   const canAllocate = usePermission('allocations.create');
 
   // Filter & Pagination State initialized from URL query params or localStorage
@@ -155,6 +159,7 @@ export const DashboardLockersSection = forwardRef<
 
   // Modals state
   const [detailTab, setDetailTab] = useState<'details' | 'kyc'>('details');
+  const [kycLocker,setKycLocker]=useState<Locker|null>(null);
   const [viewingLocker, setViewingLocker] = useState<Locker | null>(null);
   const [allocatingLocker, setAllocatingLocker] = useState<Locker | null>(null);
   const [editingLocker, setEditingLocker] = useState<Locker | null>(null);
@@ -276,18 +281,19 @@ export const DashboardLockersSection = forwardRef<
     });
 
   const handleViewLocker = useCallback(async (locker: Locker) => {
+    const request=++detailRequest.current;
     setDetailTab('details');
     setDetailError(null);
     if (locker.status === 'VACANT' && locker.operationalStatus === 'ACTIVE' && locker.isActive && canAllocate) {
       setAllocatingLocker(locker);
       return;
     }
-    try { setViewingLocker(await loadLockerDetail(locker)); }
-    catch { setDetailError('Locker details could not be loaded. Please try again.'); }
+    try { const loaded=await loadLockerDetail(locker);if(request===detailRequest.current)setViewingLocker(loaded); }
+    catch { if(request===detailRequest.current)setDetailError('Locker details could not be loaded. Please try again.'); }
   }, [canAllocate, queryClient]);
 
   const handleAllocateLocker = useCallback((locker: Locker) => {
-    setAllocatingLocker(locker);
+    detailRequest.current++;setAllocatingLocker(locker);
   }, []);
 
   const handleAllocationSubmit = async (data: CreateAllocationInput | ReserveLockerInput) => {
@@ -709,11 +715,7 @@ export const DashboardLockersSection = forwardRef<
                   key={locker._id}
                   locker={locker}
                   onView={handleViewLocker}
-                  onKyc={async locker => {
-                    setDetailError(null);
-                    try { setDetailTab('kyc'); setViewingLocker(await loadLockerDetail(locker)); }
-                    catch { setDetailError('KYC details could not be loaded. Please try again.'); }
-                  }}
+                  onKyc={canViewKyc && canViewAllocations ? locker => {detailRequest.current++;setKycLocker(locker);} : undefined}
                   onAllocate={handleAllocateLocker}
                   canAllocate={canAllocate}
                 />
@@ -811,6 +813,8 @@ export const DashboardLockersSection = forwardRef<
         />
       )}
 
+      <Suspense fallback={<div role="status" className="fixed bottom-4 right-4 z-[150] rounded-xl bg-white p-4 shadow-lg">Loading locker tools...</div>}>
+      {kycLocker && <LockerCardKycModal lockerId={kycLocker._id} onClose={() => setKycLocker(null)}/>}
       {/* Locker Detail Dossier Modal */}
       {viewingLocker && (
         <LockerDetailModal
@@ -848,6 +852,7 @@ export const DashboardLockersSection = forwardRef<
           isSubmitting={isSubmittingAction}
         />
       )}
+      </Suspense>
     </section>
   );
 });

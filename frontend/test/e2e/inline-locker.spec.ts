@@ -41,3 +41,24 @@ test('KYC popup contains focus and Escape returns to locker before closing the d
  await page.keyboard.press('Escape');await expect(popup).toHaveCount(0);await expect(locker).toBeVisible();expect(await page.evaluate(()=>document.body.style.overflow)).toBe('hidden');
  await page.keyboard.press('Escape');await expect(locker).toHaveCount(0);expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden');
 });
+
+test('locker card KYC opens only the dedicated popup without billing requests',async({page})=>{
+ const unrelated:string[]=[];page.on('request',request=>{if(/\/api\/(renewals\/locker|payments\/locker|deposits\/allocation|refunds\?)/.test(request.url()))unrelated.push(request.url());});
+ await page.goto('/login');await page.getByLabel('Username or Email').fill('browser-test');await page.getByLabel('Password',{exact:true}).fill('BrowserTest123!');await page.getByRole('button',{name:/Sign In/}).click();
+ const card=page.getByRole('button',{name:'Open locker 77',exact:true});const entry=card.getByRole('button',{name:/KYC/});await entry.click();
+ const popup=page.getByRole('dialog',{name:'KYC & ID documents',exact:true});await expect(popup).toBeVisible();await expect(popup).toContainText('Reference Customer');
+ await expect(page.getByRole('dialog')).toHaveCount(1);expect(unrelated).toHaveLength(0);
+ await popup.getByLabel('KYC document file',{exact:true}).setInputFiles({name:'direct-kyc.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6lWQAAAAASUVORK5CYII=','base64')});
+ await expect(popup).toContainText('uploaded successfully');
+ await popup.getByRole('button',{name:'Close',exact:true}).click();await expect(popup).toHaveCount(0);await expect(entry).toBeFocused();expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden');
+});
+
+test('late dossier response does not replace the selected KYC popup',async({page})=>{
+ let release!:()=>void,finished=false;const wait=new Promise<void>(resolve=>{release=resolve;});
+ await page.route(/\/api\/lockers\/[a-f0-9]{24}$/,async route=>{const response=await route.fetch();await wait;await route.fulfill({response});finished=true;});
+ await page.goto('/login');await page.getByLabel('Username or Email').fill('browser-test');await page.getByLabel('Password',{exact:true}).fill('BrowserTest123!');await page.getByRole('button',{name:/Sign In/}).click();
+ const card=page.getByRole('button',{name:'Open locker 77',exact:true});await card.press('Enter');await card.getByRole('button',{name:/KYC/}).press('Enter');
+ const popup=page.getByRole('dialog',{name:'KYC & ID documents',exact:true});await expect(popup).toBeVisible();release();await expect.poll(()=>finished).toBe(true);
+ await expect(page.getByRole('dialog')).toHaveCount(1);await expect(page.getByRole('dialog',{name:'Locker #77',exact:true})).toHaveCount(0);
+ await page.keyboard.press('Escape');await expect(popup).toHaveCount(0);
+});

@@ -69,6 +69,7 @@ export class RoleService {
     function fail(message: string, statusCode = 403): never { throw Object.assign(new Error(message), { statusCode }); }
     const actor = await User.findById(actorUserId).populate<{ role: IRole }>('role');
     if (!actor || actor.status !== 'ACTIVE' || actor.role?.status !== 'ACTIVE') fail('Active operator required');
+    await User.updateOne({_id:actor!._id},{$inc:{__v:1}});
     const superAdmin = actor!.role.code === SYSTEM_ROLE_CODES.SUPER_ADMIN;
     const ownPermissions = new Set<string>(actor!.role.permissions);
     actor!.permissionsOverride?.grant?.forEach(p => ownPermissions.add(p));

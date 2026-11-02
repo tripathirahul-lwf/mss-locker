@@ -18,7 +18,7 @@ import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
 import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 import { LockerCustomerProfileModal } from '../../lockers/components/LockerCustomerProfileModal';
-import { LockerKycPanel } from '../../lockers/components/LockerKycPanel';
+import { LockerKycModal } from '../../lockers/components/LockerKycModal';
 import { customerApi } from '../../customers/api/customerApi';
 
 import { useQuery,useQueryClient } from '@tanstack/react-query';
@@ -102,6 +102,7 @@ export function InvoiceDetailModal({
   const details = useQuery({ queryKey: ['invoice-detail', invoice._id], queryFn: () => renewalApi.getInvoiceById(invoice._id), staleTime: 0 });
   useEffect(() => { if (details.data) setCurrentInvoice(details.data); }, [details.data]);
   useEffect(() => { setCurrentInvoice(invoice); setIsEditingPeriod(false); }, [invoice._id]);
+  const [kycBusy,setKycBusy]=useState(false);
   const [context, setContext] = useState<'profile' | 'matrix' | 'kyc' | null>(null);
   const [actionError, setActionError] = useState('');
   const busyRef = useRef(false);
@@ -745,9 +746,9 @@ export function InvoiceDetailModal({
         {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
       </ConfirmationModal>
       {context === 'profile' && customer?._id && <LockerCustomerProfileModal layer={130} customerId={customer._id} onClose={() => setContext(null)} onKyc={canViewKyc ? () => setContext('kyc') : undefined} onInvoices={() => setContext(null)} />}
-      {(context === 'matrix' || context === 'kyc') && <InvoiceContextDialog title={context === 'matrix' ? 'Locker location' : 'Invoice customer KYC'} onClose={() => setContext(null)}>
-        {context === 'matrix' ? <dl className="grid grid-cols-2 gap-3">{[['Locker', locker?.lockerNumber], ['Size', locker?.size], ['Rack', locker?.rackNumber], ['Section', locker?.section], ['Floor', locker?.floor]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><dt>{label}</dt><dd className="font-semibold">{value || 'Not recorded'}</dd></div>)}</dl> : customer?._id && <LockerKycPanel customerId={customer._id} customerName={customer.fullName} customerCode={customer.customerCode} documents={kycDocs} loading={kycLoading} failed={kycError} onRetry={() => void retryKyc()} />}
-      </InvoiceContextDialog>}
+      {context === 'matrix' && <InvoiceContextDialog title="Locker location" onClose={() => setContext(null)}><dl className="grid grid-cols-2 gap-3">{[['Locker', locker?.lockerNumber], ['Size', locker?.size], ['Rack', locker?.rackNumber], ['Section', locker?.section], ['Floor', locker?.floor]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><dt>{label}</dt><dd className="font-semibold">{value || 'Not recorded'}</dd></div>)}</dl></InvoiceContextDialog>}
+      {context === 'kyc' && canViewKyc && customer?._id && <LockerKycModal layer={130} busy={kycBusy} onBusyChange={setKycBusy} onClose={()=>{if(!kycBusy)setContext(null);}} customerId={customer._id} customerName={customer.fullName} customerCode={customer.customerCode} documents={kycDocs} loading={kycLoading} failed={kycError} onRetry={()=>void retryKyc()}/>}
+
 
     </div>
   );

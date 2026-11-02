@@ -648,6 +648,27 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     return { admin, target, adminToken, staffRole, superRole };
   }
 
+  it('staff services recheck action permissions instead of trusting caller flags',async()=>{
+    const {target,staffRole}=await staffFixture();
+    const actor={actorUserId:String(target._id),actorUsername:target.username,isActorSuperAdmin:true};
+    await expect(UserService.createUser({...actor,name:'Forbidden Staff',username:'forbidden-staff',email:'forbidden@example.test',password:'Forbidden123!',roleId:String(staffRole._id)})).rejects.toMatchObject({statusCode:403});
+    await expect(UserService.updateUser({...actor,userId:String(target._id),name:'Forbidden update'})).rejects.toMatchObject({statusCode:403});
+    await expect(UserService.resetPassword(String(target._id),'Forbidden123!',String(target._id),target.username,true)).rejects.toMatchObject({statusCode:403});
+    expect(await User.countDocuments()).toBe(2);
+  });
+
+  it('staff and role APIs reject unknown fields, invalid IDs and missing authentication',async()=>{
+    const {adminToken,target,staffRole}=await staffFixture();
+    expect((await request(app).get('/api/users')).status).toBe(401);
+    expect((await request(app).get('/api/roles')).status).toBe(401);
+    expect((await request(app).get('/api/roles/invalid').set('Authorization',`Bearer ${adminToken}`)).status).toBe(400);
+    const role=await request(app).get('/api/roles').set('Authorization',`Bearer ${adminToken}`);
+    expect(role.headers['cache-control']).toContain('no-store');
+    const create=await request(app).post('/api/users').set('Authorization',`Bearer ${adminToken}`).send({name:'Unknown Field',username:'unknown-field',email:'unknown@example.test',password:'Unknown123!',roleId:String(staffRole._id),isSuperAdmin:true});expect(create.status).toBe(400);
+    expect((await request(app).post(`/api/users/${target._id}/reset-password`).set('Authorization',`Bearer ${adminToken}`).send({newPassword:'Unknown123!',roleId:String(staffRole._id)})).status).toBe(400);
+    for(const body of [{},{name:'Counter Staff',isSuperAdmin:true}]) expect((await request(app).patch(`/api/roles/${staffRole._id}`).set('Authorization',`Bearer ${adminToken}`).send(body)).status).toBe(400);
+  });
+
   it('staff summaries cover all matching pages and unknown roles never remove the filter', async () => {
     const { staffRole, adminToken } = await staffFixture();
     await User.insertMany(Array.from({ length: 18 }, (_, i) => ({ name: `Staff Fixture ${i}`, username: `staff-fixture-${i}`, email: `staff-fixture-${i}@example.test`, passwordHash: 'unused', role: staffRole._id, status: i < 14 ? 'ACTIVE' : i < 16 ? 'LOCKED' : 'INACTIVE' })));
@@ -1184,6 +1205,21 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     const allocation=(await LockerAllocation.findById(saved.allocation!._id))!;
     return renewalCollectionSchema.parse({requestId:randomUUID(),allocationId:String(allocation._id),expectedRenewalDate:allocation.nextRenewalDueDate!.toISOString().slice(0,10),nextRenewalDueDate:'2030-01-01',billingCycle:'ANNUAL',amount:1180,receiptNumber:`RENEW-${number}`,receiptDate:'2026-11-01',cashReceived:true});
   }
+  it('paginated locker lookup stays page-scoped and stats use one locker aggregation',async()=>{
+    await renewalCollectionFixture('985');
+    const allocations=vi.spyOn(LockerAllocation,'find');
+    const list=await LockerService.getLockers(lockerQuerySchema.parse({compact:'true',limit:'1'}));
+    expect(list.lockers).toHaveLength(1);
+    expect(allocations.mock.calls.length).toBeGreaterThan(0);
+    expect(allocations.mock.calls.every(call=>Boolean((call[0] as any)?.lockerId?.$in))).toBe(true);
+    allocations.mockRestore();
+    const aggregate=vi.spyOn(Locker,'aggregate'),count=vi.spyOn(Locker,'countDocuments');
+    const stats=await LockerService.getLockerStats();
+    expect(stats.total).toBe(1);expect(stats.occupied).toBe(1);
+    expect(aggregate).toHaveBeenCalledTimes(1);expect(count).not.toHaveBeenCalled();
+    aggregate.mockRestore();count.mockRestore();
+  });
+
   it('renewal collection atomically saves one paid bill and receipt, advances coverage and does not collect deposit again',async()=>{
     const input=await renewalCollectionFixture('980');
     const deposits=await DepositTransaction.countDocuments();
