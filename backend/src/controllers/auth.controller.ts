@@ -27,7 +27,7 @@ const clearRefreshCookie = (res: Response): void => {
 };
 
 export class AuthController {
-  static async login(req: Request, res: Response, _next: NextFunction): Promise<void> {
+  static async login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { identifier, password } = req.body;
       const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
@@ -53,15 +53,21 @@ export class AuthController {
       let statusCode = 401;
       let userFriendlyMessage = 'Incorrect username, email, or password. Please verify your credentials.';
 
-      if (msg.includes('temporarily locked')) {
+      if (/locked/i.test(msg)) {
         statusCode = 423;
         userFriendlyMessage = msg;
       } else if (msg.includes('deactivated') || msg.includes('inactive')) {
         statusCode = 403;
         userFriendlyMessage = 'This account has been deactivated. Please contact your system administrator.';
-      } else if (msg.includes('Database') || msg.includes('MongoDB') || msg.includes('unavailable')) {
+      } else if (msg.includes('Assigned role is unavailable')) {
+        statusCode = 403;
+        userFriendlyMessage = msg;
+      } else if (msg.includes('Database') || msg.includes('MongoDB')) {
         statusCode = 503;
         userFriendlyMessage = 'Database service is temporarily unreachable. Please try again in a moment.';
+      } else if (msg !== 'Invalid credentials') {
+        next(err);
+        return;
       }
 
       res.status(statusCode).json(errorResponse(userFriendlyMessage));
