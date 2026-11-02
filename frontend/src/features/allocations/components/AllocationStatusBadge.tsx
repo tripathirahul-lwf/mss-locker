@@ -1,4 +1,3 @@
-import React from 'react';
 import { AllocationStatus } from '../types';
 import { ALLOCATION_STATUS_CONFIG } from '../constants';
 

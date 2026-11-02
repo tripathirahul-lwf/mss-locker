@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, X, RotateCcw, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import React,{ useState,useEffect } from 'react';
+import { Search,Filter,X,RotateCcw,SlidersHorizontal,ChevronDown } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { CustomerQueryParams } from '../types';

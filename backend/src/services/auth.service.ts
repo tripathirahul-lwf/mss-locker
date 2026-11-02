@@ -4,15 +4,15 @@ import { User } from '../models/User';
 import { type IRole } from '../models/Role';
 import { Session } from '../models/Session';
 import { connectDatabase } from '../config/database';
-import { hashPassword, comparePassword } from '../utils/password';
+import { hashPassword,comparePassword } from '../utils/password';
 import {
-  generateAccessToken,
-  generateRefreshToken,
-  verifyRefreshToken,
-  hashRefreshToken,
+generateAccessToken,
+generateRefreshToken,
+verifyRefreshToken,
+hashRefreshToken,
 } from '../utils/jwt';
 import { recordAuditLog } from '../utils/auditLogger';
-import { SYSTEM_ROLE_CODES, PermissionCode } from '../constants/permissions';
+import { SYSTEM_ROLE_CODES,PermissionCode } from '../constants/permissions';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_TIME_MS = 15 * 60 * 1000; // 15 minutes

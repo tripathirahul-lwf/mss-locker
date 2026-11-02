@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose';
+import { Schema,model } from 'mongoose';
 
 interface ISequence { key: string; value: number }
 

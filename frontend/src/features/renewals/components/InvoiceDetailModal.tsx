@@ -1,29 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useState,useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  FileText,
-  KeyRound,
-  User,
-  Calendar,
-  IndianRupee,
-  Clock,
-  ShieldCheck,
-  Ban,
-  Printer,
-  Copy,
-  Check,
-  AlertTriangle,
-  Phone,
-  ExternalLink,
-  Receipt,
-  Layers,
-  Loader2,
-  Edit2,
-  Save,
+X,KeyRound,Calendar,
+IndianRupee,
+Clock,Ban,
+Printer,
+Copy,
+Check,
+AlertTriangle,Receipt,Loader2,
+Edit2,
+Save
 } from 'lucide-react';
 import { LockerInvoice } from '../types';
-import { PaymentStatusBadge, DueStatusBadge } from './RenewalStatusBadge';
+import { PaymentStatusBadge } from './RenewalStatusBadge';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
 import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
@@ -31,9 +21,9 @@ import { LockerCustomerProfileModal } from '../../lockers/components/LockerCusto
 import { LockerKycPanel } from '../../lockers/components/LockerKycPanel';
 import { customerApi } from '../../customers/api/customerApi';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { paymentApi } from '../../payments/api/paymentApi';
-import { PaymentMethodBadge, PaymentStatusBadge as TransactionStatusBadge } from '../../payments/components/PaymentMethodBadge';
+import { PaymentMethodBadge,PaymentStatusBadge as TransactionStatusBadge } from '../../payments/components/PaymentMethodBadge';
 import { renewalApi } from '../api/renewalApi';
 import { formatPhone } from '../../customers/utils/phoneFormatter';
 
@@ -86,6 +76,7 @@ interface InvoiceDetailModalProps {
     section?: string;
     floor?: string;
   };
+  paymentBlockedReason?: string;
   onClose: () => void;
   onCancelInvoice?: (invoice: LockerInvoice, reason: string) => Promise<void>;
   onRecordPayment?: (invoice: LockerInvoice) => void;
@@ -97,6 +88,7 @@ export function InvoiceDetailModal({
   onClose,
   onCancelInvoice,
   onRecordPayment,
+  paymentBlockedReason,
 }: InvoiceDetailModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -135,8 +127,8 @@ export function InvoiceDetailModal({
 
   stateRef.current = { child: Boolean(context || cancelModalOpen), busy: isSavingPeriod || isCancelling };
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null; const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden'; dialogRef.current?.focus();
+    const previous = document.activeElement as HTMLElement | null;
+    const releaseScroll = lockBodyScroll(); dialogRef.current?.focus();
     const handler = (event: KeyboardEvent) => {
       const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
       if (stateRef.current.child || dialogs[dialogs.length - 1] !== dialogRef.current) return;
@@ -150,7 +142,7 @@ export function InvoiceDetailModal({
       }
     };
     window.addEventListener('keydown', handler, true);
-    return () => { window.removeEventListener('keydown', handler, true); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus(); };
+    return () => { window.removeEventListener('keydown', handler, true); releaseScroll(); if (previous?.isConnected) previous.focus(); };
   }, []);
   const canEditPeriod = canCreate && !!details.data && !details.isError && currentInvoice.status !== 'CANCELLED';
 
@@ -328,6 +320,7 @@ export function InvoiceDetailModal({
           {details.isPending && <p role="status">Loading invoice details...</p>}
           {details.isError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-rose-800">Could not refresh invoice. Actions are disabled. <button onClick={() => details.refetch()} className="underline">Retry invoice</button></p>}
           {actionError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-rose-800">{actionError}</p>}
+          {paymentBlockedReason && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Payment is paused: {paymentBlockedReason}. Review the billing period before collecting money.</p>}
           {inconsistent && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-amber-950">Recorded invoice amounts do not reconcile. Review the ledger before collecting payment.</p>}
           {/* Banking Ledger Status Bar */}
           <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 flex items-center justify-between flex-wrap gap-3">
@@ -579,7 +572,7 @@ export function InvoiceDetailModal({
 
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between py-1 text-slate-600">
-                <span>Base Safe-Deposit Rent Tariff</span>
+                <span>{effectiveTax > 0 ? 'Rent before recorded tax' : 'Rent amount (as recorded)'}</span>
                 <span className="font-semibold text-slate-900 font-mono tabular-nums">
                   {invoiceMoney(effectiveBase)}
                 </span>
@@ -704,7 +697,7 @@ export function InvoiceDetailModal({
           </Button>
 
           <div className="flex flex-wrap items-center gap-2">
-            {!!details.data && !details.isError && !inconsistent && currentInvoice.balanceAmount > 0 && !['CANCELLED', 'DRAFT'].includes(currentInvoice.status) && canPay && onRecordPayment && (
+            {!!details.data && !details.isError && !inconsistent && !paymentBlockedReason && !isEditingPeriod && !isSavingPeriod && currentInvoice.balanceAmount > 0 && !['CANCELLED', 'DRAFT'].includes(currentInvoice.status) && canPay && onRecordPayment && (
               <Button
                 type="button"
                 size="sm"

@@ -1,11 +1,12 @@
-import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import { FormEvent,ReactNode,useEffect,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, RotateCw, ShieldCheck, Undo2, X } from 'lucide-react';
+import { Loader2,RotateCw,ShieldCheck,Undo2,X } from 'lucide-react';
 import { allocationApi } from '../../allocations/api/allocationApi';
 import { LockerAllocation } from '../../allocations/types';
-import { BillingCycle, GenerateRenewalInput } from '../types';
+import { BillingCycle,GenerateRenewalInput } from '../types';
 import { Button } from '../../../components/ui/button';
-import { ledgerDate, money } from '../../lockers/components/OccupiedLockerSummary';
+import { ledgerDate,money } from '../../lockers/components/OccupiedLockerSummary';
 
 const months: Record<BillingCycle, number> = { ANNUAL: 12, TRIENNIAL: 36, HALF_YEARLY: 6, QUARTERLY: 3, MONTHLY: 1, CUSTOM: 12 };
 const day = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString().slice(0, 10) : '';
@@ -44,8 +45,8 @@ export function GenerateRenewalModal({ preSelectedAllocation = null, onClose, on
   const busy = isSubmitting || saving;
   const live = useRef({ onClose, busy }); live.current = { onClose, busy };
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden'; dialog.current?.focus();
+    const previous = document.activeElement as HTMLElement | null;
+    const releaseScroll = lockBodyScroll(); dialog.current?.focus();
     const handler = (event: KeyboardEvent) => {
       if (Array.from(document.querySelectorAll('[role="dialog"]')).at(-1) !== dialog.current) return;
       if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); if (!live.current.busy) live.current.onClose(); }
@@ -57,7 +58,7 @@ export function GenerateRenewalModal({ preSelectedAllocation = null, onClose, on
       else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first.focus(); }
     };
     document.addEventListener('keydown', handler, true);
-    return () => { document.removeEventListener('keydown', handler, true); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus(); };
+    return () => { document.removeEventListener('keydown', handler, true); releaseScroll(); if (previous?.isConnected) previous.focus(); };
   }, []);
   useEffect(() => {
     if (selected) return;

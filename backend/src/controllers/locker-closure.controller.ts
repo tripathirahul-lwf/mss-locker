@@ -1,5 +1,5 @@
 import { serviceErrorStatus } from '../utils/serviceErrorStatus';
-import { Request, Response } from 'express';
+import { Request,Response } from 'express';
 import { lockerClosureService } from '../services/locker-closure.service';
 import { closureReadinessService } from '../services/closure-readiness.service';
 import { logger } from '../utils/logger';
@@ -77,7 +77,7 @@ export class LockerClosureController {
     }
   }
 
-  async getClosureStats(req: Request, res: Response): Promise<void> {
+  async getClosureStats(_req: Request, res: Response): Promise<void> {
     try {
       const stats = await lockerClosureService.getClosureStats();
       res.status(200).json({

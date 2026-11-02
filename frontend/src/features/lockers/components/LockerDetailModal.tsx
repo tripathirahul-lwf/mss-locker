@@ -1,4 +1,6 @@
-import { OccupiedLockerSummary, occupiedHealth, money, referenceId, ledgerDate } from './OccupiedLockerSummary';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import { LockerDepositModal } from './LockerDepositModal';
+import { OccupiedLockerSummary,occupiedHealth,money,referenceId } from './OccupiedLockerSummary';
 import { LockerCustomerProfileModal } from './LockerCustomerProfileModal';
 import { LockerClosureFlow } from './LockerClosureFlow';
 import { AllocationWizardModal } from '../../allocations/components/AllocationWizardModal';
@@ -8,54 +10,34 @@ import { CreateRefundModal } from '../../deposits/components/CreateRefundModal';
 import { RefundApprovalModal } from '../../deposits/components/RefundApprovalModal';
 import { RefundPaymentModal } from '../../deposits/components/RefundPaymentModal';
 import { LockerKycPanel } from './LockerKycPanel';
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { LockerKycModal } from './LockerKycModal';
+import { useEffect,useRef,useState,useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
 import {
-  X,
-  KeyRound,
-  Shield,
-  Layers,
-  MapPin,
-  IndianRupee,
-  Clock,
-  User,
-  ShieldAlert,
-  ShieldCheck,
-  CheckCircle2,
-  AlertTriangle,
-  Edit3,
-  Copy,
-  Check,
-  Calendar,
-  Eye,
-  EyeOff,
-  Plus,
-  ExternalLink,
-  Phone,
-  CreditCard,
-  RotateCw,
-  Receipt,
-  FileText,
-  FileCheck,
-  Download,
-  Trash2,
-  Undo2,
-  Inbox,
-  AlertCircle,
-  Building,
-  Lock,
-  Wrench,
-  Loader2,
+X,
+KeyRound,
+Shield,
+Layers,IndianRupee,
+Clock,CheckCircle2,
+AlertTriangle,
+Edit3,
+Copy,
+Check,Eye,
+EyeOff,CreditCard,Receipt,
+FileText,Trash2,Lock,
+Wrench,
+Loader2
 } from 'lucide-react';
-import { Locker } from '../types';
+import { Locker,UpdateLockerInput } from '../types';
+import { LockerFormModal } from './LockerFormModal';
 import { lockerApi } from '../api/lockerApi';
 import { allocationApi } from '../../allocations/api/allocationApi';
 import { LockerAllocation } from '../../allocations/types';
 import { renewalApi } from '../../renewals/api/renewalApi';
-import { LockerInvoice, GenerateRenewalInput } from '../../renewals/types';
+import { LockerInvoice } from '../../renewals/types';
 import { paymentApi } from '../../payments/api/paymentApi';
-import { Payment, RecordPaymentInput } from '../../payments/types';
+import { Payment } from '../../payments/types';
 import { customerApi } from '../../customers/api/customerApi';
 import { CustomerKycDocument } from '../../customers/types';
 import { depositApi } from '../../deposits/api/depositApi';
@@ -66,7 +48,7 @@ import { Button } from '../../../components/ui/button';
 import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 import { RecordPaymentModal } from '../../payments/components/RecordPaymentModal';
 import { PaymentReceiptModal } from '../../payments/components/PaymentReceiptModal';
-import { GenerateRenewalModal } from '../../renewals/components/GenerateRenewalModal';
+import { RenewLockerModal } from '../../renewals/components/RenewLockerModal';
 import { InvoiceDetailModal } from '../../renewals/components/InvoiceDetailModal';
 
 interface LockerDetailModalProps {
@@ -78,19 +60,22 @@ interface LockerDetailModalProps {
 }
 
 export function LockerDetailModal({
-  locker,
+  locker: initialLocker,
   initialTab = 'details',
   onClose,
-  onEdit,
   onAllocate,
 }: LockerDetailModalProps) {
   const queryClient = useQueryClient();
+  const [locker, setLocker] = useState(initialLocker);
+  useEffect(() => setLocker(initialLocker), [initialLocker]);
+  const [inlineEdit, setInlineEdit] = useState(false), [editSaving, setEditSaving] = useState(false), [kycBusy, setKycBusy] = useState(false);
+  const inlineCloseRequest = useRef<(() => void) | null>(null);
+
 
   const canUpdate = usePermission('lockers.update');
   const canViewSensitive = usePermission('lockers.view_sensitive');
   const canRecordPayment = usePermission('payments.create');
   const canGenerateRenewal = usePermission('renewals.create');
-  const canAllocate = usePermission('allocations.create');
   const canViewPayments = usePermission('payments.view');
   const canViewIdNumber = usePermission('customers.view_sensitive');
   const canViewAllocations = usePermission('allocations.view');
@@ -108,9 +93,6 @@ export function LockerDetailModal({
   const [activeTab, setActiveTab] = useState<'details' | 'receipts' | 'kyc' | 'refunds'>(initialTab);
   const [refundPage, setRefundPage] = useState(1);
   const [copiedKey, setCopiedKey] = useState(false);
-  const [copiedPhone, setCopiedPhone] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
-  const [copiedAllocCode, setCopiedAllocCode] = useState(false);
   const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -124,7 +106,7 @@ export function LockerDetailModal({
   const [isSavingKey, setIsSavingKey] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
-  const closeCallback = useRef(onClose); closeCallback.current = onClose;
+  const closeCallback = useRef(onClose); closeCallback.current = () => { if (editSaving || kycBusy) return; if (inlineEdit) { inlineCloseRequest.current?.(); return; } onClose(); };
   const sizeDefinition = LOCKER_SIZES.find((item) => item.code === locker.size);
 
   // Status flags
@@ -234,12 +216,12 @@ export function LockerDetailModal({
   // Child Modals State
   const [recordingPaymentInvoiceId, setRecordingPaymentInvoiceId] = useState<string | null>(null);
   const [renewingAllocation, setRenewingAllocation] = useState<LockerAllocation | null>(null);
-  const [isSubmittingRenewal, setIsSubmittingRenewal] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<LockerInvoice | null>(null);
   const [viewingReceiptPayment, setViewingReceiptPayment] = useState<Payment | null>(null);
 
   const hasChildModal = useRef(false);
-  hasChildModal.current = Boolean(profileOpen || closureOpen || allocationOpen || depositAction || approvingRefund || payingRefund || recordingPaymentInvoiceId || renewingAllocation || viewingInvoice || viewingReceiptPayment || confirmVacantOpen || confirmRepairedOpen);
+  hasChildModal.current = Boolean(isOccupied && activeTab === 'kyc' && canViewKyc || inlineEdit || activeTab === 'refunds' || profileOpen || closureOpen || allocationOpen || depositAction || approvingRefund || payingRefund || recordingPaymentInvoiceId || renewingAllocation || viewingInvoice || viewingReceiptPayment || confirmVacantOpen || confirmRepairedOpen);
+
 
   // Mark Vacant Mutation (For closed / decommissioned lockers)
   const markVacantMutation = useMutation({
@@ -308,7 +290,7 @@ export function LockerDetailModal({
   // Only the top dialog handles keyboard events; closing an invoice must not close the locker beneath it.
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (hasChildModal.current) return;
       const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
@@ -322,12 +304,12 @@ export function LockerDetailModal({
         else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
       }
     };
-    const frame = requestAnimationFrame(() => dialogRef.current?.focus());
-    document.body.style.overflow = 'hidden';
+    const frame = requestAnimationFrame(() => { if (!hasChildModal.current) dialogRef.current?.focus(); });
+    const releaseScroll = lockBodyScroll();
     window.addEventListener('keydown', onKeyDown);
     return () => {
       cancelAnimationFrame(frame);
-      document.body.style.overflow = previousOverflow;
+      releaseScroll();
       window.removeEventListener('keydown', onKeyDown);
       if (previousFocus?.isConnected) previousFocus.focus();
     };
@@ -343,36 +325,12 @@ export function LockerDetailModal({
   };
 
   // Copy Phone Number
-  const handleCopyPhone = (phone: string) => {
-    navigator.clipboard.writeText(phone);
-    setCopiedPhone(true);
-    setTimeout(() => setCopiedPhone(false), 2000);
-  };
 
   // Copy Customer Code
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
 
   // Copy Allocation Code
-  const handleCopyAllocCode = (allocCode: string) => {
-    navigator.clipboard.writeText(allocCode);
-    setCopiedAllocCode(true);
-    setTimeout(() => setCopiedAllocCode(false), 2000);
-  };
 
   // Consistent Date Formatter
-  const formatDate = (dateStr?: string | Date) => {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'Asia/Kolkata',
-    });
-  };
 
   const formatRackTitle = (rack?: string) => {
     if (!rack) return 'Vault Matrix';
@@ -415,7 +373,7 @@ export function LockerDetailModal({
       : Math.round(totalAnnualRent / 1.18 * 100) / 100;
   const gstAmount = Math.max(0, Math.round((totalAnnualRent - baseRent) * 100) / 100);
   const deposit = currentAlloc?.depositSnapshot ?? locker.securityDeposit ?? sizeDefinition?.defaultDeposit ?? 0;
-  const depositValid = !!depositSummary && depositSummary.allocationId === currentAlloc?._id && [depositSummary.requiredDeposit, depositSummary.totalDepositReceived, depositSummary.totalAddAdjustments, depositSummary.totalDeductAdjustments, depositSummary.totalRefunded, depositSummary.netDepositHeld, depositSummary.pendingRefundAmount, depositSummary.availableRefundableBalance, depositSummary.outstandingDeposit].every(value => Number.isFinite(value) && value >= 0) && depositSummary.pendingRefundAmount <= depositSummary.netDepositHeld + .001 && Math.abs(depositSummary.totalDepositReceived + depositSummary.totalAddAdjustments - depositSummary.totalDeductAdjustments - depositSummary.totalRefunded - depositSummary.netDepositHeld) < .011;
+  const depositValid = !!depositSummary && depositSummary.allocationId === currentAlloc?._id && [depositSummary.requiredDeposit, depositSummary.totalDepositReceived, depositSummary.totalAddAdjustments, depositSummary.totalDeductAdjustments, depositSummary.totalRefunded, depositSummary.netDepositHeld, depositSummary.pendingRefundAmount, depositSummary.availableRefundableBalance, depositSummary.outstandingDeposit].every(value => Number.isFinite(value) && value >= 0) && depositSummary.pendingRefundAmount <= depositSummary.netDepositHeld + .001 && Math.abs(depositSummary.availableRefundableBalance - (depositSummary.netDepositHeld - depositSummary.pendingRefundAmount)) < .011 && Math.abs(depositSummary.totalDepositReceived + depositSummary.totalAddAdjustments - depositSummary.totalDeductAdjustments - depositSummary.totalRefunded - depositSummary.netDepositHeld) < .011;
   const depositReady = depositValid && !depositError && !depositFetching;
   const depositLabel = !currentAlloc && isOccupied ? !canViewAllocations ? 'Restricted' : allocationError ? 'Unavailable' : allocationLoading ? 'Loading...' : 'No active allotment' : currentAlloc ? !canViewDeposits ? 'Restricted' : depositError || depositSummary && !depositValid ? 'Unavailable' : depositSummary ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(depositSummary.netDepositHeld) : 'Loading...' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(deposit);
   const totalMoveInPayable = totalAnnualRent + deposit;
@@ -430,6 +388,16 @@ export function LockerDetailModal({
   const identityDoc = [...kycDocs].filter(doc => doc.isActive !== false && doc.documentNumber?.trim() && !/^(kyc[\s_-]*(document|scan[\s_-]*attached)|attachment|document)$/i.test(doc.documentNumber.trim())).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))[0];
   const identityKey = identityDoc ? `${tenantId}:${identityDoc._id}:${identityDoc.documentNumber}` : null;
   const identityRevealed = Boolean(identityKey && revealedIdentityKey === identityKey);
+
+  const editPopup = inlineEdit ? <LockerFormModal locker={locker} closeRequestRef={inlineCloseRequest} onClose={() => setInlineEdit(false)} isSubmitting={editSaving} onSubmit={async data => {
+                    setEditSaving(true);
+                    try {
+                      const saved = await lockerApi.updateLocker(locker._id, data as UpdateLockerInput);
+                      setLocker(saved); setInlineEdit(false); setNotice('Locker details saved.');
+                      for (const key of [['lockers'], ['locker', locker._id], ['locker-stats'], ['locker-edit', locker._id]]) void queryClient.invalidateQueries({ queryKey: key });
+                    } finally { setEditSaving(false); }
+                  }} />
+                : null;
 
   const modalContent = (
     <div className="fixed inset-0 z-[100] flex h-[100dvh] w-screen items-center justify-center bg-slate-950/70 p-3 sm:p-5 backdrop-blur-xs animate-in fade-in-0 duration-150 overflow-y-auto font-sans">
@@ -463,11 +431,11 @@ export function LockerDetailModal({
         )}
 
         {isOccupied ? <div className="shrink-0 bg-white px-5 pb-3 pt-5 sm:px-8 sm:pt-7">
-          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 id="locker-dossier-title" aria-label={`Locker #${locker.lockerNumber}`} className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Locker {locker.lockerNumber}</h2>
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 id="locker-dossier-title" aria-label={`Locker #${locker.lockerNumber}`} className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Locker {locker.lockerNumber}</h2>
             <p className="mt-2 break-words text-sm text-slate-600 sm:text-base">Size {locker.size} &bull; {formatRackTitle(locker.rackNumber)} &bull; Key {canViewSensitive ? locker.masterKeyReference || 'Not assigned' : 'Restricted'}</p></div>
             <div className="flex flex-wrap justify-end gap-2"><span aria-label="Payment and renewal status" className={`rounded-full px-3 py-1.5 text-xs font-bold sm:text-sm ${health.style}`}>{health.label}</span>
-            {canUpdate && onEdit && <button type="button" aria-label="Edit" onClick={() => { onClose(); onEdit(locker); }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Edit3 className="h-4 w-4" /></button>}
-            <button type="button" onClick={onClose} aria-label="Close modal" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+            {canUpdate && <button type="button" aria-label="Edit" aria-expanded={inlineEdit} disabled={editSaving || kycBusy} onClick={() => { if (inlineEdit) inlineCloseRequest.current?.(); else { setActiveTab('details'); setInlineEdit(true); } }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Edit3 className="h-4 w-4" /></button>}
+            <button type="button" onClick={() => closeCallback.current()} disabled={editSaving || kycBusy} aria-label="Close modal" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
           </div>
         </div> : <>        {/* 1. Refined Bank Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-white border-b border-slate-200/90">
@@ -516,12 +484,12 @@ export function LockerDetailModal({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {canUpdate && onEdit && (
+            {canUpdate && (
               <button
                 type="button"
                 onClick={() => {
-                  onClose();
-                  onEdit(locker);
+                  if (inlineEdit) inlineCloseRequest.current?.();
+                  else { setActiveTab('details'); setInlineEdit(true); }
                 }}
                 className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 text-xs font-medium inline-flex items-center gap-1 transition cursor-pointer"
                 title="Edit Locker Specifications"
@@ -533,7 +501,8 @@ export function LockerDetailModal({
             )}
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => closeCallback.current()}
+              disabled={editSaving || kycBusy}
               className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer"
               aria-label="Close modal"
             >
@@ -544,7 +513,7 @@ export function LockerDetailModal({
 
 </>}
 
-        {(!isOccupied || activeTab !== 'details') && <>
+        {!isOccupied && !inlineEdit && <>
         {/* 2. Sub-Navigation Tabs */}
         <div className="flex items-center border-b border-slate-200 px-4 sm:px-6 bg-slate-50/50 overflow-x-auto select-none gap-1 sm:gap-2">
           <button
@@ -649,11 +618,12 @@ export function LockerDetailModal({
         </>}
 
         <div className={`p-4 sm:p-5 overflow-y-auto min-h-0 flex-1 space-y-3.5 ${isOccupied ? 'sm:px-8 sm:pb-7' : ''}`}>
+
           {/* TAB 1: DETAILS */}
           {allocationLoading && <p role="status">Loading allotment...</p>}
           {allocationError && <p role="alert">Could not load the current allotment. <button type="button" onClick={() => retryAllocation()}>Retry</button></p>}
           {!canViewAllocations && isOccupied && <p>Allotment details are restricted.</p>}
-          {activeTab === 'details' && !allocationLoading && !allocationError && (canViewAllocations || !isOccupied) && (
+          {(isOccupied || activeTab === 'details' && !inlineEdit) && !allocationLoading && !allocationError && (canViewAllocations || !isOccupied) && (
             <div className="space-y-3.5">
               {/* --- SCENARIO A: AVAILABLE LOCKER --- */}
               {isAvailable && (
@@ -901,13 +871,15 @@ export function LockerDetailModal({
                 invoices={invoices} payments={lockerPayments}
                 historyState={!canViewInvoices ? 'restricted' : invoicesLoading ? 'loading' : invoicesError ? 'error' : 'ready'}
                 receiptState={!canViewPayments ? 'restricted' : paymentsLoading ? 'loading' : paymentsError ? 'error' : 'ready'}
-                canReceipt={canViewPayments} canRenew={canViewInvoices && !invoicesLoading && !invoicesError && !unpaidInvoice && canGenerateRenewal && ['All good', 'Due soon', 'Renewal overdue'].includes(health.label)}
+                canReceipt={canViewPayments} canRenew={canViewInvoices && !invoicesLoading && !invoicesError && !unpaidInvoice && canGenerateRenewal && canRecordPayment && ['All good', 'Due soon', 'Renewal overdue'].includes(health.label)}
                 canKyc={canViewKyc} canClose={canCloseLocker} canPay={canRecordPayment && !['Billing needs review', 'Coverage needs review', 'Status unavailable'].includes(health.label)} unpaid={unpaidInvoice}
                 loadingReceiptId={loadingReceiptId} receiptError={receiptError} onReceipt={payment => void openReceipt(payment)}
-                onRenew={() => setRenewingAllocation(currentAlloc)} onKyc={() => setActiveTab('kyc')} onCloseLocker={() => setClosureOpen(true)}
+                onRenew={() => setRenewingAllocation(currentAlloc)} onKyc={() => setActiveTab(value => value === 'kyc' ? 'details' : 'kyc')} onCloseLocker={() => setClosureOpen(true)}
                 onPay={setRecordingPaymentInvoiceId} onInvoice={setViewingInvoice} onRetry={() => void retryInvoices()} onRetryReceipts={() => void retryPayments()}
+                controlsDisabled={inlineEdit || editSaving || kycBusy}
+
                 secondary={<div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-600">
-                  {canViewInvoices && <button type="button" onClick={() => setActiveTab('receipts')} className="underline">Invoices</button>}
+                  {canViewInvoices && <button type="button" onClick={() => { setActiveTab('details'); requestAnimationFrame(() => dialogRef.current?.querySelector('[aria-label="Bill and receipt history"]')?.scrollIntoView({block: 'start', behavior: 'smooth'})); }} className="underline">Invoices</button>}
                   {canViewDeposits && <button type="button" onClick={() => setActiveTab('refunds')} className="underline">Deposit &amp; Refunds</button>}
                   {tenantId && <button type="button" onClick={() => setProfileOpen(true)} className="underline">Customer Profile</button>}
                 </div>}
@@ -972,7 +944,7 @@ export function LockerDetailModal({
           )}
 
           {/* TAB 2: RECEIPTS */}
-          {activeTab === 'receipts' && (
+          {!isOccupied && activeTab === 'receipts' && (
             <div className="space-y-4">
               {!canViewInvoices ? <p>Invoice access is restricted.</p> : invoicesLoading ? <p role="status">Loading invoices...</p> : invoicesError ? <p role="alert">Could not load invoices. <button type="button" onClick={() => retryInvoices()}>Retry</button></p> : invoices.length === 0 ? (
                 <div className="py-12 text-center text-slate-400 space-y-2">
@@ -1054,7 +1026,7 @@ export function LockerDetailModal({
             </div>
           )}
 
-          {activeTab === 'kyc' && (
+          {!isOccupied && activeTab === 'kyc' && (
             !canViewKyc ? <p>KYC document access is restricted.</p> : <LockerKycPanel
               customerId={tenantId}
               customerName={tenant?.fullName}
@@ -1072,28 +1044,28 @@ export function LockerDetailModal({
           )}
 
           {/* TAB 4: DEPOSIT & ESCROW */}
-          {activeTab === 'refunds' && !allocationLoading && !allocationError && (canViewAllocations || !isOccupied) && (
+          {activeTab === 'refunds' && !allocationLoading && !allocationError && (canViewAllocations || !isOccupied) && createPortal(<LockerDepositModal busy={Boolean(submittingRefundId)} onClose={() => setActiveTab('details')}>
             <div role="region" aria-label="Deposit and refunds" className="space-y-4">
               <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
                 <div>
                   <div className="flex items-center gap-1.5">
                     <Shield className="w-4 h-4 text-emerald-700" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900">
+                    <span className="text-sm font-bold uppercase tracking-wider text-emerald-900">
                       Security Deposit Ledger
                     </span>
                   </div>
-                  <span className="text-2xl font-bold text-slate-900 mt-1 block font-mono">
+                  <span className="text-xl font-semibold text-slate-900 mt-1 block font-mono">
                     {depositLabel}
                   </span>
-                  <span className="text-xs text-emerald-800 font-medium">
+                  <span className="text-sm text-emerald-800 font-medium">
                     {deposit > 0
                       ? isOccupied
                         ? 'Deposit ledger balance; settlement is handled through locker closure'
                         : `Required deposit for Size ${locker.size} / Payable at allotment`
-                      : 'No Caution Deposit Required'}
+                      : 'No deposit collection recorded'}
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-white border border-emerald-200 text-xs text-slate-600 space-y-1 min-w-[240px]">
+                <div className="p-3 rounded-xl bg-white border border-emerald-200 text-sm text-slate-600 space-y-1 min-w-[240px]">
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Ledger status:</span>
                     <span className={`font-semibold ${isOccupied ? 'text-emerald-800' : 'text-slate-600'}`}>
@@ -1121,15 +1093,15 @@ export function LockerDetailModal({
                 {canAdjustDeposit && <Button variant="outline" disabled={!depositReady} onClick={() => setDepositAction('adjust')}>Adjust deposit</Button>}
                 {canCreateRefund && <Button variant="outline" disabled={!depositReady || !depositSummary || depositSummary.availableRefundableBalance <= 0} onClick={() => setDepositAction('refund')}>Request refund</Button>}
               </div>}
-              {currentAlloc && depositSummary && canViewDeposits && depositValid && !depositError && <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-2xl border border-slate-200 p-4 text-xs">
+              {currentAlloc && depositSummary && canViewDeposits && depositValid && !depositError && <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-2xl border border-slate-200 p-4 text-sm">
                 {[['Required deposit', depositSummary.requiredDeposit], ['Collected', depositSummary.totalDepositReceived], ['Adjustment credits', depositSummary.totalAddAdjustments], ['Deductions', depositSummary.totalDeductAdjustments], ['Deposit still required', depositSummary.outstandingDeposit], ['Refunded', depositSummary.totalRefunded], ['Pending refunds', depositSummary.pendingRefundAmount], ['Available for refund', depositSummary.availableRefundableBalance]].map(([label, value]) => <div key={String(label)}><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-semibold text-slate-900">{typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : 'Not recorded'}</dd></div>)}
               </dl>}
               {!canViewRefunds ? <p>Refund history access is restricted.</p> : refundsLoading ? <p role="status">Loading refund history...</p> : refundsError ? <p role="alert">Could not load refund history. <button type="button" onClick={() => retryRefunds()}>Retry</button></p> : refunds.length === 0 ? (
                 <div className="py-6 text-center text-slate-400 space-y-1 bg-slate-50/60 rounded-2xl border border-slate-100 p-4">
-                  <p className="font-semibold text-slate-700 text-xs">
+                  <p className="font-semibold text-slate-700 text-sm">
                     {isOccupied ? 'No Refund Requests Recorded' : 'Deposit Payable at Allotment'}
                   </p>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-sm text-slate-500">
                     {isOccupied
                       ? !canViewDeposits ? 'Deposit balance is restricted.' : depositError ? 'Deposit balance could not be loaded.' : !depositSummary ? 'Loading deposit balance...' : depositSummary.netDepositHeld ? 'Recorded deposit balance is available for settlement through the closure workflow.' : depositSummary.totalDepositReceived + depositSummary.totalAddAdjustments > 0 ? 'The collected deposit has been settled; no balance remains held.' : 'No security deposit collection is recorded for this allotment.'
                       : `Standard cautionary deposit of ₹${deposit.toLocaleString('en-IN')} is payable when this locker is allocated.`}
@@ -1140,13 +1112,13 @@ export function LockerDetailModal({
                   {refunds.map((ref) => (
                     <div
                       key={ref._id}
-                      className="p-3.5 flex items-center justify-between gap-3 text-xs"
+                      className="p-3.5 flex items-center justify-between gap-3 text-sm"
                     >
                       <div>
                         <span className="font-mono font-bold text-slate-900">
                           {ref.refundNumber}
                         </span>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-sm text-slate-500 mt-0.5">
                           Date: {new Date(ref.createdAt).toLocaleDateString('en-IN')}
                         </p>
                       </div>
@@ -1173,9 +1145,9 @@ export function LockerDetailModal({
                   ))}
                 </div>
               )}
-              {canViewRefunds && (refundsData?.pagination.totalPages || 0) > 1 && <div className="flex items-center justify-between gap-2 text-xs"><Button disabled={refundPage <= 1 || refundsLoading} onClick={() => setRefundPage(page => page - 1)}>Previous refunds</Button><span>Page {refundPage} of {refundsData?.pagination.totalPages}</span><Button disabled={refundPage >= (refundsData?.pagination.totalPages || 1) || refundsLoading} onClick={() => setRefundPage(page => page + 1)}>Next refunds</Button></div>}
+              {canViewRefunds && (refundsData?.pagination.totalPages || 0) > 1 && <div className="flex items-center justify-between gap-2 text-sm"><Button disabled={refundPage <= 1 || refundsLoading} onClick={() => setRefundPage(page => page - 1)}>Previous refunds</Button><span>Page {refundPage} of {refundsData?.pagination.totalPages}</span><Button disabled={refundPage >= (refundsData?.pagination.totalPages || 1) || refundsLoading} onClick={() => setRefundPage(page => page + 1)}>Next refunds</Button></div>}
             </div>
-          )}
+          </LockerDepositModal>, document.body)}
         </div>
 
         {/* 4. Footer Action Bar */}
@@ -1183,14 +1155,15 @@ export function LockerDetailModal({
           <Button
             variant="outline"
             size="sm"
-            onClick={onClose}
+            onClick={() => closeCallback.current()}
+            disabled={editSaving || kycBusy}
             className="rounded-xl border-slate-300 text-slate-700 font-semibold text-xs h-9 px-4 cursor-pointer hover:bg-slate-100"
           >
             Close
           </Button>
 
           <div className="flex flex-wrap items-center gap-2">
-            {isClosed && canUpdate && (
+            {isClosed && canUpdate && !inlineEdit && (
               <Button
                 size="sm"
                 onClick={() => setConfirmVacantOpen(true)}
@@ -1208,12 +1181,7 @@ export function LockerDetailModal({
               </Button>
             )}
 
-            {isOccupied && activeTab !== 'details' && <>
-              {canCloseLocker && currentAlloc && <Button variant="outline" aria-label="Close Locker" onClick={() => setClosureOpen(true)}>Close locker</Button>}
-              {unpaidInvoice && canRecordPayment && !['Billing needs review', 'Coverage needs review', 'Status unavailable'].includes(health.label) && <Button onClick={() => setRecordingPaymentInvoiceId(unpaidInvoice._id)}>Record Payment ({money(unpaidInvoice.balanceAmount)})</Button>}
-              {tenantId && <Button variant="outline" onClick={() => setProfileOpen(true)}>Customer Profile</Button>}
-            </>}
-            {isMaintenance && canUpdate && (
+            {isMaintenance && canUpdate && !inlineEdit && (
               <Button
                 size="sm"
                 onClick={() => setConfirmRepairedOpen(true)}
@@ -1231,7 +1199,7 @@ export function LockerDetailModal({
               </Button>
             )}
 
-            {isAvailable && (
+            {isAvailable && !inlineEdit && (
               <Button
                 size="sm"
                 onClick={handleAllocate}
@@ -1245,45 +1213,17 @@ export function LockerDetailModal({
         </div>
       </div>
 
+      {isOccupied && activeTab === 'kyc' && canViewKyc && <LockerKycModal
+        busy={kycBusy} customerId={tenantId} customerName={tenant?.fullName} customerCode={tenant?.customerCode}
+        kycStatus={tenant?.kycStatus} documents={kycDocs} loading={isKycLoading || allocationLoading} failed={isKycError || allocationError}
+        onRetry={() => { void retryAllocation(); void refetchKyc(); }} onBusyChange={setKycBusy}
+        onClose={() => { if (kycBusy) return; setActiveTab('details'); requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLButtonElement>('[aria-label="KYC Compliance - KYC & ID documents"]')?.focus()); }}
+      />}
       {/* Child Modals */}
-      {renewingAllocation && (
-        <GenerateRenewalModal
-          preSelectedAllocation={renewingAllocation}
-          context={{
-            identity: !canViewKyc ? 'Restricted' : isKycLoading ? 'Loading...' : isKycError ? 'Unavailable' : identityDoc ? identityDoc.maskedDocumentNumber || 'ID on file' : kycDocs.length ? 'Documents on file' : 'Not recorded',
-            deposit: depositLabel, key: canViewSensitive ? locker.masterKeyReference || 'Not assigned' : 'Restricted', health,
-            onKyc: canViewKyc ? () => { setRenewingAllocation(null); setActiveTab('kyc'); } : undefined,
-            onCloseLocker: canCloseLocker ? () => { setRenewingAllocation(null); setClosureOpen(true); } : undefined,
-            history: <section aria-label="Renewal bill and receipt history" className="space-y-3">
-              <h3 className="border-b border-slate-200 pb-3 font-extrabold uppercase tracking-wide text-emerald-800">Bill &amp; receipt history</h3>
-              {invoices.filter(item => referenceId(item.allocationId) === renewingAllocation._id).map(item => <article key={item._id} className="space-y-3 border-b border-slate-200 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3"><div><strong className="break-all text-slate-950">{item.invoiceNumber}</strong><span className="ml-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">{item.invoiceType === 'NEW_ALLOCATION' ? 'New allotment' : item.invoiceType === 'RENEWAL' ? 'Renewal' : 'Bill'}</span><p className="mt-2 text-sm text-slate-600">{ledgerDate(item.billingPeriodStart)} &rarr; {ledgerDate(item.billingPeriodEnd)} &middot; {item.status}</p></div><div className="flex flex-wrap items-center gap-3"><strong>{money(item.totalAmount)}</strong><Button type="button" variant="outline" disabled={isSubmittingRenewal} onClick={() => { setRenewingAllocation(null); setViewingInvoice(item); }}>View bill</Button></div></div>
-                {canViewPayments && lockerPayments.filter(payment => referenceId(payment.invoiceId) === item._id).map(payment => <div key={payment._id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"><span>{payment.receiptNumber || payment.paymentNumber} &middot; {money(payment.amount)}</span><Button type="button" variant="outline" disabled={isSubmittingRenewal || loadingReceiptId === payment._id} onClick={() => { setRenewingAllocation(null); void openReceipt(payment); }}>View receipt</Button></div>)}
-              </article>)}
-              {paymentsError && <p role="alert">Could not load receipts. <button type="button" className="underline" onClick={() => void retryPayments()}>Retry receipts</button></p>}
-              {paymentsLoading && <p role="status">Loading receipts...</p>}
-              {!canViewPayments && <p>Receipt access is restricted.</p>}
-            </section>,
-          }}
-          onClose={() => setRenewingAllocation(null)}
-          onSubmit={async (data) => {
-            setIsSubmittingRenewal(true);
-            try {
-              const issued = await renewalApi.generateRenewal(data);
-              queryClient.invalidateQueries({ queryKey: ['locker-payments', locker._id] });
-            queryClient.invalidateQueries({ queryKey: ['locker-invoices', locker._id] });
-              queryClient.invalidateQueries({ queryKey: ['locker-allocations', locker._id] });
-              setRenewingAllocation(null);
-              setNotice('Renewal bill issued. Record payment to confirm collection.');
-              if (canRecordPayment) setRecordingPaymentInvoiceId(issued._id);
-              for (const key of ['renewals', 'renewal-stats', 'lockers', 'allocations', 'invoices']) void queryClient.invalidateQueries({ queryKey: [key] });
-            } finally {
-              setIsSubmittingRenewal(false);
-            }
-          }}
-          isSubmitting={isSubmittingRenewal}
-        />
-      )}
+      {renewingAllocation && <RenewLockerModal allocation={renewingAllocation} onClose={() => setRenewingAllocation(null)} onComplete={() => {
+        setRenewingAllocation(null); setNotice('Locker renewed and cash receipt recorded.');
+        for (const key of [['locker-payments',locker._id],['locker-invoices',locker._id],['locker-allocations',locker._id],['lockers'],['locker-stats'],['allocations'],['renewals'],['renewal-stats'],['payments'],['payment-stats']]) void queryClient.invalidateQueries({queryKey:key});
+      }} />}
 
       {profileOpen && tenantId && <LockerCustomerProfileModal customerId={tenantId} onClose={() => setProfileOpen(false)} onKyc={() => { setProfileOpen(false); setActiveTab('kyc'); }} onInvoices={() => { setProfileOpen(false); setActiveTab('receipts'); }} />}
       {allocationOpen && <AllocationWizardModal mode="allocate" preSelectedLocker={locker} isSubmitting={false} onClose={() => setAllocationOpen(false)} onSubmit={async () => {}} />}
@@ -1317,6 +1257,7 @@ export function LockerDetailModal({
         <InvoiceDetailModal
           invoice={viewingInvoice}
           fallbackLocker={locker}
+          paymentBlockedReason={['Billing needs review', 'Coverage needs review', 'Status unavailable'].includes(health.label) ? health.label : undefined}
           onClose={() => setViewingInvoice(null)}
           onRecordPayment={(inv) => {
             setViewingInvoice(null);
@@ -1331,6 +1272,8 @@ export function LockerDetailModal({
           onClose={() => setViewingReceiptPayment(null)}
         />
       )}
+
+      {editPopup}
 
       {/* State Transition Confirmation Modals */}
       <ConfirmationModal

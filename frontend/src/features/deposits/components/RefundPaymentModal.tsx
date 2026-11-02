@@ -1,9 +1,9 @@
 import { DepositDialogLayer } from './DepositDialogLayer';
-import React, { useEffect, useRef, useState } from 'react';
+import React,{ useEffect,useRef,useState } from 'react';
 import { depositApi } from '../api/depositApi';
 import { RefundRequest } from '../types';
 import { PaymentMethod } from '../../payments/types';
-import { X, DollarSign, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { X,DollarSign,CheckCircle2 } from 'lucide-react';
 
 interface RefundPaymentModalProps {
   isOpen: boolean;

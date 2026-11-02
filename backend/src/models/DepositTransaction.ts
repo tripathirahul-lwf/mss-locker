@@ -1,9 +1,9 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema,model,Document,Types } from 'mongoose';
 import {
-  DepositTransactionType,
-  DepositTransactionStatus,
+DepositTransactionType,
+DepositTransactionStatus,
 } from '../constants/deposit.constants';
-import { PaymentMethod, PaymentSource } from '../constants/payment.constants';
+import { PaymentMethod,PaymentSource } from '../constants/payment.constants';
 
 export interface IDepositTransaction extends Document {
   _id: Types.ObjectId;

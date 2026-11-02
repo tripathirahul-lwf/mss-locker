@@ -1,4 +1,3 @@
-import React from 'react';
 import { CustomerStatus } from '../types';
 import { CUSTOMER_STATUS_CONFIG } from '../constants';
 

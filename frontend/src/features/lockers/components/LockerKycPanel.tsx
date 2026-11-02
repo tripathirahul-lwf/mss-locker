@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect,useRef,useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Upload, Eye, RefreshCw, Plus, Trash2, FileText, CheckCircle2 } from 'lucide-react';
+import { Loader2,Upload,Eye,RefreshCw,Plus,Trash2,FileText,CheckCircle2 } from 'lucide-react';
 import { customerApi } from '../../customers/api/customerApi';
 import { CustomerKycDocument } from '../../customers/types';
 import { apiClient } from '../../../services/apiClient';
@@ -19,10 +19,11 @@ export interface LockerKycPanelProps {
   loading: boolean;
   failed: boolean;
   onRetry: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 
-export function LockerKycPanel({ customerId, customerName = 'Customer', customerCode = '', documents, loading, failed, onRetry, kycStatus }: LockerKycPanelProps) {
+export function LockerKycPanel({ customerId, customerName = 'Customer', customerCode = '', documents, loading, failed, onRetry, kycStatus, onBusyChange }: LockerKycPanelProps) {
   const queryClient = useQueryClient();
   const canManage = usePermission('customers.kyc.manage');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -32,13 +33,14 @@ export function LockerKycPanel({ customerId, customerName = 'Customer', customer
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const previewRequest = useRef<AbortController | null>(null);
   useEffect(() => () => previewRequest.current?.abort(), []);
+  useEffect(() => { onBusyChange?.(busy || previewingId !== null); return () => onBusyChange?.(false); }, [busy, previewingId, onBusyChange]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ doc: CustomerKycDocument; url: string } | null>(null);
   useEffect(() => () => { if (preview?.url.startsWith('blob:')) URL.revokeObjectURL(preview.url); }, [preview]);
 
-  const refresh = () => Promise.all(['customer-kyc', 'locker-allocations', 'lockers', 'customers'].map(key => queryClient.invalidateQueries({ queryKey: [key] })));
+  const refresh = () => Promise.all(['customer-kyc', 'locker-allocations', 'lockers', 'locker-stats', 'customers', 'customer-stats'].map(key => queryClient.invalidateQueries({ queryKey: [key] })));
   const chooseFile = (doc?: CustomerKycDocument) => {
     if (!canManage || busyRef.current || loading || failed) return;
     replacingRef.current = doc;
@@ -54,7 +56,7 @@ export function LockerKycPanel({ customerId, customerName = 'Customer', customer
     busyRef.current = true; setBusy(true);
     try {
       const uploaded = await customerApi.uploadFile(file, 'kyc');
-      const attachment = { documentUrl: uploaded.fileUrl, documentName: file.name, mimeType: file.type, fileSize: uploaded.size };
+      const attachment = { documentUrl: uploaded.fileUrl, documentName: file.name, mimeType: uploaded.mimeType || file.type, fileSize: uploaded.size };
       if (existing) {
         // Keep existing identity metadata when replacing only the attachment.
         await customerApi.updateKycDocument(customerId, existing._id, attachment);

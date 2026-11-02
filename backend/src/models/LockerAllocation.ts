@@ -1,11 +1,11 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema,model,Document,Types } from 'mongoose';
 import {
-  AllocationStatus,
-  ALLOCATION_STATUS,
-  AllocationType,
-  ALLOCATION_TYPE,
-  BillingCycle,
-  BILLING_CYCLE,
+AllocationStatus,
+ALLOCATION_STATUS,
+AllocationType,
+ALLOCATION_TYPE,
+BillingCycle,
+BILLING_CYCLE,
 } from '../constants/allocation.constants';
 
 export interface ILockerAllocation extends Document {

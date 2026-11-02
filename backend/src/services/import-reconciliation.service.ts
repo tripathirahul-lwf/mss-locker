@@ -1,6 +1,5 @@
 import { Locker } from '../models/Locker';
 import { LockerAllocation } from '../models/LockerAllocation';
-import { LockerInvoice } from '../models/LockerInvoice';
 
 export interface ReconciliationReport {
   isReconciled: boolean;

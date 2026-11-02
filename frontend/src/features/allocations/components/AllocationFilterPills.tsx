@@ -1,4 +1,3 @@
-import React from 'react';
 import { AllocationStatus } from '../types';
 
 interface AllocationFilterPillsProps {

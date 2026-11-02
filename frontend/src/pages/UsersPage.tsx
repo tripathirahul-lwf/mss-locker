@@ -1,43 +1,32 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { lockBodyScroll } from '../utils/bodyScrollLock';
+import React,{ useState,useEffect,useMemo,useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery,useQueryClient } from '@tanstack/react-query';
 import {
-  Users as UsersIcon,
-  UserPlus,
-  Search,
-  KeyRound,
-  Edit2,
-  ShieldCheck,
-  ShieldAlert,
-  UserCheck,
-  UserX,
-  RefreshCw,
-  X,
-  AlertCircle,
-  CheckCircle2,
-  Lock,
-  Phone,
-  Mail,
-  Clock,
-  Globe,
-  Copy,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Shield,
-  Eye,
-  EyeOff,
-  SlidersHorizontal,
-  Sparkles,
+Users as UsersIcon,
+UserPlus,
+Search,
+KeyRound,
+Edit2,ShieldAlert,
+UserCheck,
+UserX,
+RefreshCw,
+X,
+AlertCircle,Lock,Copy,
+Check,
+ChevronLeft,
+ChevronRight,
+Shield,
+Eye,
+EyeOff,Sparkles
 } from 'lucide-react';
-import { userService, CreateUserData, UpdateUserData } from '../services/userService';
+import { userService,CreateUserData,UpdateUserData } from '../services/userService';
 
-import { User, RoleListItem } from '../types/auth';
+import { User,RoleListItem } from '../types/auth';
 import { useAuth } from '../hooks/useAuth';
 import { usePermission } from '../hooks/usePermission';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { useDebounce } from '../hooks/useDebounce';
 
@@ -61,7 +50,7 @@ function validStaffPhone(value: string): boolean {
 function useStaffDialog(onClose: () => void, busy = false) {
   const ref = useRef<HTMLDivElement>(null); const state = useRef({ onClose, busy }); state.current = { onClose, busy };
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement; const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; ref.current?.focus();
+    const previous = document.activeElement as HTMLElement;  const releaseScroll = lockBodyScroll(); ref.current?.focus();
     const keydown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); if (!state.current.busy) state.current.onClose(); }
       if (e.key !== 'Tab' || !ref.current) return;
@@ -72,7 +61,7 @@ function useStaffDialog(onClose: () => void, busy = false) {
       else if (!e.shiftKey && (document.activeElement === last || document.activeElement === ref.current)) { e.preventDefault(); first.focus(); }
     };
     document.addEventListener('keydown', keydown);
-    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus(); };
+    return () => { document.removeEventListener('keydown', keydown); releaseScroll(); if (previous?.isConnected) previous.focus(); };
   }, []);
   return ref;
 }
@@ -407,7 +396,6 @@ export function UsersPage() {
               ) : (
                 users.map((u) => {
                   const isSelf = u.id === currentUser?.id || u._id === currentUser?.id;
-                  const isTargetSuperAdmin = (u.role?.code || '').toUpperCase().includes('SUPER');
                   const roleStyle = getRoleBadgeStyle(u.role?.code, u.role?.name);
                   const initials = (u.name || 'Staff')
                     .split(/\s+/)

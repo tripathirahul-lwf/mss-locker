@@ -1,22 +1,22 @@
-import React, { lazy, Suspense, useCallback, useState, useMemo, useEffect } from 'react';
-import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { lazy,Suspense,useCallback,useState,useMemo,useEffect } from 'react';
+import { keepPreviousData,useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
+import { useSearchParams,useNavigate,useLocation } from 'react-router-dom';
 import {
-  Users,
-  UserPlus,
-  RefreshCw,
-  AlertCircle,
-  Download,
+Users,
+UserPlus,
+RefreshCw,
+AlertCircle,
+Download,
 } from 'lucide-react';
 import { customerApi } from '../features/customers/api/customerApi';
 import {
-  Customer,
-  CustomerQueryParams,
-  CreateCustomerInput,
-  UpdateCustomerInput,
+Customer,
+CustomerQueryParams,
+CreateCustomerInput,
+UpdateCustomerInput,
 } from '../features/customers/types';
 import { allocationApi } from '../features/allocations/api/allocationApi';
-import { CreateAllocationInput, ReserveLockerInput } from '../features/allocations/types';
+import { CreateAllocationInput,ReserveLockerInput } from '../features/allocations/types';
 import { CustomerSummaryCards } from '../features/customers/components/CustomerSummaryCards';
 import { CustomerFilters } from '../features/customers/components/CustomerFilters';
 import { CustomerTable } from '../features/customers/components/CustomerTable';

@@ -1,47 +1,38 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { lockBodyScroll } from '../utils/bodyScrollLock';
+import React,{ useState,useEffect,useMemo,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ShieldCheck,
-  Search,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle2,
-  Lock,
-  Download,
-  X,
-  Activity,
-  Layers,
-  Users,
-  CreditCard,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Check,
-  Eye,
-  Globe,
-  Laptop,
-  Calendar,
-  Filter,
-  List,
-  GitCommit,
-  Printer,
-  FileCode,
-  Radio,
-  Clock,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  KeyRound,
-  Info,
-  CheckCircle,
-  FileText,
-  UserCheck,
-  ArrowLeft,
-  ArrowRight,
+ShieldCheck,
+Search,
+RefreshCw,
+AlertTriangle,
+CheckCircle2,
+Lock,
+Download,
+X,
+Activity,
+Layers,
+Users,
+CreditCard,
+Settings,Eye,Laptop,
+Calendar,
+Filter,
+List,
+GitCommit,
+Printer,
+FileCode,
+Radio,
+Clock,
+ExternalLink,
+ChevronDown,
+ChevronUp,
+KeyRound,
+Info,UserCheck,
+ArrowLeft,
+ArrowRight
 } from 'lucide-react';
-import { auditService, AuditLogItem } from '../services/auditService';
+import { auditService,AuditLogItem } from '../services/auditService';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { useDebounce } from '../hooks/useDebounce';
@@ -359,8 +350,8 @@ function AuditDetailModal({ log, onClose, onPrev, onNext, hasPrev, hasNext }: Au
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
     const frame = requestAnimationFrame(() => dialogRef.current?.focus());
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Tab') {
@@ -378,7 +369,7 @@ function AuditDetailModal({ log, onClose, onPrev, onNext, hasPrev, hasNext }: Au
     return () => {
       cancelAnimationFrame(frame);
       if (previousFocus?.isConnected) previousFocus.focus();
-      document.body.style.overflow = originalOverflow;
+      releaseScroll();
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
@@ -681,7 +672,6 @@ export function AuditLogsPage() {
     refetchInterval: liveStream ? 10_000 : false,
   });
   const logs = data?.logs || [];
-  const rawLogs = logs;
   const pagination = data?.pagination || { page: 1, limit, total: 0, totalPages: 1 };
   useEffect(() => { if (data && page > data.pagination.totalPages) setPage(data.pagination.totalPages); }, [data, page]);
   useEffect(() => { setPage(1); setSelectedLog(null); }, [debouncedSearch, activeTab, severityFilter, dateRange, actionFilter, mutationsOnly]);

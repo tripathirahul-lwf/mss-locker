@@ -1,6 +1,6 @@
 import React from 'react';
 import { DepositStats } from '../types';
-import { ShieldCheck, ArrowDownLeft, ArrowUpRight, AlertCircle, Clock } from 'lucide-react';
+import { ShieldCheck,ArrowDownLeft,ArrowUpRight,AlertCircle,Clock } from 'lucide-react';
 
 interface DepositSummaryCardsProps {
   stats: DepositStats | null;

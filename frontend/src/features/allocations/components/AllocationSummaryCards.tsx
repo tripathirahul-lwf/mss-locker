@@ -1,6 +1,5 @@
-import React from 'react';
-import { AllocationStats, AllocationStatus } from '../types';
-import { KeyRound, Clock, CheckCircle2, XCircle, Layers } from 'lucide-react';
+import { AllocationStats,AllocationStatus } from '../types';
+import { KeyRound,Clock,CheckCircle2,XCircle,Layers } from 'lucide-react';
 
 interface AllocationSummaryCardsProps {
   stats?: AllocationStats;

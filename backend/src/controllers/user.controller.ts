@@ -1,8 +1,8 @@
 import { serviceErrorStatus } from '../utils/serviceErrorStatus';
-import { createUserSchema, updateUserSchema, resetUserPasswordSchema, queryUsersSchema } from '../validators/user.validator';
-import { Request, Response, NextFunction } from 'express';
+import { createUserSchema,updateUserSchema,resetUserPasswordSchema,queryUsersSchema } from '../validators/user.validator';
+import { Request,Response,NextFunction } from 'express';
 import { UserService } from '../services/user.service';
-import { successResponse, errorResponse } from '../utils/apiResponse';
+import { successResponse,errorResponse } from '../utils/apiResponse';
 
 export class UserController {
   static async assignableRoles(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -18,7 +18,7 @@ export class UserController {
     }
   }
 
-  static async getUserById(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async getUserById(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
       const user = await UserService.getUserById(id);
@@ -28,7 +28,7 @@ export class UserController {
     }
   }
 
-  static async createUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async createUser(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json(errorResponse('Authentication required'));
@@ -60,7 +60,7 @@ export class UserController {
     }
   }
 
-  static async updateUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async updateUser(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json(errorResponse('Authentication required'));
@@ -92,7 +92,7 @@ export class UserController {
     }
   }
 
-  static async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async resetPassword(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json(errorResponse('Authentication required'));

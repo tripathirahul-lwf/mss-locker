@@ -1,4 +1,4 @@
-import { CustomerStatus, KycStatus, KycDocumentType, KycVerificationStatus } from '../types';
+import { CustomerStatus,KycStatus,KycDocumentType,KycVerificationStatus } from '../types';
 
 export const CUSTOMER_STATUS_CONFIG: Record<
   CustomerStatus,

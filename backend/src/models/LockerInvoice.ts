@@ -1,11 +1,11 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema,model,Document,Types } from 'mongoose';
 import {
-  InvoiceType,
-  InvoiceStatus,
-  PaymentStatus,
-  DueStatus,
-  BillingCycle,
-  InvoiceSource,
+InvoiceType,
+InvoiceStatus,
+PaymentStatus,
+DueStatus,
+BillingCycle,
+InvoiceSource,
 } from '../constants/billing.constants';
 
 export interface ILockerInvoice extends Document {

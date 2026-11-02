@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import React,{ useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  FileSpreadsheet,
-  Download,
-  Upload,
-  CheckCircle,
-  AlertCircle,
-  AlertTriangle,
-  Loader2,
+X,
+FileSpreadsheet,
+Download,
+Upload,
+CheckCircle,
+AlertCircle,Loader2
 } from 'lucide-react';
 import { CreateLockerInput } from '../types';
 import { lockerApi } from '../api/lockerApi';

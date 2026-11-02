@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React,{ createContext,useContext,useState,useEffect,useCallback } from 'react';
 import { User } from '../types/auth';
-import { authService, LoginCredentials } from '../services/authService';
+import { authService,LoginCredentials } from '../services/authService';
 import { offlineSyncService } from '../offline/services/offline-sync.service';
 
 export interface AuthContextValue {

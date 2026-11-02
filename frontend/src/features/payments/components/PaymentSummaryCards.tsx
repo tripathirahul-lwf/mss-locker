@@ -1,6 +1,5 @@
-import React from 'react';
-import { PaymentStats, PaymentMethod } from '../types';
-import { IndianRupee, Calendar, Banknote, QrCode, Layers } from 'lucide-react';
+import { PaymentStats,PaymentMethod } from '../types';
+import { IndianRupee,Calendar,Banknote,QrCode,Layers } from 'lucide-react';
 
 interface PaymentSummaryCardsProps {
   stats?: PaymentStats;

@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
+import React,{ useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LockerClosure } from '../types';
 import { closureApi } from '../api/closureApi';
 import {
-  Printer,
-  X,
-  Copy,
-  Check,
-  Award,
-  ShieldCheck,
+Printer,
+X,
+Copy,
+Check,
+Award
 } from 'lucide-react';
 
 interface ClosureStatementModalProps {

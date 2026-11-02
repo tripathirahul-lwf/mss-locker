@@ -1,7 +1,7 @@
 import React from 'react';
-import { RefundRequest, RefundStatus } from '../types';
+import { RefundRequest,RefundStatus } from '../types';
 import { RefundStatusBadge } from './RefundStatusBadge';
-import { Search, Filter, RefreshCw, CheckCircle, DollarSign, Send, Ban, Inbox } from 'lucide-react';
+import { Search,Filter,RefreshCw,CheckCircle,DollarSign,Send,Ban,Inbox } from 'lucide-react';
 
 interface RefundTableProps {
   refunds: RefundRequest[];

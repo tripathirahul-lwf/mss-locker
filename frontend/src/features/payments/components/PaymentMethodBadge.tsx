@@ -1,15 +1,14 @@
-import React from 'react';
-import { PaymentMethod, PaymentStatus } from '../types';
+import { PaymentMethod,PaymentStatus } from '../types';
 import {
-  Banknote,
-  QrCode,
-  CreditCard,
-  Building2,
-  Receipt,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  AlertTriangle,
+Banknote,
+QrCode,
+CreditCard,
+Building2,
+Receipt,
+CheckCircle2,
+Clock,
+XCircle,
+AlertTriangle,
 } from 'lucide-react';
 
 export function PaymentMethodBadge({ method }: { method: PaymentMethod }) {

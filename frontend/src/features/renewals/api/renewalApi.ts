@@ -1,34 +1,11 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  LockerInvoice,
-  RenewalStats,
-  InvoiceQueryParams,
-  GenerateRenewalInput,
+LockerInvoice,
+RenewalStats,
+InvoiceQueryParams,
+GenerateRenewalInput,
 } from '../types';
 
-const printPdfBlob = async (blob: Blob, invoiceNumber: string): Promise<void> => {
-  const pdfUrl = URL.createObjectURL(blob);
-  const safeInvoiceNumber = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '-') || 'invoice';
-
-  // 1. Open PDF directly in a new window/tab for native high-res preview & browser print dialog
-  const printWindow = window.open(pdfUrl, '_blank');
-  if (printWindow) {
-    printWindow.focus();
-    setTimeout(() => {
-      URL.revokeObjectURL(pdfUrl);
-    }, 60_000);
-    return;
-  }
-
-  // 2. If browser blocks popups, fallback to automatic download
-  const downloadLink = document.createElement('a');
-  downloadLink.href = pdfUrl;
-  downloadLink.download = `${safeInvoiceNumber}.pdf`;
-  document.body.appendChild(downloadLink);
-  downloadLink.click();
-  document.body.removeChild(downloadLink);
-  setTimeout(() => URL.revokeObjectURL(pdfUrl), 10_000);
-};
 
 export const renewalApi = {
   /**

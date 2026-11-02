@@ -6,7 +6,7 @@ import { ClosureDetailModal } from '../../closures/components/ClosureDetailModal
 import { ClosureStatementModal } from '../../closures/components/ClosureStatementModal';
 import { LockerClosure } from '../../closures/types';
 import { Button } from '../../../components/ui/button';
-import { ledgerDate, money } from './OccupiedLockerSummary';
+import { ledgerDate,money } from './OccupiedLockerSummary';
 
 export function ClosedLockerRecords({ search, size, page, onPage }: { search: string; size?: string; page: number; onPage: (page: number) => void }) {
   const { user, permissions, hasPermission } = useAuth();

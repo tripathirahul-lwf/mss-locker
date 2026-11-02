@@ -30,8 +30,8 @@ test('occupied reference layout shows real rent, held deposit, masked ID and sep
   await expect(page.getByRole('dialog', { name: 'Payment receipt REFERENCE-77', exact: true })).toBeVisible();
   await page.keyboard.press('Escape'); await expect(modal).toBeVisible();
   await summary.getByRole('button', { name: 'KYC Compliance - KYC & ID documents', exact: true }).click();
-  await expect(modal.getByRole('region', { name: 'Locker KYC documents' })).toBeVisible();
-  await modal.getByRole('button', { name: 'Details', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'KYC & ID documents', exact: true }).getByRole('region', { name: 'Locker KYC documents' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'KYC & ID documents', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
   await expect(summary).toBeVisible();
   await page.setViewportSize({ width: 844, height: 450 });
   await expect(modal.getByRole('button', { name: 'Close', exact: true })).toBeInViewport();
@@ -146,6 +146,13 @@ test('same-day paid-through and renewal overlap is reviewable without offering a
   await expect(modal.getByRole('button', { name: 'Renew Lease', exact: true })).toHaveCount(0);
   await expect(modal.getByTestId('occupied-locker-summary')).toContainText('Recorded paid through:');
   await expect(modal.getByRole('button', { name: 'View invoice UNPAID-OVERLAP', exact: true })).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Review billing period', exact: true })).toBeVisible();
+  await expect(modal.getByRole('alert')).toContainText('Paid coverage includes');
+  await expect(modal).not.toContainText('Locker renewal payment pending:');
+  await modal.getByRole('button',{name:'Review billing period',exact:true}).click();
+  const bill=page.getByRole('dialog').last();
+  await expect(bill).toContainText('Payment is paused: Coverage needs review');
+  await expect(bill.getByRole('button',{name:'Record Payment',exact:true})).toHaveCount(0);
 });
 
 test('a future unpaid renewal stays pending even when a stale due-status field says overdue', async ({ page }) => {

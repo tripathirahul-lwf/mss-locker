@@ -1,5 +1,5 @@
 import { serviceErrorStatus } from '../utils/serviceErrorStatus';
-import { Request, Response } from 'express';
+import { Request,Response } from 'express';
 import { depositService } from '../services/deposit.service';
 import { DepositTransaction } from '../models/DepositTransaction';
 
@@ -46,7 +46,7 @@ export class DepositController {
     }
   }
 
-  async getDepositStats(req: Request, res: Response): Promise<void> {
+  async getDepositStats(_req: Request, res: Response): Promise<void> {
     try {
       const stats = await depositService.getDepositStats();
       res.json({ success: true, data: stats });

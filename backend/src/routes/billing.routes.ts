@@ -1,12 +1,19 @@
 import { Router } from 'express';
+import { renewalCollectionSchema } from '../validators/renewalCollection.validator';
+import { RenewalCollectionService } from '../services/renewalCollection.service';
 import { billingController } from '../controllers/billing.controller';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 
 // Apply authentication to all billing & renewal routes
 router.use(authenticate);
+
+router.post('/collect', requirePermission(PERMISSIONS.RENEWALS_CREATE, PERMISSIONS.PAYMENTS_CREATE), async (req,res,next) => {
+  try { const input=renewalCollectionSchema.parse(req.body); const data=await RenewalCollectionService.complete(input,req.user!.userId,req.user!.username); res.status(201).json({success:true,data,message:'Locker renewed and cash receipt recorded'}); } catch(error) { next(error); }
+});
+
 
 /**
  * GET /api/renewals/stats

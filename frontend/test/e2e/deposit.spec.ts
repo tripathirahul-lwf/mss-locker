@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 async function openLedger(page: any) {
  await page.goto('/login'); await page.getByLabel('Username or Email').fill('browser-test'); await page.getByLabel('Password', { exact: true }).fill('BrowserTest123!'); await page.getByRole('button', { name: /Sign In/i }).click();
  await page.getByRole('button', { name: 'Open locker 77', exact: true }).press('Enter'); const locker = page.getByRole('dialog', { name: 'Locker #77', exact: true });
- await locker.getByRole('button', { name: /^Deposit & Refunds/ }).click(); return { locker, ledger: locker.getByRole('region', { name: 'Deposit and refunds' }) };
+ await locker.getByRole('button', { name: /^Deposit & Refunds/ }).click(); return { locker, ledger: page.getByRole('dialog', { name: 'Deposit & Refunds',exact:true }).getByRole('region', { name: 'Deposit and refunds' }) };
 }
 test('deposit summary failure disables stale financial actions and retries without leaving locker', async ({ page }) => {
  let failed = true;
@@ -48,5 +48,27 @@ test('ambiguous deposit responses freeze the request and retry with the same key
  const { ledger } = await openLedger(page); await ledger.getByRole('button', { name: 'Collect deposit', exact: true }).click(); const modal = page.getByRole('dialog', { name: /Collect.*Deposit/i });
  await modal.getByRole('button', { name: 'Confirm and issue receipt', exact: true }).click(); await expect(modal.getByRole('alert')).toContainText('unconfirmed');
  await expect(modal.getByLabel(/^Deposit amount/)).toBeDisabled(); await modal.getByRole('button', { name: 'Retry same collection', exact: true }).click();
- await expect(modal.getByRole('alert')).toContainText('Review collection ledger'); expect(requests[0]).toEqual(requests[1]); expect(keys[0]).toBe(keys[1]);
+ await expect(modal.getByRole('alert')).toContainText('unconfirmed'); await expect(modal.getByLabel(/^Deposit amount/)).toBeDisabled(); expect(requests[0]).toEqual(requests[1]); expect(keys[0]).toBe(keys[1]);
+});
+
+test('deposit popup restores the dossier and rejects contradictory refundable balances',async({page})=>{
+ await page.route('**/api/deposits/allocation/*/summary',async route=>{const response=await route.fetch();const body=await response.json();body.data.availableRefundableBalance+=1;await route.fulfill({response,json:body});});
+ const {locker,ledger}=await openLedger(page),url=page.url();
+ await expect(ledger.getByRole('alert')).toContainText('Deposit ledger needs reconciliation');
+ await expect(ledger.getByRole('button',{name:'Request refund',exact:true})).toBeDisabled();
+ const popup=page.getByRole('dialog',{name:'Deposit & Refunds',exact:true});
+ await popup.getByRole('button',{name:'Close',exact:true}).focus();await page.keyboard.press('Tab');
+ await expect(popup.getByRole('button',{name:'Close deposit popup',exact:true})).toBeFocused();
+ await page.keyboard.press('Escape');await expect(popup).toHaveCount(0);await expect(locker).toBeVisible();
+ await expect(locker.getByRole('button',{name:/^Deposit & Refunds/})).toBeFocused();expect(page.url()).toBe(url);
+ expect(await page.evaluate(()=>document.body.style.overflow)).toBe('hidden');
+});
+
+test('unconfirmed adjustment cannot be submitted again',async({page})=>{
+ let count=0;await page.route('**/api/deposits/adjust',async route=>{count++;await route.fulfill({status:503,json:{message:'Unconfirmed'}});});
+ const {ledger}=await openLedger(page);await ledger.getByRole('button',{name:'Adjust deposit',exact:true}).click();
+ const modal=page.getByRole('dialog',{name:'Deposit balance adjustment',exact:true});
+ await modal.getByLabel('Adjustment amount',{exact:true}).fill('100');await modal.getByLabel('Adjustment reason',{exact:true}).fill('Correction review');
+ await modal.getByRole('button',{name:'Confirm Adjustment',exact:true}).click();
+ await expect(modal).toContainText('Adjustment result is unconfirmed');await expect(modal.getByRole('button',{name:'Confirm Adjustment',exact:true})).toBeDisabled();expect(count).toBe(1);
 });

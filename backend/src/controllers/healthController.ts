@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { getHealthStatus } from '../services/healthService';
 
 export const checkHealth = (_req: Request, res: Response, next: NextFunction): void => {

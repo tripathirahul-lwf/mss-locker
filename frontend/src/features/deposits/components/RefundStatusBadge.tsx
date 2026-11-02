@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefundStatus } from '../types';
-import { Clock, CheckCircle, XCircle, DollarSign, FileEdit, Ban } from 'lucide-react';
+import { Clock,CheckCircle,XCircle,DollarSign,FileEdit,Ban } from 'lucide-react';
 
 interface RefundStatusBadgeProps {
   status: RefundStatus;

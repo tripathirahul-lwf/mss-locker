@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useState,useEffect,useRef,useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  ZoomIn,
-  ZoomOut,
-  RotateCw,
-  Download,
-  ExternalLink,
-  Copy,
-  Check,
-  User,
-  RotateCcw,
-  Sparkles,
+X,
+ZoomIn,
+ZoomOut,
+RotateCw,
+Download,
+ExternalLink,
+Copy,
+Check,
+User,
+RotateCcw
 } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 
@@ -32,14 +32,13 @@ export function CustomerPhotoPreviewModal({
   customerName,
   customerCode = '',
   phone = '',
-  email = '',
 }: CustomerPhotoPreviewModalProps) {
+  const [copiedCode, setCopiedCode] = useState(false);
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
-  const [copiedCode, setCopiedCode] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -60,10 +59,10 @@ export function CustomerPhotoPreviewModal({
   // Lock background scrolling
   useEffect(() => {
     if (!isOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
     return () => {
-      document.body.style.overflow = prevOverflow;
+      releaseScroll();
     };
   }, [isOpen]);
 

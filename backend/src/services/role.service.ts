@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
-import { Role, IRole } from '../models/Role';
+import { Role,IRole } from '../models/Role';
 import { Session } from '../models/Session';
 import { User } from '../models/User';
 import { recordAuditLog } from '../utils/auditLogger';
-import { PERMISSION_GROUPS, ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLE_CODES } from '../constants/permissions';
+import { PERMISSION_GROUPS,ALL_PERMISSIONS,PERMISSIONS,SYSTEM_ROLE_CODES } from '../constants/permissions';
 
 export class RoleService {
   static async getRoles() {

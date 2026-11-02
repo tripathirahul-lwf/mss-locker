@@ -1,11 +1,11 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  Locker,
-  LockerStats,
-  LockerQueryParams,
-  CreateLockerInput,
-  UpdateLockerInput,
-  PaginatedLockersResponse,
+Locker,
+LockerStats,
+LockerQueryParams,
+CreateLockerInput,
+UpdateLockerInput,
+PaginatedLockersResponse,
 } from '../types';
 
 export const lockerApi = {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { paymentController } from '../controllers/payment.controller';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();

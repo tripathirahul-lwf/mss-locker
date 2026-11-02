@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState,useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Camera,
-  X,
-  RefreshCw,
-  Check,
-  RotateCcw,
-  AlertCircle,
-  Loader2,
-  Smartphone,
+Camera,
+X,
+RefreshCw,
+Check,
+RotateCcw,
+AlertCircle,
+Loader2,
+Smartphone,
 } from 'lucide-react';
 
 interface CameraCaptureModalProps {
@@ -24,6 +24,9 @@ export function CameraCaptureModal({
   onCapture,
   onFallbackNativeCamera,
 }: CameraCaptureModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const captureVersion = useRef(0);
+  const closeRef = useRef(onClose); closeRef.current = onClose;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -38,6 +41,7 @@ export function CameraCaptureModal({
     if (!isOpen || capturedImage) return;
 
     let activeStream: MediaStream | null = null;
+    let cancelled = false;
     setIsLoading(true);
     setCameraError(null);
 
@@ -57,17 +61,19 @@ export function CameraCaptureModal({
           audio: false,
         });
 
+        if (cancelled) { mediaStream.getTracks().forEach(track => track.stop()); return; }
         activeStream = mediaStream;
         setStream(mediaStream);
 
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
           videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch(() => {});
-            setIsLoading(false);
+            if (cancelled) return;
+            videoRef.current?.play().then(() => { if (!cancelled) setIsLoading(false); }).catch(() => { if (!cancelled) { setIsLoading(false); setCameraError("Camera playback failed. Try the device camera instead."); } });
           };
         }
       } catch (err: any) {
+        if (cancelled) return;
         setIsLoading(false);
         const isPermissionDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
         setCameraError(
@@ -81,11 +87,30 @@ export function CameraCaptureModal({
     startCamera();
 
     return () => {
+      cancelled = true;
+      if (videoRef.current) videoRef.current.onloadedmetadata = null;
       if (activeStream) {
         activeStream.getTracks().forEach((track) => track.stop());
       }
     };
   }, [isOpen, facingMode, capturedImage]);
+
+  useEffect(() => {
+    if (!isOpen) { captureVersion.current++; setCapturedImage(null); setCapturedBlob(null); return; }
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); closeRef.current(); }
+      if (event.key !== 'Tab') return;
+      const items = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || []);
+      const first=items[0],last=items.at(-1);
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (document.activeElement===first || document.activeElement===dialogRef.current)) {event.preventDefault();last?.focus();}
+      else if (!event.shiftKey && (document.activeElement===last || document.activeElement===dialogRef.current)) {event.preventDefault();first.focus();}
+    };
+    document.addEventListener('keydown',key,true);
+    return () => { captureVersion.current++; document.removeEventListener('keydown',key,true); if(previous?.isConnected)previous.focus(); };
+  },[isOpen]);
 
   // Stop camera when closing
   const handleClose = () => {
@@ -110,12 +135,14 @@ export function CameraCaptureModal({
 
   // Capture frame from live video
   const handleTakeSnapshot = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (isLoading || !videoRef.current || !canvasRef.current || videoRef.current.readyState < 2) return;
+    const version = ++captureVersion.current;
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (!width || !height) return;
     canvas.width = width;
     canvas.height = height;
 
@@ -130,7 +157,7 @@ export function CameraCaptureModal({
 
     canvas.toBlob(
       (blob) => {
-        if (blob) {
+        if (blob && version === captureVersion.current) {
           setCapturedBlob(blob);
         }
       },
@@ -147,6 +174,7 @@ export function CameraCaptureModal({
 
   // Retake photo
   const handleRetake = () => {
+    captureVersion.current++;
     setCapturedImage(null);
     setCapturedBlob(null);
     // Setting capturedImage to null will trigger the camera start effect
@@ -171,20 +199,21 @@ export function CameraCaptureModal({
       }}
     >
       <div
-        className="w-full max-w-xl bg-slate-900 text-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] border border-slate-700"
+        ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="camera-title" tabIndex={-1}
+        className="outline-none w-full max-w-3xl bg-white text-slate-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[94vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 px-5 border-b border-slate-800 bg-slate-900/90 shrink-0">
+        <div className="flex items-center justify-between p-5 sm:px-8 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-emerald-700/80 text-white flex items-center justify-center shadow-xs">
+            <div className="h-11 w-11 rounded-xl bg-emerald-700/80 text-white flex items-center justify-center shadow-xs">
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-100 tracking-tight">
-                {capturedImage ? 'Review Document Photo' : 'Tablet Camera Scanner'}
+              <h3 id="camera-title" className="text-xl sm:text-2xl font-bold text-slate-950 tracking-tight">
+                {capturedImage ? 'Review Document Photo' : 'Receipt Camera'}
               </h3>
-              <p className="text-[11px] text-slate-400 font-normal">
+              <p className="text-sm text-slate-600 font-normal">
                 {capturedImage
                   ? 'Verify text & numbers are legible before attaching'
                   : 'Position receipt, cheque, or slip within frame'}
@@ -197,7 +226,8 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleFlipCamera}
-                className="h-8 w-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+                disabled={isLoading}
+                className="h-11 w-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
                 title="Switch Camera (Front/Rear)"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -206,7 +236,8 @@ export function CameraCaptureModal({
             <button
               type="button"
               onClick={handleClose}
-              className="h-8 w-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+              aria-label="Close camera"
+              className="h-11 w-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
             >
               <X className="w-4.5 h-4.5" />
             </button>
@@ -214,7 +245,7 @@ export function CameraCaptureModal({
         </div>
 
         {/* Viewfinder / Captured Photo Display */}
-        <div className="relative flex-1 bg-black flex items-center justify-center min-h-[300px] sm:min-h-[380px] overflow-hidden">
+        <div className="relative min-h-0 flex-1 bg-slate-950 text-white flex items-center justify-center min-h-0 overflow-y-auto overflow-hidden">
           {capturedImage ? (
             /* Review captured picture */
             <div className="relative w-full h-full flex items-center justify-center p-2">
@@ -235,7 +266,7 @@ export function CameraCaptureModal({
               </div>
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-slate-200">Unable to Start Camera Stream</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">{cameraError}</p>
+                <p className="text-sm text-slate-400 leading-relaxed">{cameraError}</p>
               </div>
 
               {onFallbackNativeCamera && (
@@ -245,7 +276,7 @@ export function CameraCaptureModal({
                     handleClose();
                     onFallbackNativeCamera();
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs transition flex items-center justify-center gap-2 mx-auto cursor-pointer shadow-sm"
+                  className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-sm transition flex items-center justify-center gap-2 mx-auto cursor-pointer shadow-sm"
                 >
                   <Smartphone className="w-4 h-4" />
                   <span>Open Tablet Camera App</span>
@@ -258,7 +289,7 @@ export function CameraCaptureModal({
               {isLoading && (
                 <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center gap-2 z-10">
                   <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-                  <span className="text-xs text-slate-400">Initializing tablet camera...</span>
+                  <span className="text-sm text-slate-400">Initializing tablet camera...</span>
                 </div>
               )}
 
@@ -267,7 +298,7 @@ export function CameraCaptureModal({
                 playsInline
                 autoPlay
                 muted
-                className="w-full h-full object-cover max-h-[55vh]"
+                className="w-full h-full object-contain max-h-[52dvh] min-h-[180px]"
               />
 
               {/* Document Framing Guidelines Overlay */}
@@ -296,14 +327,14 @@ export function CameraCaptureModal({
         </div>
 
         {/* Action Controls Footer */}
-        <div className="p-4 px-6 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 sm:px-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
           {capturedImage ? (
             /* Review Actions */
             <div className="flex items-center justify-between w-full gap-3">
               <button
                 type="button"
                 onClick={handleRetake}
-                className="px-4 py-2.5 rounded-xl font-semibold text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl font-semibold text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 transition flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Retake</span>
@@ -312,7 +343,8 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleConfirmCapture}
-                className="px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-700 hover:bg-emerald-600 transition flex items-center gap-2 cursor-pointer shadow-sm"
+                disabled={!capturedBlob}
+                className="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-emerald-700 hover:bg-emerald-600 transition flex items-center gap-2 cursor-pointer shadow-sm"
               >
                 <Check className="w-4 h-4" />
                 <span>Use This Photo</span>
@@ -328,7 +360,7 @@ export function CameraCaptureModal({
                     handleClose();
                     onFallbackNativeCamera();
                   }}
-                  className="text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
+                  className="text-sm font-semibold text-slate-600 hover:text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
                   title="Use native tablet camera application"
                 >
                   <Smartphone className="w-4 h-4 text-slate-400" />
@@ -354,7 +386,7 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleClose}
-                className="text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer"
+                className="text-sm font-semibold text-slate-600 hover:text-slate-950 transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -364,7 +396,7 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition cursor-pointer"
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
               >
                 Close
               </button>

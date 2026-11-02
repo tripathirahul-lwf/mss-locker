@@ -1,11 +1,11 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema,model,Document,Types } from 'mongoose';
 import {
-  ClosureType,
-  CLOSURE_TYPES,
-  ClosureStatus,
-  CLOSURE_STATUSES,
-  LockerCondition,
-  LOCKER_CONDITIONS,
+ClosureType,
+CLOSURE_TYPES,
+ClosureStatus,
+CLOSURE_STATUSES,
+LockerCondition,
+LOCKER_CONDITIONS,
 } from '../constants/closure.constants';
 
 export interface IPhysicalChecklist {

@@ -1,6 +1,6 @@
 import React from 'react';
-import { DepositTransactionType, DepositTransactionStatus, DepositStatus } from '../types';
-import { ArrowDownLeft, ArrowUpRight, Plus, Minus, FileText, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { DepositTransactionType,DepositTransactionStatus,DepositStatus } from '../types';
+import { ArrowDownLeft,ArrowUpRight,Plus,Minus,FileText,CheckCircle2,XCircle,Clock } from 'lucide-react';
 
 interface TypeBadgeProps {
   type: DepositTransactionType;

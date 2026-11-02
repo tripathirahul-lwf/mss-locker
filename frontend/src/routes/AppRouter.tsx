@@ -1,5 +1,5 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { createBrowserRouter,RouterProvider } from 'react-router-dom';
+import { lazy,Suspense } from 'react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ProtectedRoute } from '../components/common/ProtectedRoute';

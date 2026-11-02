@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
-  ALLOCATION_STATUS,
-  ALLOCATION_TYPE,
-  BILLING_CYCLE,
+ALLOCATION_STATUS,
+ALLOCATION_TYPE,
+BILLING_CYCLE,
 } from '../constants/allocation.constants';
 
 export const createAllocationSchema = z.object({

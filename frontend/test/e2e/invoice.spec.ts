@@ -15,7 +15,7 @@ test('invoice uses recorded zero GST and same-page profile/matrix with contained
     await route.fulfill({ response, json: body });
   });
   const { modal } = await openInvoice(page); const url = page.url();
-  await expect(modal.getByText('Base Safe-Deposit Rent Tariff').locator('..')).toContainText('1,180.00');
+  await expect(modal.getByText('Rent amount (as recorded)').locator('..')).toContainText('1,180.00');
   await expect(modal.getByText(/GST 18%/)).toHaveCount(0); await expect(modal).not.toContainText('SAC 997212');
   await modal.getByRole('button', { name: 'Profile', exact: true }).click();
   const profile = page.getByRole('dialog', { name: 'Customer Profile', exact: true }); await expect(profile).toBeVisible();

@@ -3,7 +3,7 @@ import { AllotmentService } from '../services/allotment.service';
 import { Router } from 'express';
 import { LockerAllocationController } from '../controllers/allocation.controller';
 import { depositController } from '../controllers/deposit.controller';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();

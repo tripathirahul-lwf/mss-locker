@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { z } from 'zod';
-const syncQuery = z.object({ cursor: z.string().max(4000).optional(), limit: z.coerce.number().int().min(10).max(5000).default(2000) });
 import { syncService } from '../services/sync.service';
 import { logger } from '../utils/logger';
+const syncQuery = z.object({ cursor: z.string().max(4000).optional(), limit: z.coerce.number().int().min(10).max(5000).default(2000) });
 
 export class SyncController {
   async getIncrementalSync(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -21,7 +21,7 @@ export class SyncController {
     }
   }
 
-  async getDashboardSync(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getDashboardSync(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await syncService.getDashboardSync();
       res.status(200).json({

@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState,useEffect } from 'react';
+import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Layers, Plus, Clock, Download, RefreshCw } from 'lucide-react';
 import { allocationApi } from '../features/allocations/api/allocationApi';
 import { lockerApi } from '../features/lockers/api/lockerApi';
 import { customerApi } from '../features/customers/api/customerApi';
 import { Locker } from '../features/lockers/types';
 import { Customer } from '../features/customers/types';
 import {
-  LockerAllocation,
-  AllocationQueryParams,
-  AllocationStatus,
-  CreateAllocationInput,
-  ReserveLockerInput,
+LockerAllocation,
+AllocationQueryParams,
+AllocationStatus,
+CreateAllocationInput,
+ReserveLockerInput,
 } from '../features/allocations/types';
 import { AllocationSummaryCards } from '../features/allocations/components/AllocationSummaryCards';
 import { AllocationActionRibbon } from '../features/allocations/components/AllocationActionRibbon';
@@ -28,8 +27,6 @@ export function AllocationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const canCreate = usePermission('allocations.create');
-  const canActivate = usePermission('allocations.activate');
-  const canCancel = usePermission('allocations.cancel');
 
   // Read URL query parameters
   const page = Number(searchParams.get('page')) || 1;

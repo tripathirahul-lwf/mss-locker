@@ -1,18 +1,13 @@
-import React from 'react';
 import {
-  Eye,
-  Calendar,
-  KeyRound,
-  FileText,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Ban,
-  Clock,
-  Phone,
+Eye,
+Calendar,
+KeyRound,ChevronLeft,
+ChevronRight,
+Plus,
+Ban
 } from 'lucide-react';
-import { LockerInvoice, InvoiceQueryParams } from '../types';
-import { PaymentStatusBadge, DueStatusBadge } from './RenewalStatusBadge';
+import { LockerInvoice,InvoiceQueryParams } from '../types';
+import { PaymentStatusBadge,DueStatusBadge } from './RenewalStatusBadge';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
 import { formatPhone } from '../../customers/utils/phoneFormatter';
@@ -38,7 +33,6 @@ export function RenewalTable({
   invoices,
   pagination,
   isLoading,
-  filters,
   onPageChange,
   onView,
   onCancel,

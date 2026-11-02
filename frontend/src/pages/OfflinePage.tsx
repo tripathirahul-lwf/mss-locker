@@ -1,7 +1,7 @@
-import { WifiOff, RefreshCw, Database, ShieldCheck } from 'lucide-react';
+import { WifiOff,RefreshCw,Database,ShieldCheck } from 'lucide-react';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { Button } from '../components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Card,CardHeader,CardTitle,CardDescription,CardContent } from '../components/ui/card';
 import { Link } from 'react-router-dom';
 
 export function OfflinePage() {

@@ -1,3 +1,6 @@
+import { RenewalCollectionRequest } from '../../src/models/RenewalCollectionRequest';
+import { RenewalCollectionService } from '../../src/services/renewalCollection.service';
+import { renewalCollectionSchema } from '../../src/validators/renewalCollection.validator';
 import { RoleService } from '../../src/services/role.service';
 import { ImportJob } from '../../src/models/ImportJob';
 import { importCommitService } from '../../src/services/import-commit.service';
@@ -66,6 +69,7 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
 
   beforeEach(async () => {
     await mongoose.connection.db?.dropDatabase();
+    await RenewalCollectionRequest.syncIndexes();
     await Sequence.syncIndexes();
     await Payment.syncIndexes();
     await AllotmentRequest.syncIndexes();
@@ -1173,6 +1177,55 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     const token = await apiOperator([PERMISSIONS.LOCKERS_VIEW]);
     expect((await request(app).get('/api/sync?limit=1.5').set('Authorization',`Bearer ${token}`)).status).toBe(400);
     expect((await request(app).get('/api/sync?cursor=invalid').set('Authorization',`Bearer ${token}`)).status).toBe(400);
+  });
+
+  async function renewalCollectionFixture(number:string) {
+    const saved=await AllotmentService.complete(await allotment(number,2000),actor);
+    const allocation=(await LockerAllocation.findById(saved.allocation!._id))!;
+    return renewalCollectionSchema.parse({requestId:randomUUID(),allocationId:String(allocation._id),expectedRenewalDate:allocation.nextRenewalDueDate!.toISOString().slice(0,10),nextRenewalDueDate:'2030-01-01',billingCycle:'ANNUAL',amount:1180,receiptNumber:`RENEW-${number}`,receiptDate:'2026-11-01',cashReceived:true});
+  }
+  it('renewal collection atomically saves one paid bill and receipt, advances coverage and does not collect deposit again',async()=>{
+    const input=await renewalCollectionFixture('980');
+    const deposits=await DepositTransaction.countDocuments();
+    const results=await Promise.all([RenewalCollectionService.complete(input,actor.userId,actor.username),RenewalCollectionService.complete(input,actor.userId,actor.username)]);
+    expect(String(results[0].payment!._id)).toBe(String(results[1].payment!._id));
+    expect(results[0].invoice?.status).toBe('PAID');expect(results[0].invoice?.balanceAmount).toBe(0);expect(results[0].invoice?.taxAmount).toBe(180);
+    expect(results[0].allocation?.nextRenewalDueDate?.toISOString().slice(0,10)).toBe('2030-01-01');
+    expect(results[0].allocation?.paidThroughDate?.toISOString().slice(0,10)).toBe('2029-12-31');
+    expect(await DepositTransaction.countDocuments()).toBe(deposits);
+    expect(await RenewalCollectionRequest.countDocuments()).toBe(1);
+    await expect(RenewalCollectionService.complete({...input,amount:1200},actor.userId,actor.username)).rejects.toMatchObject({statusCode:409});
+  });
+  it('renewal replay rejects a changed financial ledger instead of confirming success',async()=>{
+    const input=await renewalCollectionFixture('984');
+    const result=await RenewalCollectionService.complete(input,actor.userId,actor.username);
+    await LockerInvoice.updateOne({_id:result.invoice._id},{$set:{balanceAmount:1}});
+    await expect(RenewalCollectionService.complete(input,actor.userId,actor.username)).rejects.toMatchObject({statusCode:409});
+    expect(await RenewalCollectionRequest.countDocuments()).toBe(1);
+  });
+
+  it('renewal collection rolls back invoice, payment and dates when auditing fails',async()=>{
+    const input=await renewalCollectionFixture('981');const invoices=await LockerInvoice.countDocuments(),payments=await Payment.countDocuments();
+    const fail=vi.spyOn(AuditLog,'create').mockRejectedValueOnce(new Error('Renewal audit unavailable'));
+    await expect(RenewalCollectionService.complete(input,actor.userId,actor.username)).rejects.toThrow('Renewal audit unavailable');fail.mockRestore();
+    expect(await LockerInvoice.countDocuments()).toBe(invoices);expect(await Payment.countDocuments()).toBe(payments);expect(await RenewalCollectionRequest.countDocuments()).toBe(0);
+    expect((await LockerAllocation.findById(input.allocationId))?.nextRenewalDueDate?.toISOString().slice(0,10)).toBe(input.expectedRenewalDate);
+  });
+  it('renewal collection rejects stale dates, duplicate receipts, and unpaid overlapping invoices',async()=>{
+    const input=await renewalCollectionFixture('982');
+    await expect(RenewalCollectionService.complete({...input,expectedRenewalDate:'2028-12-01'},actor.userId,actor.username)).rejects.toThrow('date changed');
+    await expect(RenewalCollectionService.complete({...input,receiptNumber:'BOOK-982'},actor.userId,actor.username)).rejects.toThrow('Receipt number already exists');
+    await renewalService.generateRenewalInvoice({allocationId:input.allocationId,startDate:input.expectedRenewalDate});
+    await expect(RenewalCollectionService.complete(input,actor.userId,actor.username)).rejects.toThrow('overlapping invoice');
+    expect(await RenewalCollectionRequest.countDocuments()).toBe(0);
+  });
+  it('renewal collection API requires both billing and payment permissions and validates receipt input',async()=>{
+    const input=await renewalCollectionFixture('983'),readonly=await apiOperator([PERMISSIONS.RENEWALS_CREATE]);
+    expect((await request(app).post('/api/renewals/collect').set('Authorization',`Bearer ${readonly}`).send(input)).status).toBe(403);
+    const token=await apiOperator([PERMISSIONS.RENEWALS_CREATE,PERMISSIONS.PAYMENTS_CREATE]);
+    for(const patch of [{receiptNumber:''},{receiptDate:'2099-01-01'},{amount:0},{nextRenewalDueDate:input.expectedRenewalDate},{amount:1.234}]) {
+      expect((await request(app).post('/api/renewals/collect').set('Authorization',`Bearer ${token}`).send({...input,...patch})).status).toBe(400);
+    }
   });
 
 });

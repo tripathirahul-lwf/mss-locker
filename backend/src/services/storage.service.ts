@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import sharp from 'sharp';
-import { v2 as cloudinary, UploadApiOptions, UploadApiResponse } from 'cloudinary';
+import { v2 as cloudinary,UploadApiOptions,UploadApiResponse } from 'cloudinary';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 

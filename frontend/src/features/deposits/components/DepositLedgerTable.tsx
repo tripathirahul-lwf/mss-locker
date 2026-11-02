@@ -1,7 +1,7 @@
 import React from 'react';
-import { DepositTransaction, DepositTransactionType } from '../types';
-import { DepositTypeBadge, DepositTxStatusBadge } from './DepositStatusBadge';
-import { Receipt, Search, Filter, RefreshCw, XCircle, Inbox } from 'lucide-react';
+import { DepositTransaction,DepositTransactionType } from '../types';
+import { DepositTypeBadge,DepositTxStatusBadge } from './DepositStatusBadge';
+import { Receipt,Search,Filter,RefreshCw,XCircle,Inbox } from 'lucide-react';
 
 interface DepositLedgerTableProps {
   transactions: DepositTransaction[];

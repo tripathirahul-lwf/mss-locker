@@ -1,10 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { LockerAllocationService } from '../services/allocation.service';
 import {
-  createAllocationSchema,
-  reserveLockerSchema,
-  updateAllocationSchema,
-  allocationQuerySchema,
+createAllocationSchema,
+reserveLockerSchema,
+updateAllocationSchema,
+allocationQuerySchema,
 } from '../validators/allocation.validator';
 import { successResponse } from '../utils/apiResponse';
 

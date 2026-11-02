@@ -1,29 +1,21 @@
-import React, { useState } from 'react';
+import React,{ useState } from 'react';
 import {
-  FileText,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Eye,
-  Trash2,
-  Edit3,
-  ExternalLink,
-  ShieldCheck,
-  ShieldAlert,
-  Plus,
-  AlertOctagon,
-  UploadCloud,
+FileText,
+CheckCircle,
+XCircle,Eye,
+Trash2,
+Edit3,ShieldCheck,
+ShieldAlert,
+Plus,UploadCloud
 } from 'lucide-react';
 import {
-  CustomerKycDocument,
-  KycVerificationStatus,
-  VerifyKycDocumentInput,
+CustomerKycDocument,
+KycVerificationStatus,
+VerifyKycDocumentInput,
 } from '../types';
-import { KYC_DOCUMENT_TYPES, KYC_VERIFICATION_CONFIG } from '../constants';
+import { KYC_DOCUMENT_TYPES,KYC_VERIFICATION_CONFIG } from '../constants';
 import { Button } from '../../../components/ui/button';
-import { Badge } from '../../../components/ui/badge';
 import { usePermission } from '../../../hooks/usePermission';
-import { customerApi } from '../api/customerApi';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 
 interface KycDocumentListProps {

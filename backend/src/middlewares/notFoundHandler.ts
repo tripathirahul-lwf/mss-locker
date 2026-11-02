@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { errorResponse } from '../utils/apiResponse';
 
 export const notFoundHandler = (req: Request, res: Response, _next: NextFunction): void => {

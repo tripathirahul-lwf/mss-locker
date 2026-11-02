@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/user.controller';
-import { authenticate, requirePermission, requireAnyPermission } from '../middlewares/auth';
+import { authenticate,requirePermission,requireAnyPermission } from '../middlewares/auth';
 import { validateRequest } from '../validators';
 import {
-  createUserSchema,
-  updateUserSchema,
-  resetUserPasswordSchema,
-  queryUsersSchema, userIdSchema,
+createUserSchema,
+updateUserSchema,
+resetUserPasswordSchema,
+queryUsersSchema,userIdSchema,
 } from '../validators/user.validator';
 import { PERMISSIONS } from '../constants/permissions';
 

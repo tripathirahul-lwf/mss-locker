@@ -1,35 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useState,useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  IndianRupee,
-  Search,
-  KeyRound,
-  User,
-  Calendar,
-  CreditCard,
-  QrCode,
-  Banknote,
-  Building2,
-  Receipt,
-  FileCheck,
-  AlertCircle,
-  Loader2,
-  CheckCircle2,
-  RotateCw,
-  ChevronDown,
-  UploadCloud,
-  FileText,
-  Image as ImageIcon,
-  Trash2,
-  Eye,
-  ExternalLink,
-  Camera,
-  Smartphone,
+X,
+IndianRupee,
+Search,CreditCard,
+QrCode,Building2,
+Receipt,
+FileCheck,
+AlertCircle,
+Loader2,
+CheckCircle2,
+RotateCw,
+ChevronDown,
+UploadCloud,
+FileText,
+Image as ImageIcon,
+Trash2,
+Eye,
+ExternalLink,
+Camera
 } from 'lucide-react';
 import { renewalApi } from '../../renewals/api/renewalApi';
 import { LockerInvoice } from '../../renewals/types';
-import { RecordPaymentInput, PaymentMethod, Payment } from '../types';
+import { RecordPaymentInput,PaymentMethod,Payment } from '../types';
 import { paymentApi } from '../api/paymentApi';
 import { customerApi } from '../../customers/api/customerApi';
 import { CameraCaptureModal } from './CameraCaptureModal';
@@ -104,7 +98,7 @@ export function RecordPaymentModal({
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     titleRef.current?.focus();
-    document.body.style.overflow = 'hidden';
+    const releaseScroll = lockBodyScroll();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !submittingRef.current) closeRef.current();
       if (event.key !== 'Tab' || !dialogRef.current) return;
@@ -117,7 +111,7 @@ export function RecordPaymentModal({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = '';
+      releaseScroll();
       window.removeEventListener('keydown', handleKeyDown);
       previouslyFocused?.focus();
     };
@@ -303,7 +297,7 @@ export function RecordPaymentModal({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[120] flex h-[100dvh] w-screen items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs select-none animate-in fade-in-0 duration-150 sm:p-5"
+      className="fixed inset-0 z-[120] flex h-[100dvh] w-screen items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm animate-in fade-in-0 duration-150 sm:p-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isSubmitting) onClose();
       }}
@@ -314,13 +308,13 @@ export function RecordPaymentModal({
         aria-modal="true"
         aria-labelledby="record-payment-title"
         aria-describedby="record-payment-description"
-        className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[92vh] border border-slate-200"
+        className="w-full max-w-6xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] text-slate-950"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:px-6 sm:py-4.5 border-b border-slate-100 bg-white shrink-0">
+        <div className="flex items-start justify-between gap-3 px-5 pb-4 pt-6 sm:px-8 sm:pt-8 bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
+            <div className="hidden">
               <IndianRupee className="w-5 h-5" />
             </div>
             <div>
@@ -328,11 +322,11 @@ export function RecordPaymentModal({
                 ref={titleRef}
                 tabIndex={-1}
                 id="record-payment-title"
-                className="text-base sm:text-lg font-bold text-slate-900 tracking-tight outline-none"
+                className="text-xl sm:text-2xl font-bold text-slate-950 tracking-tight outline-none"
               >
                 Record Payment Collection
               </h2>
-              <p id="record-payment-description" className="text-xs text-slate-500 font-normal mt-0.5">
+              <p id="record-payment-description" className="text-sm sm:text-base text-slate-600 font-normal mt-2">
                 Cashier collection and official receipt issuance
               </p>
             </div>
@@ -342,7 +336,7 @@ export function RecordPaymentModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer"
+            className="h-11 w-11 shrink-0 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-slate-700 flex items-center justify-center transition cursor-pointer"
             aria-label="Close dialog"
           >
             <X className="w-4.5 h-4.5" />
@@ -351,7 +345,7 @@ export function RecordPaymentModal({
 
         {/* Success Screen */}
         {recordedPayment ? (
-          <div role="status" aria-live="polite" className="p-6 sm:p-8 space-y-6 text-center overflow-y-auto flex-1 text-xs">
+          <div role="status" aria-live="polite" className="p-6 sm:p-8 space-y-6 text-center overflow-y-auto flex-1 text-sm">
             <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-800 flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
               <CheckCircle2 className="w-9 h-9" />
             </div>
@@ -360,12 +354,12 @@ export function RecordPaymentModal({
               <h3 className="text-lg font-bold text-slate-900">
                 Payment Recorded Successfully!
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-sm text-slate-500 font-medium">
                 Receipt #{recordedPayment.receiptNumber} {recordedPayment.billNumber ? `• Bill #${recordedPayment.billNumber}` : ''} &bull; Payment #{recordedPayment.paymentNumber}
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 max-w-md mx-auto space-y-2.5 text-left text-xs">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 max-w-md mx-auto space-y-2.5 text-left text-sm">
               <div className="flex justify-between items-center">
                 <span className="text-slate-500 font-medium">Amount Received:</span>
                 <strong className="text-emerald-950 font-black text-sm">
@@ -419,7 +413,7 @@ export function RecordPaymentModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl font-semibold text-xs text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+                className="px-5 py-2.5 rounded-xl font-semibold text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
               >
                 Close Window
               </button>
@@ -431,7 +425,7 @@ export function RecordPaymentModal({
                     onClose();
                     onSuccessViewReceipt(recordedPayment);
                   }}
-                  className="px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 transition shadow-sm flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-3 min-h-12 rounded-2xl font-bold text-base text-white bg-emerald-800 hover:bg-emerald-900 transition shadow-sm flex items-center gap-2 cursor-pointer"
                 >
                   <Receipt className="w-4 h-4" />
                   <span>View Official Receipt</span>
@@ -447,9 +441,9 @@ export function RecordPaymentModal({
             noValidate
             className="flex flex-col flex-1 overflow-hidden min-h-0"
           >
-            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+            <div className="px-5 py-4 sm:px-8 space-y-5 overflow-y-auto min-h-0 flex-1 text-base">
               {error && (
-                <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 text-xs font-semibold">
+                <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 text-sm font-semibold">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
                   <span>{error}</span>
                 </div>
@@ -462,18 +456,18 @@ export function RecordPaymentModal({
                   <span>Loading selected statement...</span>
                 </div>
               ) : !selectedInvoice ? (
-                <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs">
+                <div className="rounded-2xl bg-slate-100 p-4 sm:p-6 space-y-5">
                   <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/80">
                     <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                      <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-sm font-bold flex items-center justify-center shadow-xs">
                         1
                       </div>
-                      <h3 className="font-bold text-slate-800 text-xs sm:text-sm">
+                      <h3 className="font-bold text-slate-800 text-base sm:text-lg">
                         Search & Select Outstanding Invoiced Statement
                       </h3>
                     </div>
                     {!selectedInvoice && invoiceList.length > 0 && (
-                      <span className="text-[11px] text-slate-500 font-medium">
+                      <span className="text-sm text-slate-500 font-medium">
                         <span className="font-bold text-emerald-800">{invoiceList.length}</span> Unpaid Statements
                       </span>
                     )}
@@ -487,7 +481,7 @@ export function RecordPaymentModal({
                       value={invoiceQuery}
                       onChange={(e) => setInvoiceQuery(e.target.value)}
                       placeholder="Search invoice number (e.g. INV-2026-000001), customer, phone, or locker..."
-                      className="w-full h-11 pl-10 pr-10 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 text-sm focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal"
+                      className="w-full h-12 pl-10 pr-10 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 text-sm focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal"
                     />
                     {invoiceQuery && (
                       <button
@@ -514,7 +508,7 @@ export function RecordPaymentModal({
                       <button
                         type="button"
                         onClick={() => setSearchRetry((value) => value + 1)}
-                        className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1 cursor-pointer shadow-2xs"
+                        className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1 cursor-pointer shadow-2xs"
                       >
                         <RotateCw className="h-3 w-3" />
                         <span>Retry</span>
@@ -538,14 +532,14 @@ export function RecordPaymentModal({
                         aria-label={`Select invoice ${inv.invoiceNumber} for ${inv.customerId?.fullName}, balance ₹${inv.balanceAmount.toLocaleString('en-IN')}`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-[11px] border border-slate-200/80">
+                          <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-sm border border-slate-200/80">
                             {inv.invoiceNumber}
                           </span>
-                          <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] border border-emerald-200/60">
+                          <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md text-sm border border-emerald-200/60">
                             Locker #{inv.lockerId?.lockerNumber} ({inv.lockerId?.size})
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                        <div className="flex items-center justify-between text-sm pt-1 border-t border-slate-100">
                           <span className="font-bold text-slate-800 truncate max-w-[170px]">
                             {inv.customerId?.fullName}
                           </span>
@@ -566,18 +560,18 @@ export function RecordPaymentModal({
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                        <span className="font-mono font-bold text-sm text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
                           {selectedInvoice.invoiceNumber}
                         </span>
-                        <span className="font-bold text-xs text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        <span className="font-bold text-sm text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                           Locker #{selectedInvoice.lockerId?.lockerNumber} ({selectedInvoice.lockerId?.size})
                         </span>
-                        <span className="text-[10.5px] font-bold text-emerald-700 flex items-center gap-1">
+                        <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           Verified
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 font-medium mt-1">
+                      <p className="text-sm text-slate-500 font-medium mt-1">
                         Tenant: <strong className="text-slate-900">{selectedInvoice.customerId?.fullName}</strong> &bull; Total: ₹{selectedInvoice.totalAmount.toLocaleString('en-IN')} &bull; Outstanding: <strong className="text-rose-600">₹{selectedInvoice.balanceAmount.toLocaleString('en-IN')}</strong>
                       </p>
                     </div>
@@ -586,7 +580,7 @@ export function RecordPaymentModal({
                     <button
                       type="button"
                       onClick={() => setSelectedInvoice(null)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
+                      className="px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
                     >
                       Change Statement
                     </button>
@@ -596,17 +590,17 @@ export function RecordPaymentModal({
 
               {/* 2. Payment Details */}
               {selectedInvoice && (
-                <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 space-y-4 shadow-2xs">
+                <div className="rounded-2xl bg-slate-100 p-4 sm:p-6 space-y-5">
                   <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/80">
                     <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                      <div className="h-6 w-6 rounded-lg bg-emerald-800 text-white text-sm font-bold flex items-center justify-center shadow-xs">
                         2
                       </div>
-                      <h3 className="font-bold text-slate-800 text-xs sm:text-sm">
+                      <h3 className="font-bold text-slate-800 text-base sm:text-lg">
                         Collection Details & Payment Method
                       </h3>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-medium">
+                    <span className="text-sm text-slate-500 font-medium">
                       Balance Due: <strong className="text-rose-600 font-bold">₹{selectedInvoice.balanceAmount.toLocaleString('en-IN')}</strong>
                     </span>
                   </div>
@@ -615,14 +609,14 @@ export function RecordPaymentModal({
                     {/* Amount to Collect */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label htmlFor="payment-amount" className="block text-xs font-semibold text-slate-700">
+                        <label htmlFor="payment-amount" className="block text-sm font-semibold text-slate-700">
                           Amount to Collect <span className="text-emerald-700">*</span>
                         </label>
                         {amount !== selectedInvoice.balanceAmount && (
                           <button
                             type="button"
                             onClick={() => setAmount(selectedInvoice.balanceAmount)}
-                            className="text-[10.5px] font-bold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
+                            className="text-xs font-bold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
                           >
                             Fill Full
                           </button>
@@ -641,14 +635,14 @@ export function RecordPaymentModal({
                           value={amount}
                           onChange={(e) => setAmount(Number(e.target.value))}
                           required
-                          className="w-full h-11 pl-11 pr-4 text-base font-black text-emerald-950 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 tabular-nums transition shadow-xs"
+                          className="w-full h-12 pl-11 pr-4 text-base font-semibold text-emerald-950 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 tabular-nums transition shadow-xs"
                         />
                       </div>
                     </div>
 
                     {/* Payment Method */}
                     <div>
-                      <label htmlFor="payment-method" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      <label htmlFor="payment-method" className="block text-sm font-semibold text-slate-700 mb-1.5">
                         Payment Method <span className="text-emerald-700">*</span>
                       </label>
                       <div className="relative">
@@ -656,7 +650,7 @@ export function RecordPaymentModal({
                           id="payment-method"
                           value={paymentMethod}
                           onChange={(e) => setPaymentMethod(e.target.value as any)}
-                          className="w-full h-11 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 text-sm focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 appearance-none cursor-pointer shadow-xs transition hover:border-slate-400"
+                          className="w-full h-12 pl-4 pr-10 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 text-sm focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 appearance-none cursor-pointer shadow-xs transition hover:border-slate-400"
                         >
                           <option value="CASH">Cash Payment</option>
                           <option value="UPI">UPI / QR (GPay, PhonePe)</option>
@@ -671,7 +665,7 @@ export function RecordPaymentModal({
 
                     {/* Payment Date */}
                     <div>
-                      <label htmlFor="payment-date" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      <label htmlFor="payment-date" className="block text-sm font-semibold text-slate-700 mb-1.5">
                         Collection Date <span className="text-emerald-700">*</span>
                       </label>
                       <input
@@ -681,22 +675,22 @@ export function RecordPaymentModal({
                         value={paymentDate}
                         onChange={(e) => setPaymentDate(e.target.value)}
                         required
-                        className="w-full h-11 px-4 text-sm font-semibold bg-white border border-slate-300 text-slate-900 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 cursor-pointer"
+                        className="w-full h-12 px-4 text-base font-semibold bg-white border border-slate-300 text-slate-900 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 cursor-pointer"
                       />
                     </div>
 
                     {/* Bill No. / Physical Receipt Book No. */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label htmlFor="bill-number" className="block text-xs font-semibold text-slate-700">
+                        <label htmlFor="bill-number" className="block text-sm font-semibold text-slate-700">
                           Bill / Book No.
                         </label>
-                        <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        <span className="text-xs text-slate-400 font-medium bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                           Optional
                         </span>
                       </div>
                       <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none pointer-events-none">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 select-none pointer-events-none">
                           No.
                         </span>
                         <input
@@ -706,7 +700,7 @@ export function RecordPaymentModal({
                           onChange={(e) => setBillNumber(e.target.value)}
                           placeholder="e.g. 3633"
                           maxLength={50}
-                          className="w-full h-11 pl-10 pr-3 text-sm font-semibold bg-white border border-slate-300 text-slate-900 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal font-mono"
+                          className="w-full h-12 pl-10 pr-3 text-sm font-semibold bg-white border border-slate-300 text-slate-900 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal font-mono"
                         />
                       </div>
                     </div>
@@ -715,7 +709,7 @@ export function RecordPaymentModal({
                   {/* Dynamic Method Reference Fields */}
                   {paymentMethod === 'UPI' && (
                     <div className="space-y-1.5 p-4 rounded-xl bg-violet-50/70 border border-violet-200">
-                      <label htmlFor="upi-reference" className="font-semibold text-xs text-violet-900 flex items-center gap-1.5">
+                      <label htmlFor="upi-reference" className="font-semibold text-sm text-violet-900 flex items-center gap-1.5">
                         <QrCode className="w-4 h-4" />
                         <span>UPI Reference / UTR Number <span className="text-rose-500">*</span></span>
                       </label>
@@ -727,14 +721,14 @@ export function RecordPaymentModal({
                         required
                         maxLength={100}
                         placeholder="e.g. 423589234821 or UPI Ref ID"
-                        className="w-full h-11 px-4 text-sm bg-white border border-violet-300 font-mono rounded-xl focus:outline-hidden focus:border-violet-600 focus:ring-3 focus:ring-violet-600/15 shadow-xs transition"
+                        className="w-full h-12 px-4 text-base bg-white border border-violet-300 font-mono rounded-xl focus:outline-hidden focus:border-violet-600 focus:ring-3 focus:ring-violet-600/15 shadow-xs transition"
                       />
                     </div>
                   )}
 
                   {paymentMethod === 'BANK_TRANSFER' && (
                     <div className="space-y-1.5 p-4 rounded-xl bg-blue-50/70 border border-blue-200">
-                      <label htmlFor="bank-reference" className="font-semibold text-xs text-blue-900 flex items-center gap-1.5">
+                      <label htmlFor="bank-reference" className="font-semibold text-sm text-blue-900 flex items-center gap-1.5">
                         <Building2 className="w-4 h-4" />
                         <span>Bank Transfer UTR / IMPS Reference <span className="text-rose-500">*</span></span>
                       </label>
@@ -746,14 +740,14 @@ export function RecordPaymentModal({
                         required
                         maxLength={100}
                         placeholder="e.g. HDFCN00012345678"
-                        className="w-full h-11 px-4 text-sm bg-white border border-blue-300 font-mono rounded-xl focus:outline-hidden focus:border-blue-600 focus:ring-3 focus:ring-blue-600/15 shadow-xs transition"
+                        className="w-full h-12 px-4 text-base bg-white border border-blue-300 font-mono rounded-xl focus:outline-hidden focus:border-blue-600 focus:ring-3 focus:ring-blue-600/15 shadow-xs transition"
                       />
                     </div>
                   )}
 
                   {(paymentMethod === 'CARD' || paymentMethod === 'OTHER') && (
                     <div className="space-y-1.5 p-4 rounded-xl bg-indigo-50/70 border border-indigo-200">
-                      <label htmlFor="transaction-reference" className="font-semibold text-xs text-indigo-900 flex items-center gap-1.5">
+                      <label htmlFor="transaction-reference" className="font-semibold text-sm text-indigo-900 flex items-center gap-1.5">
                         <CreditCard className="w-4 h-4" />
                         <span>
                           {paymentMethod === 'CARD' ? 'POS Machine Auth / Txn Reference' : 'Transaction Reference'}{' '}
@@ -768,7 +762,7 @@ export function RecordPaymentModal({
                         required
                         maxLength={100}
                         placeholder={paymentMethod === 'CARD' ? 'e.g. POS-AUTH-987654' : 'Enter verifiable transaction reference'}
-                        className="w-full h-11 px-4 text-sm bg-white border border-indigo-300 font-mono rounded-xl focus:outline-hidden focus:border-indigo-600 focus:ring-3 focus:ring-indigo-600/15 shadow-xs transition"
+                        className="w-full h-12 px-4 text-base bg-white border border-indigo-300 font-mono rounded-xl focus:outline-hidden focus:border-indigo-600 focus:ring-3 focus:ring-indigo-600/15 shadow-xs transition"
                       />
                     </div>
                   )}
@@ -777,7 +771,7 @@ export function RecordPaymentModal({
                     <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
-                          <label htmlFor="cheque-number" className="font-semibold text-xs text-amber-900">
+                          <label htmlFor="cheque-number" className="font-semibold text-sm text-amber-900">
                             Cheque Number <span className="text-rose-500">*</span>
                           </label>
                           <input
@@ -788,11 +782,11 @@ export function RecordPaymentModal({
                             required
                             maxLength={50}
                             placeholder="e.g. 000456"
-                            className="w-full h-11 px-4 text-sm bg-white border border-amber-300 font-mono rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-3 focus:ring-amber-600/15 shadow-xs transition"
+                            className="w-full h-12 px-4 text-base bg-white border border-amber-300 font-mono rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-3 focus:ring-amber-600/15 shadow-xs transition"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label htmlFor="cheque-bank" className="font-semibold text-xs text-amber-900">
+                          <label htmlFor="cheque-bank" className="font-semibold text-sm text-amber-900">
                             Drawee Bank Name <span className="text-rose-500">*</span>
                           </label>
                           <input
@@ -803,11 +797,11 @@ export function RecordPaymentModal({
                             required
                             maxLength={120}
                             placeholder="e.g. State Bank of India"
-                            className="w-full h-11 px-4 text-sm bg-white border border-amber-300 rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-3 focus:ring-amber-600/15 shadow-xs transition"
+                            className="w-full h-12 px-4 text-base bg-white border border-amber-300 rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-3 focus:ring-amber-600/15 shadow-xs transition"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label htmlFor="cheque-date" className="font-semibold text-xs text-amber-900">
+                          <label htmlFor="cheque-date" className="font-semibold text-sm text-amber-900">
                             Cheque Date <span className="text-rose-500">*</span>
                           </label>
                           <input
@@ -816,7 +810,7 @@ export function RecordPaymentModal({
                             value={chequeDate}
                             onChange={(e) => setChequeDate(e.target.value)}
                             required
-                            className="w-full h-11 px-4 text-sm bg-white border border-amber-300 rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-3 focus:ring-amber-600/15 shadow-xs transition cursor-pointer"
+                            className="w-full h-12 px-4 text-base bg-white border border-amber-300 rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-3 focus:ring-amber-600/15 shadow-xs transition cursor-pointer"
                           />
                         </div>
                       </div>
@@ -831,7 +825,7 @@ export function RecordPaymentModal({
                           <UploadCloud className="w-4 h-4" />
                         </div>
                         <div>
-                          <label className="text-xs font-bold text-slate-900 block">
+                          <label className="text-sm font-bold text-slate-900 block">
                             {paymentMethod === 'UPI' && 'UPI Payment Proof / Screenshot'}
                             {paymentMethod === 'BANK_TRANSFER' && 'Bank Transfer Advice / NEFT Slip'}
                             {paymentMethod === 'CARD' && 'POS Machine Slip / Charge Slip Photo'}
@@ -839,13 +833,13 @@ export function RecordPaymentModal({
                             {paymentMethod === 'CASH' && 'Cash Voucher / Signed Counter Slip'}
                             {paymentMethod === 'OTHER' && 'Transaction Slip / Acknowledgement'}
                           </label>
-                          <p className="text-[11px] text-slate-500 font-normal">
+                          <p className="text-sm text-slate-500 font-normal">
                             Manual counter entry verification &bull; Max 5 MB (JPG, PNG, WebP, PDF)
                           </p>
                         </div>
                       </div>
                       <span
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md self-start sm:self-auto ${
+                        className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md self-start sm:self-auto ${
                           paymentMethod === 'CASH'
                             ? 'bg-slate-100 text-slate-600'
                             : 'bg-emerald-50 text-emerald-800 border border-emerald-200/80'
@@ -856,7 +850,7 @@ export function RecordPaymentModal({
                     </div>
 
                     {proofUploadError && (
-                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                         <span>{proofUploadError}</span>
                       </div>
@@ -883,7 +877,7 @@ export function RecordPaymentModal({
 
                     {isUploadingProof ? (
                       <div className="p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 text-center space-y-2">
-                        <div className="flex items-center justify-center gap-2 text-emerald-800 font-semibold text-xs">
+                        <div className="flex items-center justify-center gap-2 text-emerald-800 font-semibold text-sm">
                           <Loader2 className="w-4 h-4 animate-spin text-emerald-700" />
                           <span>Uploading proof document ({uploadProgress}%)...</span>
                         </div>
@@ -907,15 +901,15 @@ export function RecordPaymentModal({
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className="font-bold text-slate-900 text-xs truncate max-w-[220px] sm:max-w-xs">
+                              <p className="font-bold text-slate-900 text-sm truncate max-w-[220px] sm:max-w-xs">
                                 {proofDocumentName}
                               </p>
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                              <span className="text-xs font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 Ready
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                            <p className="text-sm text-slate-500 font-medium mt-0.5">
                               {proofFileSize ? formatFileSize(proofFileSize) : 'Attached Proof'} &bull; Uploaded to Vault Records
                             </p>
                           </div>
@@ -925,7 +919,7 @@ export function RecordPaymentModal({
                           <button
                             type="button"
                             onClick={handleOpenProof}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-white hover:bg-emerald-100/80 border border-emerald-300 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            className="px-3 py-1.5 rounded-lg text-sm font-semibold text-emerald-800 bg-white hover:bg-emerald-100/80 border border-emerald-300 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>Preview</span>
@@ -933,7 +927,7 @@ export function RecordPaymentModal({
                           <button
                             type="button"
                             onClick={handleRemoveProof}
-                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition flex items-center gap-1 cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg text-sm font-semibold text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition flex items-center gap-1 cursor-pointer"
                             title="Remove document"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -955,13 +949,13 @@ export function RecordPaymentModal({
                               <Camera className="w-5 h-5" />
                             </div>
                             <div className="min-w-0">
-                              <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                                 <span>Open Camera</span>
-                                <span className="bg-emerald-200/90 text-emerald-950 text-[9.5px] px-1.5 py-0.2 rounded font-black tracking-wide uppercase">
+                                <span className="bg-emerald-200/90 text-emerald-950 text-xs px-1.5 py-0.2 rounded font-black tracking-wide uppercase">
                                   Tablet
                                 </span>
                               </span>
-                              <p className="text-[11px] text-emerald-900 font-medium truncate mt-0.5">
+                              <p className="text-sm text-emerald-900 font-medium truncate mt-0.5">
                                 Snap cheque, slip, or receipt photo
                               </p>
                             </div>
@@ -977,10 +971,10 @@ export function RecordPaymentModal({
                               <UploadCloud className="w-5 h-5 text-emerald-800" />
                             </div>
                             <div className="min-w-0">
-                              <span className="font-bold text-slate-900 text-xs block">
+                              <span className="font-bold text-slate-900 text-sm block">
                                 Browse Files / Gallery
                               </span>
-                              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                              <p className="text-sm text-slate-500 font-medium truncate mt-0.5">
                                 Choose JPG, PNG, or PDF file
                               </p>
                             </div>
@@ -1002,7 +996,7 @@ export function RecordPaymentModal({
                               : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50'
                           }`}
                         >
-                          <p className="text-[11px] text-slate-400 font-medium">
+                          <p className="text-sm text-slate-400 font-medium">
                             Or drag & drop receipt file here &bull; Max 5 MB
                           </p>
                         </div>
@@ -1012,7 +1006,7 @@ export function RecordPaymentModal({
 
                   {/* Notes */}
                   <div>
-                    <label htmlFor="payment-notes" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    <label htmlFor="payment-notes" className="block text-sm font-semibold text-slate-700 mb-1.5">
                       Payment Remarks / Counter Notes <span className="font-normal text-slate-400">(optional)</span>
                     </label>
                     <input
@@ -1022,36 +1016,36 @@ export function RecordPaymentModal({
                       onChange={(e) => setNotes(e.target.value)}
                       maxLength={500}
                       placeholder="Optional cashier notes or counter instructions"
-                      className="w-full h-11 px-4 text-sm font-medium bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal"
+                      className="w-full h-12 px-4 text-base font-medium bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-600 focus:ring-3 focus:ring-emerald-600/15 shadow-xs transition hover:border-slate-400 placeholder:text-slate-400 placeholder:font-normal"
                     />
                   </div>
 
                   {/* Final Review & Balance Calculation */}
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-600">
+                    <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600">
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                        <span className="text-xs uppercase font-bold text-slate-400 block tracking-wider">
                           Statement Due
                         </span>
-                        <span className="text-sm font-bold text-slate-900 tabular-nums">
+                        <span className="text-base font-semibold text-slate-900 tabular-nums">
                           ₹{selectedInvoice.balanceAmount.toLocaleString('en-IN')}
                         </span>
                       </div>
                       <span className="text-slate-300 font-light text-base select-none">−</span>
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-emerald-800 block tracking-wider">
+                        <span className="text-xs uppercase font-bold text-emerald-800 block tracking-wider">
                           Collecting Now
                         </span>
-                        <span className="text-sm font-bold text-emerald-950 tabular-nums">
+                        <span className="text-base font-semibold text-emerald-950 tabular-nums">
                           ₹{Number(amount || 0).toLocaleString('en-IN')}
                         </span>
                       </div>
                       <span className="text-slate-300 font-light text-base select-none">=</span>
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                        <span className="text-xs uppercase font-bold text-slate-400 block tracking-wider">
                           Balance Remaining
                         </span>
-                        <span className={`text-sm font-bold tabular-nums ${remainingBalance === 0 ? 'text-emerald-700' : 'text-slate-800'}`}>
+                        <span className={`text-base font-semibold tabular-nums ${remainingBalance === 0 ? 'text-emerald-700' : 'text-slate-800'}`}>
                           {remainingBalance === 0 ? '₹0 (Settled in Full)' : `₹${remainingBalance.toLocaleString('en-IN')}`}
                         </span>
                       </div>
@@ -1062,8 +1056,8 @@ export function RecordPaymentModal({
             </div>
 
             {/* Pinned Modal Footer */}
-            <div className="p-4 sm:px-6 sm:py-3.5 bg-slate-50/90 border-t border-slate-200/90 flex items-center justify-between gap-2.5 shrink-0">
-              <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
+            <div className="px-5 py-5 sm:px-8 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
                 {selectedInvoice ? (
                   <span>
                     Statement: <strong className="font-mono text-slate-700">{selectedInvoice.invoiceNumber}</strong> &bull; Due: <strong className="text-rose-600">₹{selectedInvoice.balanceAmount.toLocaleString('en-IN')}</strong>
@@ -1078,7 +1072,7 @@ export function RecordPaymentModal({
                   type="button"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-200/70 transition cursor-pointer disabled:opacity-50"
+                  className="px-6 py-3 min-h-12 rounded-2xl font-bold text-base text-slate-600 hover:bg-slate-200/70 transition cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1093,7 +1087,7 @@ export function RecordPaymentModal({
                       }
                     }}
                     disabled={isSubmitting || amount <= 0 || amount > selectedInvoice.balanceAmount || !paymentDate}
-                    className="px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 transition shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 min-w-[140px] justify-center"
+                    className="px-6 py-3 min-h-12 rounded-2xl font-bold text-base text-white bg-emerald-800 hover:bg-emerald-900 transition shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 min-w-[140px] justify-center"
                   >
                     {isSubmitting ? (
                       <>
@@ -1111,7 +1105,7 @@ export function RecordPaymentModal({
                   <button
                     type="button"
                     disabled
-                    className="px-4 py-2 rounded-xl font-semibold text-xs text-slate-400 bg-slate-200/80 cursor-not-allowed"
+                    className="px-6 py-3 min-h-12 rounded-2xl font-bold text-base text-slate-400 bg-slate-200/80 cursor-not-allowed"
                   >
                     Select Statement to Proceed
                   </button>

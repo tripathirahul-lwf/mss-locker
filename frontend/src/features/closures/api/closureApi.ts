@@ -1,11 +1,11 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  LockerClosure,
-  ClosureStats,
-  ClosureReadinessSummary,
-  ClosureQueryParams,
-  ClosureType,
-  PhysicalChecklist,
+LockerClosure,
+ClosureStats,
+ClosureReadinessSummary,
+ClosureQueryParams,
+ClosureType,
+PhysicalChecklist,
 } from '../types';
 
 export interface CreateClosurePayload {

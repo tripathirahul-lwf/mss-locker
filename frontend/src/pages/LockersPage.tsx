@@ -1,40 +1,31 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { lazy,Suspense,useEffect,useState } from 'react';
+import { keepPreviousData,useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
-  KeyRound,
-  Plus,
-  AlertTriangle,
-  LayoutGrid,
-  List,
-  CheckCircle2,
-  ArrowUp,
-  X,
-  Search,
-  RefreshCw,
-  Eye,
-  SlidersHorizontal,
-  Layers,
-  Inbox,
-  ChevronLeft,
-  ChevronRight,
-  RotateCcw,
-  ChevronDown,
-  Filter,
-  ArrowUpDown,
-  Building2,
-  Maximize2,
+Plus,
+AlertTriangle,
+LayoutGrid,
+List,
+CheckCircle2,
+ArrowUp,
+X,RefreshCw,Layers,
+Inbox,
+ChevronLeft,
+ChevronRight,
+RotateCcw,
+ChevronDown,ArrowUpDown,
+Building2,
+Maximize2
 } from 'lucide-react';
 import { lockerApi } from '../features/lockers/api/lockerApi';
 import {
-  Locker,
-  LockerQueryParams,
-  CreateLockerInput,
-  UpdateLockerInput,
+Locker,
+LockerQueryParams,
+CreateLockerInput,
+UpdateLockerInput,
 } from '../features/lockers/types';
 import { allocationApi } from '../features/allocations/api/allocationApi';
-import { CreateAllocationInput, ReserveLockerInput } from '../features/allocations/types';
+import { CreateAllocationInput,ReserveLockerInput } from '../features/allocations/types';
 import { LockerModernCard } from '../features/lockers/components/LockerModernCard';
 import { LockerTable } from '../features/lockers/components/LockerTable';
 import { LockerVaultGrid } from '../features/lockers/components/LockerVaultGrid';
@@ -69,8 +60,6 @@ export function LockersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const canCreate = usePermission('lockers.create');
-  const canUpdate = usePermission('lockers.update');
-  const canDelete = usePermission('lockers.delete');
 
   // Read URL query parameters
   const requestedPage = Number(searchParams.get('page'));

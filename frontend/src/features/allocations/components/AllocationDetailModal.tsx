@@ -1,26 +1,17 @@
-import React, { useState } from 'react';
+import React,{ useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  KeyRound,
-  User,
-  ShieldCheck,
-  Calendar,
-  IndianRupee,
-  Layers,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Edit3,
-  ExternalLink,
-  MapPin,
-  Phone,
-  Save,
-  AlertCircle,
-  Loader2,
-  Info,
+X,
+KeyRound,ShieldCheck,CheckCircle2,Edit3,
+ExternalLink,
+MapPin,
+Phone,
+Save,
+AlertCircle,
+Loader2,
+Info
 } from 'lucide-react';
-import { LockerAllocation, BillingCycle } from '../types';
+import { LockerAllocation,BillingCycle } from '../types';
 import { BILLING_CYCLES } from '../constants';
 import { AllocationStatusBadge } from './AllocationStatusBadge';
 import { KycStatusBadge } from '../../customers/components/KycStatusBadge';
@@ -28,7 +19,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Link } from 'react-router-dom';
 import { usePermission } from '../../../hooks/usePermission';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
 import { renewalApi } from '../../renewals/api/renewalApi';
 import { allocationApi } from '../api/allocationApi';
 import { PaymentStatusBadge } from '../../renewals/components/RenewalStatusBadge';

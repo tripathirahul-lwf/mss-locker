@@ -1,11 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { LockerService } from '../services/locker.service';
 import {
-  createLockerSchema,
-  updateLockerSchema,
-  lockerQuerySchema,
+createLockerSchema,
+updateLockerSchema,
+lockerQuerySchema,
 } from '../validators/locker.validator';
-import { successResponse, errorResponse } from '../utils/apiResponse';
+import { successResponse,errorResponse } from '../utils/apiResponse';
 import { PERMISSIONS } from '../constants/permissions';
 
 export class LockerController {

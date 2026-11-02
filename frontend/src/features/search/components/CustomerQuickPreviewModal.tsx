@@ -1,33 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React,{ useState,useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  X,
-  User,
-  Phone,
-  MapPin,
-  ShieldCheck,
-  KeyRound,
-  Calendar,
-  DollarSign,
-  Receipt,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  History,
-  CreditCard,
-  Building2,
-  Lock,
-  Eye,
+X,
+User,
+Phone,
+MapPin,
+ShieldCheck,
+KeyRound,
+Calendar,
+DollarSign,ChevronDown,
+ChevronUp,
+History,
+CreditCard,Lock,
+Eye
 } from 'lucide-react';
 import { CustomerPhotoPreviewModal } from '../../customers/components/CustomerPhotoPreviewModal';
 import { searchApi } from '../api/searchApi';
 import {
-  CustomerQuickPreviewData,
-  CustomerRenewalHistoryInvoice,
+CustomerQuickPreviewData,
+CustomerRenewalHistoryInvoice,
 } from '../types';
 
 interface CustomerQuickPreviewModalProps {

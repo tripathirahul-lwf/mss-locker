@@ -1,4 +1,3 @@
-import React from 'react';
 import { KycStatus } from '../types';
 import { KYC_STATUS_CONFIG } from '../constants';
 

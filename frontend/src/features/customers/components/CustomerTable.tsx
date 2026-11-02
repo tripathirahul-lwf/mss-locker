@@ -1,30 +1,27 @@
 import React from 'react';
 import {
-  Eye,
-  Edit3,
-  Trash2,
-  Users,
-  ShieldCheck,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Phone,
-  Mail,
-  MapPin,
-  CalendarDays,
-  KeyRound,
-  Copy,
-  Check,
+Eye,
+Edit3,
+Trash2,
+Users,
+ShieldCheck,
+ArrowUpDown,
+ArrowUp,
+ArrowDown,
+ChevronLeft,
+ChevronRight,
+ChevronDown,
+Phone,
+Mail,CalendarDays,
+KeyRound,
+Copy,
+Check
 } from 'lucide-react';
-import { Customer, CustomerQueryParams } from '../types';
+import { Customer,CustomerQueryParams } from '../types';
 import { CustomerStatusBadge } from './CustomerStatusBadge';
 import { KycStatusBadge } from './KycStatusBadge';
 import { formatPhone } from '../utils/phoneFormatter';
 import { Button } from '../../../components/ui/button';
-import { Badge } from '../../../components/ui/badge';
 import { usePermission } from '../../../hooks/usePermission';
 
 const getInitials = (fullName: string): string => {

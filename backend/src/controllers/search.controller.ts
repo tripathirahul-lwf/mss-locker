@@ -1,11 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { z } from 'zod';
-const searchQuery = z.object({ q: z.string().trim().max(160).default(''), limit: z.coerce.number().int().min(1).max(20).default(6), types: z.string().max(100).optional() });
-const historyQuery = z.object({ page: z.coerce.number().int().min(1).max(100000).default(1), limit: z.coerce.number().int().min(1).max(50).default(10) });
-const entityId = z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid record ID');
 import { searchService } from '../services/search.service';
 import { quickPreviewService } from '../services/quick-preview.service';
 import { logger } from '../utils/logger';
+const searchQuery = z.object({ q: z.string().trim().max(160).default(''), limit: z.coerce.number().int().min(1).max(20).default(6), types: z.string().max(100).optional() });
+const historyQuery = z.object({ page: z.coerce.number().int().min(1).max(100000).default(1), limit: z.coerce.number().int().min(1).max(50).default(10) });
+const entityId = z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid record ID');
 
 export class SearchController {
   async globalSearch(req: Request, res: Response, next: NextFunction): Promise<void> {

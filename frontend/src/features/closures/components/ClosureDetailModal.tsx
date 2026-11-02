@@ -1,22 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React,{ useState,useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  Printer,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  ShieldCheck,
-  Building2,
-  Key,
-  User,
-  FileText,
-  DollarSign,
-  Ban,
-  ArrowRight,
-  ExternalLink,
+X,
+Printer,
+CheckCircle2,
+AlertTriangle,ShieldCheck,
+Building2,
+Key,
+User,
+FileText,
+DollarSign,ExternalLink
 } from 'lucide-react';
-import { LockerClosure, ClosureReadinessSummary } from '../types';
+import { LockerClosure,ClosureReadinessSummary } from '../types';
 import { ClosureStatusBadge } from './ClosureStatusBadge';
 import { closureApi } from '../api/closureApi';
 import { ConfirmationModal } from '../../../components/common/ConfirmationModal';

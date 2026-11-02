@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { searchController } from '../controllers/search.controller';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();

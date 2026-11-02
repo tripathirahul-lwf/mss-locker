@@ -1,26 +1,26 @@
-import mongoose, { Types } from 'mongoose';
-import { LockerAllocation, ILockerAllocation } from '../models/LockerAllocation';
+import mongoose,{ Types } from 'mongoose';
+import { LockerAllocation,ILockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { Locker } from '../models/Locker';
 import { Customer } from '../models/Customer';
 import { AuditLog } from '../models/AuditLog';
 import { Sequence } from '../models/Sequence';
 import {
-  ALLOCATION_STATUS,
-  ALLOCATION_TYPE,
-  BILLING_CYCLE,
-  BillingCycle,
+ALLOCATION_STATUS,
+ALLOCATION_TYPE,
+BILLING_CYCLE,
+BillingCycle,
 } from '../constants/allocation.constants';
 import {
-  calculateBillingPeriod,
-  generateInvoiceNumber,
-  determineDueStatus,
+calculateBillingPeriod,
+generateInvoiceNumber,
+determineDueStatus,
 } from '../utils/billingCalculator';
 import {
-  CreateAllocationInput,
-  ReserveLockerInput,
-  UpdateAllocationInput,
-  AllocationQueryParams,
+CreateAllocationInput,
+ReserveLockerInput,
+UpdateAllocationInput,
+AllocationQueryParams,
 } from '../validators/allocation.validator';
 
 export class AppHttpError extends Error {

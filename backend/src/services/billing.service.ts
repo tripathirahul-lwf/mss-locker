@@ -1,15 +1,15 @@
 import { escapeHtmlFields } from '../utils/html';
-import mongoose, { Types } from 'mongoose';
+import mongoose,{ Types } from 'mongoose';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { Customer } from '../models/Customer';
 import { Locker } from '../models/Locker';
 import { AuditLog } from '../models/AuditLog';
 import {
-  InvoiceType,
-  InvoiceStatus,
-  PaymentStatus,
-  DueStatus,
-  BillingCycle,
+InvoiceType,
+InvoiceStatus,
+PaymentStatus,
+DueStatus,
+BillingCycle,
 } from '../constants/billing.constants';
 import { determineDueStatus } from '../utils/billingCalculator';
 

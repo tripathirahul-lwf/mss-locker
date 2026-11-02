@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { importController } from '../controllers/import.controller';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();

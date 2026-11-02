@@ -1,8 +1,8 @@
 import { DepositDialogLayer } from './DepositDialogLayer';
-import React, { useState, useEffect, useRef } from 'react';
+import React,{ useState,useEffect,useRef } from 'react';
 import { depositApi } from '../api/depositApi';
 import { DepositSummary } from '../types';
-import { X, SlidersHorizontal, AlertTriangle, ArrowRight } from 'lucide-react';
+import { X,SlidersHorizontal,AlertTriangle,ArrowRight } from 'lucide-react';
 
 interface AdjustDepositModalProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
   allocationId,
   onSuccess,
 }) => {
+  const [unconfirmed,setUnconfirmed]=useState(false);
   const submissionLock = useRef(false);
   const loadVersion = useRef(0);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -34,6 +35,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
 
   useEffect(() => {
     if (isOpen && allocationId) {
+      setUnconfirmed(false); setAmount(''); setReason(''); setTransactionReference(''); setNotes('');
       loadSummary(allocationId);
     }
     return () => { loadVersion.current++; };
@@ -66,8 +68,9 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
     setErrorMessage(null);
     if (!summary || !allocationId) return;
 
-    if (numAmount <= 0) {
-      setErrorMessage('Adjustment amount must be greater than 0');
+    if (unconfirmed) return;
+    if (!Number.isFinite(numAmount) || numAmount <= 0 || Math.abs(numAmount*100-Math.round(numAmount*100)) >= .00001) {
+      setErrorMessage('Enter a positive adjustment amount with at most two decimal places.');
       return;
     }
 
@@ -85,6 +88,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
 
     if (submissionLock.current) return;
     submissionLock.current = true;
+    let saved:any;
     try {
       setSubmitting(true);
       const res = await depositApi.adjustDeposit({
@@ -96,20 +100,21 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
         notes: notes.trim() || undefined,
       });
 
-      onSuccess(res);
-      onClose();
+      saved=res;
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to adjust deposit');
+      const ambiguous=!err.response || err.response.status>=500; setUnconfirmed(ambiguous);
+      setErrorMessage(ambiguous?'Adjustment result is unconfirmed. Do not submit another adjustment. Close and refresh the deposit ledger to check whether it was saved.':err?.response?.data?.message || 'Failed to adjust deposit');
     } finally {
       submissionLock.current = false;
       setSubmitting(false);
     }
+    if(saved){onSuccess(saved);onClose();}
   };
 
   return (
     <DepositDialogLayer title="Deposit balance adjustment" busy={submitting} onClose={onClose}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden my-8">
+      <div className="relative w-full max-w-lg rounded-[2rem] bg-white border border-slate-200 shadow-2xl overflow-hidden my-8">
         {/* Header */}
         <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-3">
@@ -118,7 +123,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
             </div>
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Deposit Balance Adjustment</h3>
-              <p className="text-xs text-slate-600">
+              <p className="text-sm text-slate-600">
                 Damage deductions, key replacement charges, or manual additions
               </p>
             </div>
@@ -144,7 +149,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
           <form onSubmit={handleSubmit} className="p-6 space-y-5">
             {/* Error Message */}
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-800 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-sm text-rose-800 flex items-center justify-between">
                 <span>{errorMessage}</span>
                 <button
                   type="button"
@@ -157,7 +162,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
             )}
 
             {/* Live Context Banner */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-3 text-xs">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-slate-500 block">Locker / Agreement</span>
                 <span className="font-semibold text-slate-900">
@@ -174,7 +179,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
 
             {/* Adjustment Type Selection */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+              <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wider mb-2">
                 Adjustment Direction *
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -187,8 +192,8 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
                       : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                   }`}
                 >
-                  <div className="text-xs font-bold">Deduct from Deposit (-)</div>
-                  <div className="text-[11px] text-slate-600 mt-0.5">
+                  <div className="text-sm font-bold">Deduct from Deposit (-)</div>
+                  <div className="text-sm text-slate-600 mt-0.5">
                     Damage fee, lost key penalty, incidental arrears
                   </div>
                 </button>
@@ -198,13 +203,13 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
                   onClick={() => setTransactionType('DEPOSIT_ADJUSTMENT_ADD')}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     transactionType === 'DEPOSIT_ADJUSTMENT_ADD'
-                      ? 'bg-cyan-500/15 border-cyan-500 text-cyan-300'
+                      ? 'bg-emerald-50 border-emerald-600 text-emerald-900'
                       : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                   }`}
                 >
-                  <div className="text-xs font-bold">Add to Deposit (+)</div>
-                  <div className="text-[11px] text-slate-600 mt-0.5">
-                    Credit increment, bonus deposit addition
+                  <div className="text-sm font-bold">Add to Deposit (+)</div>
+                  <div className="text-sm text-slate-600 mt-0.5">
+                    Non-cash ledger correction; use Collect deposit for money received
                   </div>
                 </button>
               </div>
@@ -212,7 +217,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
 
             {/* Amount */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Amount (₹) *
               </label>
               <input
@@ -223,13 +228,13 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
                 aria-label="Adjustment amount" value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 focus:border-cyan-500 text-lg font-bold text-slate-900 outline-none"
+                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 focus:border-cyan-500 text-base font-semibold text-slate-900 outline-none"
               />
             </div>
 
             {/* Deduction warning */}
             {isDeductionExceeding && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-700 flex items-center space-x-2">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-sm text-rose-700 flex items-center space-x-2">
                 <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                 <span>
                   Deduction cannot exceed available refundable balance of ₹
@@ -240,7 +245,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
 
             {/* Mandatory Reason */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
                 Justification / Audit Reason *
               </label>
               <textarea
@@ -249,13 +254,13 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
                 aria-label="Adjustment reason" value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Detailed explanation for audit log (e.g. Lost key replacement fee receipt #124)"
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-cyan-500 text-xs text-slate-900 outline-none"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-cyan-500 text-sm text-slate-900 outline-none"
               />
             </div>
 
             {/* Reference */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
                 Incident / Work Order Reference (Optional)
               </label>
               <input
@@ -263,7 +268,7 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
                 value={transactionReference}
                 onChange={(e) => setTransactionReference(e.target.value)}
                 placeholder="e.g. WO-2026-089"
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-cyan-500 text-xs text-slate-900 outline-none"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-cyan-500 text-sm text-slate-900 outline-none"
               />
             </div>
 
@@ -272,14 +277,14 @@ export const AdjustDepositModal: React.FC<AdjustDepositModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium transition-all"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={submitting || Boolean(isDeductionExceeding)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 text-xs font-semibold shadow-lg shadow-cyan-500/20 transition-all flex items-center space-x-2"
+                disabled={submitting || unconfirmed || !Number.isFinite(numAmount) || numAmount<=0 || reason.trim().length<3 || Boolean(isDeductionExceeding)}
+                className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold shadow-sm transition-all flex items-center space-x-2"
               >
                 {submitting ? (
                   <>

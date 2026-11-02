@@ -1,10 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { CustomerService } from '../services/customer.service';
 import {
-  createCustomerSchema,
-  updateCustomerSchema,
-  customerQuerySchema,
-  checkDuplicateCustomerSchema,
+createCustomerSchema,
+updateCustomerSchema,
+customerQuerySchema,
+checkDuplicateCustomerSchema,
 } from '../validators/customer.validator';
 import { successResponse } from '../utils/apiResponse';
 import { PERMISSIONS } from '../constants/permissions';

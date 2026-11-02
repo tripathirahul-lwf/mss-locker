@@ -1,31 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import { useState,useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate,useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  X,
-  User,
-  Phone,
-  Mail,
-  MapPin,
-  ShieldCheck,
-  Calendar,
-  Edit3,
-  Copy,
-  Check,
-  CheckCircle2,
-  KeyRound,
-  FileText,
-  AlertTriangle,
-  Receipt,
-  Layers,
-  Sparkles,
-  ExternalLink,
-  MessageSquare,
-  Clock,
-  ShieldAlert,
-  CreditCard,
-  Eye,
+X,
+User,
+Phone,
+Mail,
+MapPin,
+ShieldCheck,
+Calendar,
+Edit3,
+Copy,
+Check,
+CheckCircle2,
+KeyRound,
+FileText,
+AlertTriangle,ExternalLink,
+MessageSquare,
+Clock,CreditCard,
+Eye
 } from 'lucide-react';
 import { Customer } from '../types';
 import { CustomerStatusBadge } from './CustomerStatusBadge';
@@ -33,7 +27,6 @@ import { KycStatusBadge } from './KycStatusBadge';
 import { CustomerPhotoPreviewModal } from './CustomerPhotoPreviewModal';
 import { formatPhone } from '../utils/phoneFormatter';
 import { Button } from '../../../components/ui/button';
-import { Badge } from '../../../components/ui/badge';
 import { allocationApi } from '../../allocations/api/allocationApi';
 import { customerApi } from '../api/customerApi';
 import { renewalApi } from '../../renewals/api/renewalApi';

@@ -1,4 +1,4 @@
-import { Schema, model, Types } from 'mongoose';
+import { Schema,model,Types } from 'mongoose';
 export interface ITariffPlan { size: string; annualRent: number; securityDeposit: number; effectiveFrom: Date; effectiveTo?: Date; version: number; isActive: boolean; notes?: string; createdBy?: Types.ObjectId; createdAt: Date; updatedAt: Date }
 const schema = new Schema<ITariffPlan>({
   size: { type: String, required: true, uppercase: true, trim: true, index: true }, annualRent: { type: Number, required: true, min: 0 }, securityDeposit: { type: Number, required: true, min: 0 },

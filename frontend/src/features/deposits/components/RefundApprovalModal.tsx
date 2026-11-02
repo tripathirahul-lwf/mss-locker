@@ -1,9 +1,9 @@
 import { DepositDialogLayer } from './DepositDialogLayer';
-import React, { useState, useEffect, useRef } from 'react';
+import React,{ useState,useEffect,useRef } from 'react';
 import { depositApi } from '../api/depositApi';
-import { RefundRequest, DepositSummary } from '../types';
+import { RefundRequest,DepositSummary } from '../types';
 import { useAuth } from '../../../context/AuthContext';
-import { X, CheckCircle, XCircle, ShieldAlert, DollarSign, UserCheck, AlertTriangle } from 'lucide-react';
+import { X,CheckCircle,ShieldAlert,UserCheck } from 'lucide-react';
 
 interface RefundApprovalModalProps {
   isOpen: boolean;

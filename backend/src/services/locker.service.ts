@@ -1,12 +1,12 @@
-import mongoose, { Types } from 'mongoose';
-import { Locker, ILocker } from '../models/Locker';
+import mongoose,{ Types } from 'mongoose';
+import { Locker,ILocker } from '../models/Locker';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { Customer } from '../models/Customer';
 import {
-  CreateLockerInput,
-  UpdateLockerInput,
-  LockerQueryParams,
+CreateLockerInput,
+UpdateLockerInput,
+LockerQueryParams,
 } from '../validators/locker.validator';
 import { recordAuditLog } from '../utils/auditLogger';
 import { calculateBillingPeriod } from '../utils/billingCalculator';

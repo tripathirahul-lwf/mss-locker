@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React,{ useRef } from 'react';
 import { DepositTransaction } from '../types';
-import { X, Printer, ShieldCheck, CheckCircle2, Building2 } from 'lucide-react';
+import { X,Printer,ShieldCheck,CheckCircle2,Building2 } from 'lucide-react';
 
 interface DepositReceiptModalProps {
   isOpen: boolean;

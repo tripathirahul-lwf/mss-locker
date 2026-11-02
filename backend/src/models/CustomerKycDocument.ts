@@ -1,7 +1,7 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema,model,Document,Types } from 'mongoose';
 import {
-  KycDocumentType,
-  KycVerificationStatus,
+KycDocumentType,
+KycVerificationStatus,
 } from '../constants/customer.constants';
 
 export interface ICustomerKycDocument extends Document {

@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useEffect,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle,ArrowRight,CheckCircle2,Loader2,ShieldCheck,X } from 'lucide-react';
 import { depositApi } from '../api/depositApi';
 import { DepositSummary } from '../types';
 import { PaymentMethod } from '../../payments/types';
@@ -51,7 +52,8 @@ export const CollectDepositModal: React.FC<Props> = ({ isOpen, onClose, allocati
   useEffect(() => {
     if (!isOpen) return;
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); if (!live.current.submitting) live.current.onClose(); return; }
+      if (Array.from(document.querySelectorAll('[role="dialog"],[role="alertdialog"]')).at(-1)!==dialogRef.current) return;
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); if (!live.current.submitting) live.current.onClose(); return; }
       if (event.key !== 'Tab' || !dialogRef.current) return;
       const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
       if (!items.length) return;
@@ -59,13 +61,13 @@ export const CollectDepositModal: React.FC<Props> = ({ isOpen, onClose, allocati
       else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0].focus(); }
     };
     document.addEventListener('keydown', keydown);
-    const oldOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = oldOverflow; previousFocus.current?.focus(); };
+     const releaseScroll = lockBodyScroll();
+    return () => { document.removeEventListener('keydown', keydown); releaseScroll(); previousFocus.current?.focus(); };
   }, [isOpen]);
 
   if (!isOpen) return null;
   const numericAmount = Number(amount);
-  const amountValid = Number.isFinite(numericAmount) && numericAmount > 0;
+  const amountValid = Number.isFinite(numericAmount) && numericAmount > 0 && Math.abs(numericAmount*100-Math.round(numericAmount*100)) < .00001;
   const overcollecting = Boolean(summary && amountValid && summary.netDepositHeld + numericAmount > summary.requiredDeposit);
   const excess = summary && overcollecting ? summary.netDepositHeld + numericAmount - summary.requiredDeposit : 0;
   const referenceRequired = method !== 'CASH';
@@ -76,25 +78,27 @@ export const CollectDepositModal: React.FC<Props> = ({ isOpen, onClose, allocati
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setError(null);
     if (!summary || !allocationId) return;
-    if (!amountValid) { setError('Enter a deposit amount greater than zero.'); return; }
+    if (!amountValid) { setError('Enter a positive deposit amount with at most two decimal places.'); return; }
     if (!referenceValid) { setError(`Enter the ${method === 'CHEQUE' ? 'cheque number' : 'transaction reference'} for this non-cash payment.`); return; }
     if (overcollecting && !canOverride) { setError('This amount exceeds the required deposit. Ask an authorized supervisor.'); return; }
     if (!overrideValid) { setError('Authorize the override and enter a reason of at least 5 characters.'); return; }
     if (submissionLock.current) return;
     submissionLock.current = true;
+    let saved:any;
     try {
       setSubmitting(true);
       pending.current ??= { allocationId, amount: numericAmount, paymentMethod: method, chequeNumber: method === 'CHEQUE' ? reference.trim() : undefined, bankName: method === 'CHEQUE' ? bankName.trim() : undefined, chequeDate: method === 'CHEQUE' ? chequeDate : undefined, transactionReference: reference.trim() || undefined, notes: notes.trim() || undefined, allowOverride: overcollecting && override, overrideReason: overcollecting && override ? overrideReason.trim() : undefined };
       const result = await depositApi.collectDeposit(pending.current, idempotencyKey);
-      onSuccess(result); onClose();
-    } catch (err: any) { const ambiguous = !err.response || err.response.status >= 500; setUncertain(ambiguous); if (!ambiguous) pending.current = null; setError(ambiguous ? 'Collection response is unconfirmed. Retry this same request before recording any new collection.' : err?.response?.data?.message || 'Deposit could not be recorded. Review the details and try again.'); }
+      saved=result;
+    } catch (err: any) { const ambiguous = uncertain || !err.response || err.response.status >= 500; setUncertain(ambiguous); if (!ambiguous) pending.current = null; setError(ambiguous ? 'Collection response is unconfirmed. Retry this same request before recording any new collection.' : err?.response?.data?.message || 'Deposit could not be recorded. Review the details and try again.'); }
     finally { submissionLock.current = false; setSubmitting(false); }
+    if(saved){onSuccess(saved);onClose();}
   };
 
   return createPortal(<div className="fixed inset-0 z-[120] flex h-[100dvh] w-screen items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
-    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="collect-deposit-title" className="my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="collect-deposit-title" className="my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
       <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-        <div className="flex min-w-0 items-start gap-3"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-emerald-700"><ShieldCheck className="h-5 w-5" /></div><div><h2 id="collect-deposit-title" className="text-lg font-bold text-slate-950">Collect caution deposit</h2><p className="mt-0.5 text-sm text-slate-600">Record payment and issue an official receipt.</p></div></div>
+        <div className="flex min-w-0 items-start gap-3"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-emerald-700"><ShieldCheck className="h-5 w-5" /></div><div><h2 id="collect-deposit-title" className="text-base font-semibold text-slate-950">Collect caution deposit</h2><p className="mt-0.5 text-sm text-slate-600">Record payment and issue an official receipt.</p></div></div>
         <button ref={closeRef} type="button" onClick={onClose} disabled={submitting} aria-label="Close collect deposit dialog" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:opacity-50"><X className="h-5 w-5" /></button>
       </header>
       {loading ? <div className="flex min-h-64 flex-col items-center justify-center p-10 text-sm text-slate-600" role="status"><Loader2 className="mb-3 h-7 w-7 animate-spin text-emerald-700" />Loading deposit details…</div>
@@ -105,7 +109,7 @@ export const CollectDepositModal: React.FC<Props> = ({ isOpen, onClose, allocati
           <section aria-label="Selected account" className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-4">
             <div><span className="block text-xs text-slate-500">Customer</span><span className="block truncate text-sm font-semibold text-slate-900">{summary.customerName}</span></div><div><span className="block text-xs text-slate-500">Locker</span><span className="text-sm font-semibold text-emerald-700">{summary.lockerNumber}</span></div><div><span className="block text-xs text-slate-500">Required</span><span className="text-sm font-semibold text-slate-900">{money(summary.requiredDeposit)}</span></div><div><span className="block text-xs text-slate-500">Outstanding</span><span className="text-sm font-bold text-amber-700">{money(summary.outstandingDeposit)}</span></div>
           </section>
-          <div><label htmlFor="deposit-amount" className="mb-1.5 block text-sm font-semibold text-slate-800">Deposit amount <span className="text-rose-600">*</span></label><div className="relative"><span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-semibold text-slate-500">₹</span><input id="deposit-amount" type="number" inputMode="decimal" min="0.01" step="0.01" required value={amount} onChange={(e) => { setAmount(e.target.value); setOverride(false); }} aria-invalid={Boolean(amount && !amountValid)} aria-describedby="deposit-amount-help deposit-form-error" className="w-full rounded-xl border border-slate-300 py-3 pl-9 pr-4 text-lg font-bold text-slate-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" placeholder="0.00" /></div><p id="deposit-amount-help" className="mt-1.5 text-xs text-slate-500">Current held balance: {money(summary.netDepositHeld)}</p><div className="mt-2 flex flex-wrap gap-2">{summary.outstandingDeposit > 0 && <button type="button" onClick={() => setAmount(String(summary.outstandingDeposit))} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">Use outstanding {money(summary.outstandingDeposit)}</button>}<button type="button" onClick={() => setAmount(String(summary.requiredDeposit))} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700">Use required {money(summary.requiredDeposit)}</button></div></div>
+          <div><label htmlFor="deposit-amount" className="mb-1.5 block text-sm font-semibold text-slate-800">Deposit amount <span className="text-rose-600">*</span></label><div className="relative"><span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-semibold text-slate-500">₹</span><input id="deposit-amount" type="number" inputMode="decimal" min="0.01" step="0.01" required value={amount} onChange={(e) => { setAmount(e.target.value); setOverride(false); }} aria-invalid={Boolean(amount && !amountValid)} aria-describedby="deposit-amount-help deposit-form-error" className="w-full rounded-xl border border-slate-300 py-3 pl-9 pr-4 text-base font-semibold text-slate-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" placeholder="0.00" /></div><p id="deposit-amount-help" className="mt-1.5 text-xs text-slate-500">Already held: {money(summary.netDepositHeld)}</p><div className="mt-2 flex flex-wrap gap-2">{summary.outstandingDeposit > 0 && <button type="button" onClick={() => setAmount(String(summary.outstandingDeposit))} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">Use outstanding {money(summary.outstandingDeposit)}</button>}<button type="button" onClick={() => setAmount(String(summary.requiredDeposit))} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700">Use full required amount {money(summary.requiredDeposit)}</button></div></div>
           {method === 'CHEQUE' && <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Bank name<input required value={bankName} onChange={e => setBankName(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="text-sm font-semibold">Cheque date<input required type="date" value={chequeDate} onChange={e => setChequeDate(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label></div>}
           {overcollecting && <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><div className="flex gap-2 font-semibold text-amber-900"><AlertTriangle className="h-5 w-5 shrink-0" /><span>Amount exceeds the required deposit by {money(excess)}.</span></div>{canOverride ? <><label className="flex cursor-pointer items-start gap-2 text-slate-800"><input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} className="mt-0.5 h-4 w-4" /><span>Use my deposit override permission</span></label>{override && <div><label htmlFor="override-reason" className="mb-1 block text-xs font-semibold">Override reason *</label><input id="override-reason" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} className="w-full rounded-xl border border-amber-400 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-200" placeholder="Explain why excess caution money is required" /></div>}</> : <p className="text-amber-900">Reduce the amount or ask an authorized supervisor.</p>}</div>}
           <fieldset><legend className="mb-2 text-sm font-semibold text-slate-800">Payment method <span className="text-rose-600">*</span></legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{methods.map((item) => <label key={item.value} className={`cursor-pointer rounded-xl border px-3 py-2.5 text-center text-xs font-semibold focus-within:ring-2 focus-within:ring-emerald-600 ${method === item.value ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}><input type="radio" name="deposit-method" checked={method === item.value} onChange={() => { setMethod(item.value); setReference(''); }} className="sr-only" />{item.label}</label>)}</div></fieldset>

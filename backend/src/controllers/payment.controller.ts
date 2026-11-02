@@ -1,5 +1,5 @@
 import { serviceErrorStatus } from '../utils/serviceErrorStatus';
-import { Request, Response } from 'express';
+import { Request,Response } from 'express';
 import { paymentService } from '../services/payment.service';
 import { logger } from '../utils/logger';
 
@@ -88,7 +88,7 @@ export class PaymentController {
     }
   }
 
-  async getPaymentStats(req: Request, res: Response): Promise<void> {
+  async getPaymentStats(_req: Request, res: Response): Promise<void> {
     try {
       const stats = await paymentService.getPaymentStats();
       res.status(200).json({

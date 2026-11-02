@@ -1,29 +1,30 @@
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
 import { CompleteAllotmentModal } from './CompleteAllotmentModal';
-import React, { useState, useEffect, useMemo } from 'react';
+import React,{ useState,useEffect,useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  KeyRound,
-  AlertCircle,
-  Loader2,
-  CheckCircle2,
-  User,
-  ChevronDown,
-  Calendar,
-  Layers,
-  Receipt,
-  Search,
-  Check,
-  Building2,
-  ShieldCheck,
-  Mail,
-  Clock,
+X,
+KeyRound,
+AlertCircle,
+Loader2,
+CheckCircle2,
+User,
+ChevronDown,
+Calendar,
+Layers,
+Receipt,
+Search,
+Check,
+Building2,
+ShieldCheck,
+Mail,
+Clock,
 } from 'lucide-react';
 import { customerApi } from '../../customers/api/customerApi';
 import { lockerApi } from '../../lockers/api/lockerApi';
 import { Customer } from '../../customers/types';
 import { Locker } from '../../lockers/types';
-import { CreateAllocationInput, ReserveLockerInput, BillingCycle } from '../types';
+import { CreateAllocationInput,ReserveLockerInput,BillingCycle } from '../types';
 import { LOCKER_SIZES } from '../../lockers/constants';
 
 interface AllocationWizardModalProps {
@@ -198,10 +199,10 @@ function ReservationWizardModal({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isSubmitting) onClose();
     };
-    document.body.style.overflow = 'hidden';
+    const releaseScroll = lockBodyScroll();
     window.addEventListener('keydown', onKeyDown);
     return () => {
-      document.body.style.overflow = '';
+      releaseScroll();
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [isSubmitting, onClose]);

@@ -1,5 +1,5 @@
-import { Schema, model, Document, Types } from 'mongoose';
-import { LockerStatus, OperationalStatus } from '../constants/locker.constants';
+import { Schema,model,Document,Types } from 'mongoose';
+import { LockerStatus,OperationalStatus } from '../constants/locker.constants';
 
 export interface ILocker extends Document {
   _id: Types.ObjectId;

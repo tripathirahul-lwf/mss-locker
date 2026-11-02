@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { CustomerKycService } from '../services/customerKyc.service';
 import {
-  addKycDocumentSchema,
-  updateKycDocumentSchema,
-  verifyKycDocumentSchema,
+addKycDocumentSchema,
+updateKycDocumentSchema,
+verifyKycDocumentSchema,
 } from '../validators/customer.validator';
 import { successResponse } from '../utils/apiResponse';
 import { PERMISSIONS } from '../constants/permissions';

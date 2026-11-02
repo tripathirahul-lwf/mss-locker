@@ -1,38 +1,29 @@
-import React, { useState, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React,{ useState,useMemo } from 'react';
+import { useParams,useNavigate,useSearchParams,useLocation,Link } from 'react-router-dom';
+import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft,
-  User,
-  ShieldCheck,
-  KeyRound,
-  FileText,
-  Phone,
-  Mail,
-  MapPin,
-  Calendar,
-  Clock,
-  Edit3,
-  Trash2,
-  AlertCircle,
-  CheckCircle,
-  CheckCircle2,
-  Building,
-  Receipt,
-  CreditCard,
-  Printer,
-  Copy,
-  Check,
-  ExternalLink,
-  Eye,
+ArrowLeft,
+User,
+ShieldCheck,
+KeyRound,
+FileText,
+Phone,
+Mail,
+MapPin,Edit3,
+Trash2,
+AlertCircle,CheckCircle2,Receipt,
+CreditCard,
+Printer,
+Copy,
+Check,Eye
 } from 'lucide-react';
 import { customerApi } from '../features/customers/api/customerApi';
 import { CustomerPhotoPreviewModal } from '../features/customers/components/CustomerPhotoPreviewModal';
 import {
-  CustomerKycDocument,
-  AddKycDocumentInput,
-  UpdateKycDocumentInput,
-  VerifyKycDocumentInput,
+CustomerKycDocument,
+AddKycDocumentInput,
+UpdateKycDocumentInput,
+VerifyKycDocumentInput,
 } from '../features/customers/types';
 import { CustomerStatusBadge } from '../features/customers/components/CustomerStatusBadge';
 import { KycStatusBadge } from '../features/customers/components/KycStatusBadge';
@@ -42,15 +33,14 @@ import { CustomerFormModal } from '../features/customers/components/CustomerForm
 import { formatPhone } from '../features/customers/utils/phoneFormatter';
 import { formatINR } from '../features/lockers/utils/formatters';
 import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Card,CardHeader,CardTitle,CardContent } from '../components/ui/card';
 import { usePermission } from '../hooks/usePermission';
 import { ConfirmationModal } from '../components/common/ConfirmationModal';
 
 import { allocationApi } from '../features/allocations/api/allocationApi';
 import { AllocationStatusBadge } from '../features/allocations/components/AllocationStatusBadge';
 import { renewalApi } from '../features/renewals/api/renewalApi';
-import { PaymentStatusBadge, DueStatusBadge } from '../features/renewals/components/RenewalStatusBadge';
+import { PaymentStatusBadge } from '../features/renewals/components/RenewalStatusBadge';
 
 import { paymentApi } from '../features/payments/api/paymentApi';
 import { PaymentMethodBadge } from '../features/payments/components/PaymentMethodBadge';
@@ -76,9 +66,6 @@ export function CustomerDetailPage() {
     return '/customers';
   }, [location.state]);
 
-  const handleBackToCustomers = () => {
-    navigate(backUrl);
-  };
 
   const canUpdate = usePermission('customers.update');
   const canDelete = usePermission('customers.delete');
@@ -144,7 +131,7 @@ export function CustomerDetailPage() {
   });
 
   // Fetch Customer Allocations (Active + History)
-  const { data: customerAllocations, isLoading: isAllocationsLoading } = useQuery({
+  const { data: customerAllocations } = useQuery({
     queryKey: ['customer-allocations', id],
     queryFn: () => allocationApi.getCustomerAllocations(id!),
     enabled: Boolean(id),

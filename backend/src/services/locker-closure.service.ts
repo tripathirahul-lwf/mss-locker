@@ -1,10 +1,10 @@
 import { escapeHtmlFields } from '../utils/html';
-import mongoose, { ClientSession, Types } from 'mongoose';
+import mongoose,{ ClientSession,Types } from 'mongoose';
 import {
-  LockerClosure,
-  ILockerClosure,
-  IPhysicalChecklist,
-  IClosureFinancialSnapshot,
+LockerClosure,
+ILockerClosure,
+IPhysicalChecklist,
+IClosureFinancialSnapshot,
 } from '../models/LockerClosure';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { Locker } from '../models/Locker';
@@ -12,12 +12,12 @@ import { Customer } from '../models/Customer';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { AuditLog } from '../models/AuditLog';
 import {
-  CLOSURE_TYPES,
-  ClosureType,
-  CLOSURE_STATUSES,
-  ClosureStatus,
-  OPEN_CLOSURE_STATUSES,
-  LOCKER_CONDITIONS,
+CLOSURE_TYPES,
+ClosureType,
+CLOSURE_STATUSES,
+ClosureStatus,
+OPEN_CLOSURE_STATUSES,
+LOCKER_CONDITIONS,
 } from '../constants/closure.constants';
 import { closureReadinessService } from './closure-readiness.service';
 import { depositService } from './deposit.service';

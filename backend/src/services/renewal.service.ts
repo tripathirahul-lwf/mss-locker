@@ -1,12 +1,12 @@
-import mongoose, { Types } from 'mongoose';
+import mongoose,{ Types,ClientSession } from 'mongoose';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { AuditLog } from '../models/AuditLog';
 import {
-  calculateBillingPeriod,
-  calculateInvoiceTotals,
-  determineDueStatus,
-  generateInvoiceNumber,
+calculateBillingPeriod,
+calculateInvoiceTotals,
+determineDueStatus,
+generateInvoiceNumber,
 } from '../utils/billingCalculator';
 import { BillingCycle } from '../constants/billing.constants';
 
@@ -28,7 +28,7 @@ export class RenewalService {
   /**
    * Generates a new recurring renewal invoice for an active locker tenancy allocation
    */
-  async generateRenewalInvoice(input: GenerateRenewalInput) {
+  async generateRenewalInvoice(input: GenerateRenewalInput, existingSession?: ClientSession) {
     if (!Types.ObjectId.isValid(input.allocationId)) {
       const error: any = new Error('Invalid allocation ID');
       error.statusCode = 400;
@@ -50,7 +50,7 @@ export class RenewalService {
       if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100000000 || Math.abs(value * 100 - Math.round(value * 100)) > .00001)) throw fail(`${key} must be a non-negative amount with at most two decimal places.`);
     }
     if (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 2000)) throw fail('Notes must be at most 2000 characters.');
-    return mongoose.connection.transaction(async (session) => {
+    const generate = async (session: ClientSession) => {
     const allocation = await LockerAllocation.findOneAndUpdate({ _id: input.allocationId }, { $inc: { __v: 1 } }, { new: true, timestamps: false })
       .populate('customerId')
       .populate('lockerId');
@@ -193,7 +193,8 @@ export class RenewalService {
     }], { session });
 
     return invoice;
-    });
+    };
+    return existingSession ? generate(existingSession) : mongoose.connection.transaction(generate);
   }
 }
 

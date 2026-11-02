@@ -1,14 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React,{ useEffect,useState,useRef } from 'react';
 import {
-  Upload,
-  Eye,
-  Trash2,
-  FileText,
-  CheckCircle2,
-  Camera,
-  CreditCard,
-  Receipt,
-  FileCheck2,
+Eye,
+Trash2,
+FileText,
+CheckCircle2,
+Camera,
+CreditCard,
+Receipt
 } from 'lucide-react';
 
 export interface AllotmentDocumentUploadBoxProps {

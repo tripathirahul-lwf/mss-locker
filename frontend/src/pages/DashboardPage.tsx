@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Package, Lock, FolderOpen, CalendarClock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Package,Lock,FolderOpen,CalendarClock,AlertTriangle,ShieldCheck } from 'lucide-react';
 import { lockerApi } from '../features/lockers/api/lockerApi';
-import { DashboardLockersSection, DashboardLockersSectionRef } from '../features/lockers/components/DashboardLockersSection';
+import { DashboardLockersSection,DashboardLockersSectionRef } from '../features/lockers/components/DashboardLockersSection';
 import { useAuth } from '../hooks/useAuth';
 
 export function DashboardPage() {

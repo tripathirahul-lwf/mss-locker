@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import { lockBodyScroll } from '../../utils/bodyScrollLock';
+import React,{ useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, AlertCircle, Info, CheckCircle2, Loader2, X } from 'lucide-react';
+import { AlertTriangle,AlertCircle,Info,CheckCircle2,Loader2,X } from 'lucide-react';
 import { Button } from '../ui/button';
 
 export type ConfirmationVariant = 'danger' | 'warning' | 'info' | 'emerald';
@@ -50,7 +51,7 @@ export function ConfirmationModal({
     if (!isOpen) return;
 
     const previousFocus = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -65,14 +66,14 @@ export function ConfirmationModal({
         else if (!e.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
       }
     };
-    document.body.style.overflow = 'hidden';
+    const releaseScroll = lockBodyScroll();
     window.addEventListener('keydown', onKeyDown, true);
     const frame = window.requestAnimationFrame(() => {
       dialogRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     });
     return () => {
       window.cancelAnimationFrame(frame);
-      document.body.style.overflow = previousOverflow;
+      releaseScroll();
       window.removeEventListener('keydown', onKeyDown, true);
       if (previousFocus?.isConnected) previousFocus.focus();
     };

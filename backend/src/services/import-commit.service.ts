@@ -1,5 +1,5 @@
-import mongoose, { Types } from 'mongoose';
-import { ImportJob, IImportJob } from '../models/ImportJob';
+import mongoose,{ Types } from 'mongoose';
+import { ImportJob,IImportJob } from '../models/ImportJob';
 import { Locker } from '../models/Locker';
 import { Customer } from '../models/Customer';
 import { CustomerKycDocument } from '../models/CustomerKycDocument';
@@ -11,7 +11,7 @@ import { RefundRequest } from '../models/RefundRequest';
 import { LockerClosure } from '../models/LockerClosure';
 import { recordAuditLog } from '../utils/auditLogger';
 import { ALLOCATION_TYPE } from '../constants/allocation.constants';
-import { SyncTombstone, SyncScope } from '../models/SyncTombstone';
+import { SyncTombstone,SyncScope } from '../models/SyncTombstone';
 
 export class ImportCommitService {
   /**

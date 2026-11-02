@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { AuthService } from '../services/auth.service';
 import { env } from '../config/env';
-import { successResponse, errorResponse } from '../utils/apiResponse';
+import { successResponse,errorResponse } from '../utils/apiResponse';
 
 const REFRESH_COOKIE_NAME = env.NODE_ENV === 'production' ? '__Host-vault_refresh_token' : 'vault_refresh_token';
 
@@ -27,7 +27,7 @@ const clearRefreshCookie = (res: Response): void => {
 };
 
 export class AuthController {
-  static async login(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async login(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       const { identifier, password } = req.body;
       const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
@@ -152,7 +152,7 @@ export class AuthController {
     }
   }
 
-  static async changePassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async changePassword(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json(errorResponse('Not authenticated'));

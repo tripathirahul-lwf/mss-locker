@@ -1,6 +1,6 @@
 import { app } from './app';
 import { env } from './config/env';
-import { connectDatabase, disconnectDatabase } from './config/database';
+import { connectDatabase,disconnectDatabase } from './config/database';
 import { seedDatabase } from './seed/seed';
 import { logger } from './utils/logger';
 

@@ -1,35 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React,{ useState,useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  FileText,
-  Key,
-  ShieldAlert,
-  ShieldCheck,
-  ArrowRight,
-  ArrowLeft,
-  Calendar,
-  Lock,
-  Receipt,
-  Coins,
-  Sparkles,
-  Check,
-  RotateCcw,
-  User,
-  Info,
+X,
+Search,
+CheckCircle2,
+AlertTriangle,Key,ShieldCheck,
+ArrowRight,
+ArrowLeft,
+Calendar,
+Lock,
+Receipt,
+Coins,
+Sparkles,
+Check,
+RotateCcw,
+User,
+Info
 } from 'lucide-react';
 import { allocationApi } from '../../allocations/api/allocationApi';
 import { LockerAllocation } from '../../allocations/types';
 import { formatPhone } from '../../customers/utils/phoneFormatter';
 import { closureApi } from '../api/closureApi';
 import {
-  ClosureType,
-  LockerCondition,
-  PhysicalChecklist,
-  ClosureReadinessSummary,
+ClosureType,
+LockerCondition,
+PhysicalChecklist,
+ClosureReadinessSummary,
 } from '../types';
 
 interface NewClosureWizardProps {

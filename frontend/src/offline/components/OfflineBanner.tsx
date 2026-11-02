@@ -1,5 +1,5 @@
 import React from 'react';
-import { WifiOff, AlertTriangle, RefreshCw } from 'lucide-react';
+import { WifiOff,AlertTriangle,RefreshCw } from 'lucide-react';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useOfflineSync } from '../hooks/useOfflineSync';
 

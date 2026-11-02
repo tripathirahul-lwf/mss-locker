@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import {
-  UploadController,
-  uploadSingleMiddleware,
+UploadController,
+uploadSingleMiddleware,
 } from '../controllers/upload.controller';
-import { authenticate, requireAnyPermission, requirePermission } from '../middlewares/auth';
+import { authenticate,requireAnyPermission,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();

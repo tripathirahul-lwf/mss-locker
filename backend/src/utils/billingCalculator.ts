@@ -1,4 +1,4 @@
-import { BillingCycle, DueStatus, PaymentStatus } from '../constants/billing.constants';
+import { BillingCycle,DueStatus,PaymentStatus } from '../constants/billing.constants';
 import { LockerInvoice } from '../models/LockerInvoice';
 
 export interface InvoiceTotalsInput {

@@ -1,32 +1,28 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { lockBodyScroll } from '../utils/bodyScrollLock';
+import { FormEvent,useEffect,useMemo,useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation,useQuery,useQueryClient } from '@tanstack/react-query';
 import {
-  AlertCircle,
-  CheckCircle2,
-  History,
-  RotateCcw,
-  Save,
-  Settings,
-  ShieldCheck,
-  SlidersHorizontal,
-  X,
-  Building2,
-  MapPin,
-  FileText,
-  Hash,
-  Bell,
-  HardDrive,
-  Info,
-  Edit3,
-  Calendar,
-  Layers,
-  Search,
-  Sparkles,
-  Receipt,
+AlertCircle,
+CheckCircle2,
+History,
+RotateCcw,
+Save,
+Settings,
+ShieldCheck,
+SlidersHorizontal,
+X,
+Building2,FileText,
+Hash,
+Bell,Edit3,
+Calendar,
+Layers,
+Search,
+Sparkles,
+Receipt
 } from 'lucide-react';
-import { settingService, SystemSettings, TariffPlan } from '../services/settingService';
+import { settingService,SystemSettings,TariffPlan } from '../services/settingService';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ConfirmationModal } from '../components/common/ConfirmationModal';
@@ -958,14 +954,14 @@ function RevisionDialog({
 
   // Lock body scroll and handle Escape key
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = originalOverflow;
+      releaseScroll();
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [close]);
@@ -973,7 +969,6 @@ function RevisionDialog({
   // Dynamic calculations & deltas
   const rentDiff = rent - tariff.annualRent;
   const rentPercent = tariff.annualRent ? ((rentDiff / tariff.annualRent) * 100).toFixed(1) : '0';
-  const depositDiff = deposit - tariff.securityDeposit;
   const depositRatio = rent > 0 ? (deposit / rent).toFixed(1) : '0';
   const monthlyEquivalent = Math.round(rent / 12);
 
@@ -1303,14 +1298,14 @@ function HistoryDialog({
 
   // Lock body scroll and handle Escape key
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = originalOverflow;
+      releaseScroll();
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [close]);

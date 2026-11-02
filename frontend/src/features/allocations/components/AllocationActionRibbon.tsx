@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Clock, Download, RefreshCw, X, ChevronDown } from 'lucide-react';
+import { useState,useEffect } from 'react';
+import { Search,Plus,Clock,Download,RefreshCw,X,ChevronDown } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 
 interface AllocationActionRibbonProps {
@@ -22,8 +22,6 @@ export function AllocationActionRibbon({
   onSearchChange,
   selectedSize = '',
   onSizeChange,
-  selectedRack = '',
-  onRackChange,
   onNewAllocation,
   onReserveLocker,
   onExportCSV,

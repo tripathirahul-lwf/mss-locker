@@ -1,10 +1,10 @@
 import React from 'react';
 import { ClosureStats } from '../types';
 import {
-  Clock,
-  AlertTriangle,
-  ThumbsUp,
-  CheckCircle2,
+Clock,
+AlertTriangle,
+ThumbsUp,
+CheckCircle2,
 } from 'lucide-react';
 
 interface ClosureSummaryCardsProps {

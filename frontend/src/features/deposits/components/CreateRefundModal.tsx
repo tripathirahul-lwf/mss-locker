@@ -1,8 +1,8 @@
 import { DepositDialogLayer } from './DepositDialogLayer';
-import React, { useState, useEffect, useRef } from 'react';
+import React,{ useState,useEffect,useRef } from 'react';
 import { depositApi } from '../api/depositApi';
 import { DepositSummary } from '../types';
-import { X, ArrowUpRight, AlertCircle, ArrowRight, FileEdit, Send } from 'lucide-react';
+import { X,ArrowUpRight,AlertCircle,FileEdit,Send } from 'lucide-react';
 
 interface CreateRefundModalProps {
   isOpen: boolean;
@@ -27,7 +27,6 @@ export const CreateRefundModal: React.FC<CreateRefundModalProps> = ({
   const [requestedAmount, setRequestedAmount] = useState('');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
-  const [isDraft, setIsDraft] = useState(false);
 
   useEffect(() => {
     if (isOpen && allocationId) {

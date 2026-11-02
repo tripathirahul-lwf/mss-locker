@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useState,useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, UserPlus, AlertCircle, AlertTriangle, User, Phone, MapPin, Loader2, ChevronDown, CheckCircle2, Mail, Building2 } from 'lucide-react';
+import { X,UserPlus,AlertCircle,AlertTriangle,User,Loader2,ChevronDown,CheckCircle2,Mail,Building2 } from 'lucide-react';
 import {
-  Customer,
-  CreateCustomerInput,
-  UpdateCustomerInput,
-  CustomerStatus,
+Customer,
+CreateCustomerInput,
+UpdateCustomerInput,
+CustomerStatus,
 } from '../types';
 import { customerApi } from '../api/customerApi';
 import { CustomerPhotoUploader } from './CustomerPhotoUploader';
@@ -97,8 +98,8 @@ export function CustomerFormModal({
 
   useEffect(() => {
     previouslyFocusedRef.current = document.activeElement as HTMLElement;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
     window.requestAnimationFrame(() => titleRef.current?.focus());
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -129,7 +130,7 @@ export function CustomerFormModal({
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = originalOverflow;
+      releaseScroll();
       previouslyFocusedRef.current?.focus();
     };
   }, []); // Modal lifecycle: install once, then restore focus and page scrolling on unmount.

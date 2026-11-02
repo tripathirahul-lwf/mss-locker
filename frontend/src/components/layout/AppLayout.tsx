@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { useState,useEffect } from 'react';
+import { Outlet,useLocation } from 'react-router-dom';
 import { TopNavHeader } from './TopNavHeader';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalSearchModal } from '../../features/search/components/GlobalSearchModal';
@@ -51,9 +51,7 @@ export function AppLayout() {
       <OfflineBanner />
 
       {/* Top Navigation Header without sidebar */}
-      <TopNavHeader
-        onOpenCommandPalette={() => setSearchModalOpen(true)}
-      />
+      <TopNavHeader />
 
       {/* Full-Width Canvas Main Body */}
       <main id="operations-top" className="flex-1 w-full max-w-[1560px] mx-auto px-3 py-4 sm:p-5 sm:pb-8 lg:p-8">

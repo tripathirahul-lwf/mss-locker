@@ -1,9 +1,9 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema,model,Document,Types } from 'mongoose';
 import {
-  PaymentMethod,
-  PaymentStatus,
-  PaymentSource,
-  PaymentPurpose,
+PaymentMethod,
+PaymentStatus,
+PaymentSource,
+PaymentPurpose,
 } from '../constants/payment.constants';
 
 export interface IPayment extends Document {

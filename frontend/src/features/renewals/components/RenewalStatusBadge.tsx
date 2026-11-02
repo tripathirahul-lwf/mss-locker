@@ -1,6 +1,5 @@
-import React from 'react';
-import { PaymentStatus, DueStatus, InvoiceStatus } from '../types';
-import { CheckCircle2, Clock, AlertTriangle, AlertCircle, XCircle } from 'lucide-react';
+import { PaymentStatus,DueStatus } from '../types';
+import { CheckCircle2,Clock,AlertTriangle,AlertCircle } from 'lucide-react';
 
 export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
   switch (status) {
@@ -31,7 +30,6 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
 
 export function DueStatusBadge({
   status,
-  dueDate,
 }: {
   status: DueStatus;
   dueDate?: string;

@@ -1,15 +1,15 @@
-import mongoose, { Types } from 'mongoose';
-import { CustomerKycDocument, ICustomerKycDocument } from '../models/CustomerKycDocument';
+import mongoose,{ Types } from 'mongoose';
+import { CustomerKycDocument,ICustomerKycDocument } from '../models/CustomerKycDocument';
 import { Payment } from '../models/Payment';
 import { Customer } from '../models/Customer';
 import {
-  AddKycDocumentInput,
-  UpdateKycDocumentInput,
-  VerifyKycDocumentInput,
+AddKycDocumentInput,
+UpdateKycDocumentInput,
+VerifyKycDocumentInput,
 } from '../validators/customer.validator';
-import { maskKycDocumentNumber, normalizeKycDocumentNumber } from '../utils/masking';
+import { maskKycDocumentNumber,normalizeKycDocumentNumber } from '../utils/masking';
 import { recordAuditLog } from '../utils/auditLogger';
-import { KycStatus, KYC_POLICY } from '../constants/customer.constants';
+import { KycStatus,KYC_POLICY } from '../constants/customer.constants';
 import { StorageService } from './storage.service';
 
 export class CustomerKycService {

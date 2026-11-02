@@ -1,4 +1,4 @@
-import { connectDatabase, disconnectDatabase } from '../config/database';
+import { connectDatabase,disconnectDatabase } from '../config/database';
 import { DEFAULT_ADMIN_CREDENTIALS } from '../config/env';
 import { Role } from '../models/Role';
 import { User } from '../models/User';
@@ -9,9 +9,9 @@ import { LockerAllocation } from '../models/LockerAllocation';
 import { hashPassword } from '../utils/password';
 import { logger } from '../utils/logger';
 import {
-  SYSTEM_ROLE_CODES,
-  DEFAULT_ROLE_PERMISSIONS,
-  ALL_PERMISSIONS,
+SYSTEM_ROLE_CODES,
+DEFAULT_ROLE_PERMISSIONS,
+ALL_PERMISSIONS,
 } from '../constants/permissions';
 
 export const seedDatabase = async (): Promise<void> => {

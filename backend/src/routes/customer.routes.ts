@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { CustomerController } from '../controllers/customer.controller';
 import { CustomerKycController } from '../controllers/customerKyc.controller';
 import { LockerAllocationController } from '../controllers/allocation.controller';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();

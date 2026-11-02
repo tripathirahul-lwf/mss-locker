@@ -1,6 +1,5 @@
-import React from 'react';
-import { LockerStatus, OperationalStatus } from '../types';
-import { LOCKER_STATUS_CONFIG, OPERATIONAL_STATUS_CONFIG } from '../constants';
+import { LockerStatus,OperationalStatus } from '../types';
+import { LOCKER_STATUS_CONFIG,OPERATIONAL_STATUS_CONFIG } from '../constants';
 
 interface LockerStatusBadgeProps {
   status: LockerStatus;

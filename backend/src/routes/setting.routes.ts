@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { PERMISSIONS } from '../constants/permissions';
-import { getSettings, reviseTariff, tariffHistory, updateSettings } from '../controllers/setting.controller';
+import { getSettings,reviseTariff,tariffHistory,updateSettings } from '../controllers/setting.controller';
 const router = Router();
 router.use(authenticate);
 router.get('/', requirePermission(PERMISSIONS.SETTINGS_VIEW), getSettings);

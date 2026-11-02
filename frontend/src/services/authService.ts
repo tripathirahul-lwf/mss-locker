@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios';
-import { apiClient, setAccessToken } from './apiClient';
+import { apiClient,setAccessToken } from './apiClient';
 import { User } from '../types/auth';
 
 const SESSION_HINT_KEY = 'mss-locker-session';

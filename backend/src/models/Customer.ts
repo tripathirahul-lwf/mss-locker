@@ -1,5 +1,5 @@
-import { Schema, model, Document, Types } from 'mongoose';
-import { CustomerStatus, KycStatus } from '../constants/customer.constants';
+import { Schema,model,Document,Types } from 'mongoose';
+import { CustomerStatus,KycStatus } from '../constants/customer.constants';
 
 export interface ICustomer extends Document {
   _id: Types.ObjectId;

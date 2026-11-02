@@ -1,7 +1,6 @@
-import React from 'react';
-import { Eye, Edit3, Trash2, KeyRound, ArrowUpDown, ChevronLeft, ChevronRight, ChevronDown, Ban } from 'lucide-react';
-import { Locker, LockerQueryParams } from '../types';
-import { LockerStatusBadge, OperationalStatusBadge } from './LockerStatusBadge';
+import { Eye,Edit3,Trash2,KeyRound,ArrowUpDown,ChevronLeft,ChevronRight,ChevronDown } from 'lucide-react';
+import { Locker,LockerQueryParams } from '../types';
+import { LockerStatusBadge,OperationalStatusBadge } from './LockerStatusBadge';
 import { formatINR } from '../utils/formatters';
 import { LOCKER_SIZES } from '../constants';
 import { Button } from '../../../components/ui/button';

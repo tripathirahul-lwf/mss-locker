@@ -1,4 +1,4 @@
-import { LockerSizeItem, LockerStatus, OperationalStatus } from '../types';
+import { LockerSizeItem,LockerStatus,OperationalStatus } from '../types';
 
 export const LOCKER_SIZES: LockerSizeItem[] = [
   { code: 'A', label: 'Size A (Small)', dimensions: '125 x 175 x 492 mm', baseRent: 1000, defaultRent: 1180, defaultDeposit: 2000, sortOrder: 1 },

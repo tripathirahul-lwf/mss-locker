@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Eye, X } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { Eye,X } from 'lucide-react';
 
 /** Local preview: no upload or saved allotment is needed to inspect an attachment. */
 export function AttachmentPreview({ file, label }: { file: File; label: string }) {

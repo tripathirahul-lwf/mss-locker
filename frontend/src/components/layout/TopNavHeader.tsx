@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Users, ScrollText, LogOut } from 'lucide-react';
+import { Link,useNavigate } from 'react-router-dom';
+import { Users,ScrollText,LogOut } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { ConfirmationModal } from '../common/ConfirmationModal';
-export interface TopNavHeaderProps { onOpenCommandPalette?: () => void }
-export function TopNavHeader(_props: TopNavHeaderProps = {}) {
+export function TopNavHeader() {
   const { logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [confirm, setConfirm] = useState(false);

@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React,{ useState,useEffect } from 'react';
+import { useNavigate,useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
-  Shield,
-  Lock,
-  User as UserIcon,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  KeyRound,
-  CheckCircle2,
-  Layers,
-  ArrowRight,
-  Server,
-  ShieldCheck,
-  RefreshCw,
-  Wifi,
-  WifiOff,
+Lock,
+User as UserIcon,
+Eye,
+EyeOff,
+AlertCircle,
+KeyRound,ArrowRight,RefreshCw,WifiOff
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';

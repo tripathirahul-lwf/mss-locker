@@ -1,8 +1,9 @@
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Loader2, CheckCircle2 } from 'lucide-react';
+import { useQuery,useQueryClient } from '@tanstack/react-query';
+import { X,Loader2,CheckCircle2 } from 'lucide-react';
 import { apiClient } from '../../../services/apiClient';
 import { lockerApi } from '../../lockers/api/lockerApi';
 import { customerApi } from '../../customers/api/customerApi';
@@ -104,8 +105,8 @@ export function CompleteAllotmentModal({
     const root = document.getElementById('root');
     const previousInert = root?.inert || false;
     if (root) root.inert = true;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
     const focusBefore = document.activeElement as HTMLElement | null;
     dialog.current?.focus();
 
@@ -134,7 +135,7 @@ export function CompleteAllotmentModal({
 
     document.addEventListener('keydown', keys);
     return () => {
-      document.body.style.overflow = previous;
+      releaseScroll();
       document.removeEventListener('keydown', keys);
       if (root) root.inert = previousInert;
       if (focusBefore?.isConnected) focusBefore.focus();

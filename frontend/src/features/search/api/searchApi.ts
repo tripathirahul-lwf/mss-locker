@@ -1,9 +1,9 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  GlobalSearchResultData,
-  CustomerQuickPreviewData,
-  CustomerRenewalHistoryResponse,
-  LockerQuickPreviewData,
+GlobalSearchResultData,
+CustomerQuickPreviewData,
+CustomerRenewalHistoryResponse,
+LockerQuickPreviewData,
 } from '../types';
 
 export const searchApi = {

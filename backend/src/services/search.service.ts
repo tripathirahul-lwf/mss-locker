@@ -1,4 +1,3 @@
-import { Types } from 'mongoose';
 import { Customer } from '../models/Customer';
 import { Locker } from '../models/Locker';
 import { LockerAllocation } from '../models/LockerAllocation';

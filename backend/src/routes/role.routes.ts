@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { RoleController } from '../controllers/role.controller';
-import { authenticate, requirePermission } from '../middlewares/auth';
+import { authenticate,requirePermission } from '../middlewares/auth';
 import { validateRequest } from '../validators';
 import { updateRoleSchema } from '../validators/role.validator';
 import { PERMISSIONS } from '../constants/permissions';

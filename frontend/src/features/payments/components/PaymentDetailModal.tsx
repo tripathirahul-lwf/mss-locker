@@ -1,32 +1,21 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  IndianRupee,
-  Receipt,
-  User,
-  KeyRound,
-  FileText,
-  Calendar,
-  AlertTriangle,
-  Ban,
-  Printer,
-  Copy,
-  Check,
-  ExternalLink,
-  ShieldCheck,
-  Building2,
-  Clock,
-  QrCode,
-  CreditCard,
-  Banknote,
-  CheckCircle2,
-  ArrowRight,
-  UserCheck,
-  Sparkles,
+X,Receipt,KeyRound,
+FileText,
+Calendar,
+AlertTriangle,
+Ban,
+Printer,
+Copy,
+Check,
+ExternalLink,
+ShieldCheck,
+Building2,
+Clock,CheckCircle2,UserCheck
 } from 'lucide-react';
 import { Payment } from '../types';
-import { PaymentMethodBadge, PaymentStatusBadge } from './PaymentMethodBadge';
+import { PaymentMethodBadge,PaymentStatusBadge } from './PaymentMethodBadge';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
 import { Link } from 'react-router-dom';

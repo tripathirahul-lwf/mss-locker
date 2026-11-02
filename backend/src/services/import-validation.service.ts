@@ -1,11 +1,9 @@
-import { Types } from 'mongoose';
 import { Locker } from '../models/Locker';
 import { Customer } from '../models/Customer';
-import { LockerAllocation } from '../models/LockerAllocation';
 import { IImportRowResult } from '../models/ImportJob';
 import {
-  normalizeLockerSize,
-  normalizeLockerStatus,
+normalizeLockerSize,
+normalizeLockerStatus,
 } from '../constants/import.constants';
 import { importParserService } from './import-parser.service';
 

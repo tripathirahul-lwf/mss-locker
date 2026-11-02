@@ -1,13 +1,13 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  DepositTransaction,
-  RefundRequest,
-  DepositSummary,
-  DepositStats,
-  DepositTransactionType,
-  RefundStatus,
+DepositTransaction,
+RefundRequest,
+DepositSummary,
+DepositStats,
+DepositTransactionType,
+RefundStatus,
 } from '../types';
-import { PaymentMethod, PaymentSource } from '../../payments/types';
+import { PaymentMethod,PaymentSource } from '../../payments/types';
 
 export const depositApi = {
   // Get deposit summary for allocation

@@ -1,20 +1,15 @@
-import React, { useState } from 'react';
+import React,{ useState } from 'react';
 import {
-  Upload,
-  ShieldCheck,
-  Phone,
-  Calendar,
-  Lock,
-  KeyRound,
-  AlertCircle,
-  Clock,
-  Plus,
-  ArrowRight,
-  ShieldAlert,
-  Wrench,
-  Check,
-  Copy,
-  ExternalLink,
+Upload,
+ShieldCheck,
+Phone,
+Calendar,KeyRound,
+AlertCircle,
+Clock,
+Plus,
+ArrowRight,Wrench,
+Check,
+Copy
 } from 'lucide-react';
 import { Locker } from '../types';
 
@@ -33,8 +28,8 @@ export const LockerModernCard = React.memo(function LockerModernCard({
   onAllocate,
   canAllocate = true,
 }: LockerModernCardProps) {
-  const [copiedPhone, setCopiedPhone] = useState(false);
 
+  const [copiedPhone, setCopiedPhone] = useState(false);
   const isVacant =
     locker.isActive && locker.status === 'VACANT' && locker.operationalStatus === 'ACTIVE';
   const canPerformAllotment = isVacant && canAllocate && Boolean(onAllocate);
@@ -45,7 +40,6 @@ export const LockerModernCard = React.memo(function LockerModernCard({
   const isOverdue = Boolean(locker.isOverdue);
   const isRenewalDue = Boolean(locker.isRenewalDue);
   const isReserved = locker.status === 'RESERVED';
-  const isOccupied = !isVacant && !isClosed && !isMaintenance;
 
   const isKycVerified = locker.tenantKycStatus === 'VERIFIED';
   const hasTenant = Boolean(locker.tenantName);

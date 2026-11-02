@@ -1,23 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  Printer,
-  Shield,
-  CheckCircle2,
-  Receipt,
-  Download,
-  Building2,
-  QrCode,
-  Copy,
-  Check,
-  Ban,
-  FileText,
-  KeyRound,
-  UserCheck,
-  Calendar,
-  Lock,
-  Loader2,
+X,
+Printer,Receipt,Copy,
+Check,
+Ban,Loader2
 } from 'lucide-react';
 import { Payment } from '../types';
 import { Button } from '../../../components/ui/button';

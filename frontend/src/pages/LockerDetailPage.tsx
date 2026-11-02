@@ -1,24 +1,18 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useParams,useNavigate,Link } from 'react-router-dom';
+import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft,
-  KeyRound,
-  Shield,
-  Layers,
-  MapPin,
-  IndianRupee,
-  Clock,
-  User,
-  ShieldAlert,
-  CheckCircle2,
-  Edit3,
-  Trash2,
-  AlertTriangle,
+ArrowLeft,
+KeyRound,MapPin,
+IndianRupee,ShieldAlert,
+CheckCircle2,
+Edit3,
+Trash2,
+AlertTriangle
 } from 'lucide-react';
 import { lockerApi } from '../features/lockers/api/lockerApi';
-import { LockerStatusBadge, OperationalStatusBadge } from '../features/lockers/components/LockerStatusBadge';
-import { formatINR, isLockerAvailable } from '../features/lockers/utils/formatters';
+import { LockerStatusBadge,OperationalStatusBadge } from '../features/lockers/components/LockerStatusBadge';
+import { formatINR,isLockerAvailable } from '../features/lockers/utils/formatters';
 import { LockerFormModal } from '../features/lockers/components/LockerFormModal';
 import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { Button } from '../components/ui/button';

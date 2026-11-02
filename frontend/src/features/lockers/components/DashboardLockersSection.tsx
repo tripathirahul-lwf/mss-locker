@@ -1,30 +1,27 @@
 import { ClosedLockerRecords } from './ClosedLockerRecords';
-import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useMemo, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState,useEffect,useRef,useImperativeHandle,forwardRef,useMemo,useCallback } from 'react';
+import { useQuery,useQueryClient,keepPreviousData } from '@tanstack/react-query';
+import { useNavigate,useSearchParams } from 'react-router-dom';
 import {
-  LayoutGrid,
-  List,
-  Layers,
-  Search,
-  RefreshCw,
-  X,
-  ChevronDown,
-  ArrowUpDown,
-  Maximize2,
-  ChevronLeft,
-  ChevronRight,
-  RotateCcw,
-  ExternalLink,
-  CheckCircle2,
-  AlertTriangle,
-  Inbox,
-  Lock,
-  KeyRound,
-  Loader2,
+LayoutGrid,
+List,
+Layers,
+Search,
+RefreshCw,
+X,
+ChevronDown,
+ArrowUpDown,
+Maximize2,
+ChevronLeft,
+ChevronRight,
+RotateCcw,
+ExternalLink,
+CheckCircle2,
+AlertTriangle,
+Inbox,Loader2
 } from 'lucide-react';
 import { lockerApi } from '../api/lockerApi';
-import { Locker, LockerQueryParams } from '../types';
+import { Locker,LockerQueryParams } from '../types';
 import { LOCKER_SIZES } from '../constants';
 import { LockerModernCard } from './LockerModernCard';
 import { LockerTable } from './LockerTable';
@@ -32,8 +29,8 @@ import { LockerVaultGrid } from './LockerVaultGrid';
 import { LockerDetailModal } from './LockerDetailModal';
 import { LockerFormModal } from './LockerFormModal';
 import { AllocationWizardModal } from '../../allocations/components/AllocationWizardModal';
-import { CreateAllocationInput, ReserveLockerInput } from '../../allocations/types';
-import { CreateLockerInput, UpdateLockerInput } from '../types';
+import { CreateAllocationInput,ReserveLockerInput } from '../../allocations/types';
+import { CreateLockerInput,UpdateLockerInput } from '../types';
 import { allocationApi } from '../../allocations/api/allocationApi';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
@@ -57,9 +54,6 @@ export const DashboardLockersSection = forwardRef<
   const queryClient = useQueryClient();
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const canCreate = usePermission('lockers.create');
-  const canUpdate = usePermission('lockers.update');
-  const canDelete = usePermission('lockers.delete');
   const canAllocate = usePermission('allocations.create');
 
   // Filter & Pagination State initialized from URL query params or localStorage

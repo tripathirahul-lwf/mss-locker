@@ -1,22 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React,{ useState,useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search,
-  KeyRound,
-  Users,
-  LayoutDashboard,
-  ShieldCheck,
-  UserPlus,
-  X,
-  ArrowRight,
-  PlusCircle,
-  FileText,
-  CreditCard,
-  Building2,
-  Calendar,
-  Lock,
-  Receipt,
+Search,
+KeyRound,
+Users,
+LayoutDashboard,X,
+ArrowRight,CreditCard,
+Building2,
+Calendar,
+Lock,
+Receipt
 } from 'lucide-react';
 import { searchApi } from '../api/searchApi';
 import { GlobalSearchResultData } from '../types';
@@ -46,7 +40,6 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     payments: [],
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
   const abortControllerRef = useRef<AbortController | null>(null);
 

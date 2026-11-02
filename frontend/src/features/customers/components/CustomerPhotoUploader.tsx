@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Camera, Upload, X, Loader2, Eye, ZoomIn, ZoomOut, RotateCcw, CheckCircle2 } from 'lucide-react';
+import React,{ useEffect,useState,useRef } from 'react';
+import { Camera,Upload,X,Loader2,Eye,ZoomIn,ZoomOut,RotateCcw,CheckCircle2 } from 'lucide-react';
 import { customerApi } from '../api/customerApi';
 import { Button } from '../../../components/ui/button';
 

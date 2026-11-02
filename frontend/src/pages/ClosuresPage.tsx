@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React,{ useState,useEffect,useCallback,lazy,Suspense } from 'react';
+import { useNavigate,useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { lockerApi } from '../features/lockers/api/lockerApi';
 import { Locker } from '../features/lockers/types';
 import { closureApi } from '../features/closures/api/closureApi';
 import {
-  LockerClosure,
-  ClosureStats,
-  ClosureQueryParams,
+LockerClosure,
+ClosureStats,
+ClosureQueryParams,
 } from '../features/closures/types';
 import { LockerModernCard } from '../features/lockers/components/LockerModernCard';
 import { ClosureSummaryCards } from '../features/closures/components/ClosureSummaryCards';
@@ -17,28 +17,15 @@ import { ClosureDetailModal } from '../features/closures/components/ClosureDetai
 import { ClosureStatementModal } from '../features/closures/components/ClosureStatementModal';
 import { Button } from '../components/ui/button';
 import {
-  Search,
-  RefreshCw,
-  Plus,
-  LayoutGrid,
-  ShieldCheck,
-  AlertCircle,
-  Inbox,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Lock,
-  Clock,
-  AlertTriangle,
-  ThumbsUp,
-  CheckCircle2,
-  Filter,
-  ArrowRight,
-  FileCheck2,
-  KeyRound,
-  Banknote,
-  Boxes,
+Search,
+RefreshCw,
+Plus,
+LayoutGrid,
+ShieldCheck,
+AlertCircle,X,
+ChevronLeft,
+ChevronRight,
+ClipboardList
 } from 'lucide-react';
 
 const LockerDetailModal = lazy(() =>

@@ -1,5 +1,5 @@
 import { serviceErrorStatus } from '../utils/serviceErrorStatus';
-import { Request, Response } from 'express';
+import { Request,Response } from 'express';
 import { billingService } from '../services/billing.service';
 import { renewalService } from '../services/renewal.service';
 import { logger } from '../utils/logger';
@@ -78,7 +78,7 @@ export class BillingController {
     }
   }
 
-  async getRenewalStats(req: Request, res: Response): Promise<void> {
+  async getRenewalStats(_req: Request, res: Response): Promise<void> {
     try {
       const stats = await billingService.getRenewalStats();
       res.status(200).json({

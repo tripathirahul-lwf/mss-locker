@@ -1,17 +1,17 @@
 import { escapeHtmlFields } from '../utils/html';
-import mongoose, { ClientSession, Types } from 'mongoose';
-import { Payment, IPayment } from '../models/Payment';
+import mongoose,{ ClientSession,Types } from 'mongoose';
+import { Payment,IPayment } from '../models/Payment';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { AuditLog } from '../models/AuditLog';
 import {
-  PaymentMethod,
-  PaymentStatus,
-  PaymentSource,
-  DIGITAL_PAYMENT_METHODS,
+PaymentMethod,
+PaymentStatus,
+PaymentSource,
+DIGITAL_PAYMENT_METHODS,
 } from '../constants/payment.constants';
-import { generatePaymentNumber, generateReceiptNumber } from '../utils/paymentCalculator';
-import { calculateBillingPeriod, determineDueStatus } from '../utils/billingCalculator';
+import { generatePaymentNumber,generateReceiptNumber } from '../utils/paymentCalculator';
+import { calculateBillingPeriod,determineDueStatus } from '../utils/billingCalculator';
 import { normalizeMoney } from '../utils/money';
 
 export interface RecordPaymentInput {

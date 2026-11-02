@@ -1,19 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React,{ useState,useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  X,
-  KeyRound,
-  Building2,
-  User,
-  ShieldCheck,
-  Calendar,
-  DollarSign,
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  PlusCircle,
-  Wrench,
+X,Building2,
+User,
+ShieldCheck,CheckCircle2,PlusCircle,
+Wrench
 } from 'lucide-react';
 import { searchApi } from '../api/searchApi';
 import { LockerQuickPreviewData } from '../types';

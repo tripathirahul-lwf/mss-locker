@@ -1,26 +1,27 @@
-import React, { useState, useEffect, useId, useRef } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useState,useEffect,useId,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  X,
-  ShieldCheck,
-  FileText,
-  FileUp,
-  Loader2,
-  ChevronDown,
-  Trash2,
-  AlertCircle,
-  CheckCircle2,
-  Info,
-  Eye,
-  RefreshCw,
-  FileCheck2,
+X,
+ShieldCheck,
+FileText,
+FileUp,
+Loader2,
+ChevronDown,
+Trash2,
+AlertCircle,
+CheckCircle2,
+Info,
+Eye,
+RefreshCw,
+FileCheck2,
 } from 'lucide-react';
 import {
-  CustomerKycDocument,
-  AddKycDocumentInput,
-  UpdateKycDocumentInput,
-  KycDocumentType,
+CustomerKycDocument,
+AddKycDocumentInput,
+UpdateKycDocumentInput,
+KycDocumentType,
 } from '../types';
 import { KYC_DOCUMENT_TYPES } from '../constants';
 import { customerApi } from '../api/customerApi';
@@ -155,8 +156,8 @@ export function KycDocumentModal({
 
   // Trap body scroll & handle keyboard navigation (ESC, Ctrl+Enter)
   useEffect(() => {
-    const originalOverflow = window.document.body.style.overflow;
-    window.document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // If preview lightbox is open, let it handle Esc
@@ -174,7 +175,7 @@ export function KycDocumentModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.document.body.style.overflow = originalOverflow;
+      releaseScroll();
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose, temporaryUploads, isPreviewOpen]);

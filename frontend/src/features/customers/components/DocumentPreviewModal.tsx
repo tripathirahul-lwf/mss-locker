@@ -1,29 +1,24 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useState,useEffect,useRef,useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  ZoomIn,
-  ZoomOut,
-  RotateCw,
-  RotateCcw,
-  Download,
-  ExternalLink,
-  FileText,
-  Maximize2,
-  Minimize2,
-  ShieldCheck,
-  FileSearch,
-  Info,
-  Copy,
-  Check,
-  Calendar,
-  User,
-  Hash,
-  FileCode,
-  Layers,
-  Sparkles,
+X,
+ZoomIn,
+ZoomOut,
+RotateCw,
+RotateCcw,
+Download,
+ExternalLink,
+FileText,
+Maximize2,
+Minimize2,
+ShieldCheck,
+FileSearch,
+Info,
+Copy,
+Check,
+Calendar
 } from 'lucide-react';
-import { Button } from '../../../components/ui/button';
 
 interface DocumentPreviewModalProps {
   isOpen: boolean;
@@ -60,7 +55,6 @@ export function DocumentPreviewModal({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null);
 
@@ -83,7 +77,6 @@ export function DocumentPreviewModal({
       setScale(1);
       setRotation(0);
       setPosition({ x: 0, y: 0 });
-      setImageLoaded(false);
       setHasError(false);
       setNaturalDimensions(null);
       setIsMaximized(false);
@@ -93,10 +86,10 @@ export function DocumentPreviewModal({
   // Lock background body scroll
   useEffect(() => {
     if (!isOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
+    const releaseScroll = lockBodyScroll();
     return () => {
-      document.body.style.overflow = prevOverflow;
+      releaseScroll();
     };
   }, [isOpen]);
 
@@ -434,7 +427,6 @@ export function DocumentPreviewModal({
                   src={documentUrl}
                   alt={documentName}
                   onLoad={(e) => {
-                    setImageLoaded(true);
                     const img = e.currentTarget;
                     setNaturalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
                   }}

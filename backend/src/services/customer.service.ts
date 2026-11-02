@@ -1,12 +1,12 @@
-import mongoose, { Types } from 'mongoose';
-import { Customer, ICustomer } from '../models/Customer';
+import mongoose,{ Types } from 'mongoose';
+import { Customer,ICustomer } from '../models/Customer';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { Sequence } from '../models/Sequence';
 import {
-  CreateCustomerInput,
-  UpdateCustomerInput,
-  CustomerQueryParams,
-  CheckDuplicateCustomerInput,
+CreateCustomerInput,
+UpdateCustomerInput,
+CustomerQueryParams,
+CheckDuplicateCustomerInput,
 } from '../validators/customer.validator';
 import { normalizePhone } from '../utils/phone';
 import { recordAuditLog } from '../utils/auditLogger';

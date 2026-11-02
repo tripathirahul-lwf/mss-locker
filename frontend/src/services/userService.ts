@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { User, RoleListItem } from '../types/auth';
+import { User,RoleListItem } from '../types/auth';
 
 export interface GetUsersQuery {
   search?: string;

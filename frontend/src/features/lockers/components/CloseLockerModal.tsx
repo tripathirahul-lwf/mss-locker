@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import { FormEvent,useEffect,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { X, Loader2 } from 'lucide-react';
+import { X,Loader2 } from 'lucide-react';
 import { usePermission } from '../../../hooks/usePermission';
 import { allocationApi } from '../../allocations/api/allocationApi';
 import { closureApi } from '../../closures/api/closureApi';
@@ -19,8 +20,8 @@ export function CloseLockerModal({ allocationId, onClose, onSuccess, onDeposits,
   const allocation = useQuery({ queryKey: ['allocation', allocationId], queryFn: () => allocationApi.getAllocationById(allocationId), staleTime: 0 });
   const readiness = useQuery({ queryKey: ['closure-readiness', allocationId], queryFn: () => closureApi.getClosureReadiness(allocationId), enabled: canView, staleTime: 0 });
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden'; root.current?.focus();
+    const previous = document.activeElement as HTMLElement | null;
+    const releaseScroll = lockBodyScroll(); root.current?.focus();
     const handler = (event: KeyboardEvent) => {
       if (Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).at(-1) !== root.current) return;
       if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); if (!live.current.busy) live.current.onClose(); }
@@ -33,7 +34,7 @@ export function CloseLockerModal({ allocationId, onClose, onSuccess, onDeposits,
       }
     };
     document.addEventListener('keydown', handler, true);
-    return () => { document.removeEventListener('keydown', handler, true); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus(); };
+    return () => { document.removeEventListener('keydown', handler, true); releaseScroll(); if (previous?.isConnected) previous.focus(); };
   }, []);
   const a = allocation.data, r = readiness.data;
   const openingDay = a?.startDate && Number.isFinite(Date.parse(a.startDate)) ? a.startDate.slice(0, 10) : '';
@@ -82,7 +83,6 @@ export function CloseLockerModal({ allocationId, onClose, onSuccess, onDeposits,
       {usable && r && <div className="flex flex-wrap items-center gap-3 text-sm text-slate-700"><span>Outstanding rent: <strong>{money(r.outstandingInvoiceAmount)}</strong></span>{r.outstandingInvoiceAmount > 0 && canPay && canViewInvoices && <Button type="button" variant="outline" disabled={busy} onClick={() => onPayments(r.openInvoices[0]?._id)}>Settle rent</Button>}{(r.netDepositHeld > 0 || r.pendingRefundAmount > 0) && canDeposits && <Button type="button" variant="outline" disabled={busy} onClick={onDeposits}>Manage refund</Button>}</div>}
       {usable && r?.financialBlockers?.length ? <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><p className="font-semibold">Settlement required before approval</p><ul className="mt-2 list-disc space-y-1 pl-5">{r.financialBlockers.map(message => <li key={message}>{message}</li>)}</ul></div> : null}
       {date && !validDate && openingDay && <p className="text-sm text-rose-800">Closing date must be between {openingDay} and {today()}.</p>}
-      {ready && !confirmed && <p className="text-sm text-slate-600">Confirm the physical handover checklist to enable submission.</p>}
       {condition !== 'GOOD'  && <p className="text-sm text-amber-900">The locker will remain unavailable for maintenance after closure.</p>}
       <p className="text-sm text-slate-600">Confirming submits the closure for review. Financial settlement and approval must finish before the locker is released.</p>
     </div><footer className="flex shrink-0 flex-wrap gap-3 border-t border-slate-200 px-5 py-4 sm:px-8"><Button type="submit" disabled={busy || !ready || !confirmed || !validDate} className="min-h-12 rounded-2xl bg-red-600 px-6 text-base font-bold text-white hover:bg-red-700">{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{busy ? 'Submitting...' : 'Confirm close'}</Button><Button type="button" variant="secondary" disabled={busy} onClick={onClose} className="min-h-12 rounded-2xl px-6 text-base font-semibold">Back</Button></footer></form>

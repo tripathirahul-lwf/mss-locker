@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { isAllowedOrigin } from '../utils/origin';
 import { env } from '../config/env';
 import { errorResponse } from '../utils/apiResponse';

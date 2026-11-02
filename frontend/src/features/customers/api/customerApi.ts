@@ -1,16 +1,16 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  Customer,
-  CustomerKycDocument,
-  CustomerStats,
-  CustomerQueryParams,
-  CreateCustomerInput,
-  UpdateCustomerInput,
-  AddKycDocumentInput,
-  UpdateKycDocumentInput,
-  VerifyKycDocumentInput,
-  CheckDuplicateCustomerResult,
-  PaginatedCustomersResponse,
+Customer,
+CustomerKycDocument,
+CustomerStats,
+CustomerQueryParams,
+CreateCustomerInput,
+UpdateCustomerInput,
+AddKycDocumentInput,
+UpdateKycDocumentInput,
+VerifyKycDocumentInput,
+CheckDuplicateCustomerResult,
+PaginatedCustomersResponse,
 } from '../types';
 
 export const customerApi = {

@@ -1,6 +1,6 @@
 import { isAllowedOrigin } from './utils/origin';
 import { verifyBrowserOrigin } from './middlewares/verifyBrowserOrigin';
-import express, { Application } from 'express';
+import express,{ Application } from 'express';
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';

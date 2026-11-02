@@ -1,18 +1,13 @@
-import React from 'react';
 import {
-  Eye,
-  KeyRound,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  User,
-  ShieldCheck,
-  ChevronLeft,
-  ChevronRight,
-  Edit3,
-  Plus,
+Eye,
+KeyRound,
+CheckCircle2,
+XCircle,ChevronLeft,
+ChevronRight,
+Edit3,
+Plus
 } from 'lucide-react';
-import { LockerAllocation, AllocationQueryParams } from '../types';
+import { LockerAllocation,AllocationQueryParams } from '../types';
 import { AllocationStatusBadge } from './AllocationStatusBadge';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
@@ -40,7 +35,6 @@ export function AllocationTable({
   allocations,
   pagination,
   isLoading,
-  filters,
   onPageChange,
   onView,
   onActivate,

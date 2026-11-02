@@ -1,11 +1,11 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  LockerAllocation,
-  CreateAllocationInput,
-  ReserveLockerInput,
-  UpdateAllocationInput,
-  AllocationQueryParams,
-  AllocationStats,
+LockerAllocation,
+CreateAllocationInput,
+ReserveLockerInput,
+UpdateAllocationInput,
+AllocationQueryParams,
+AllocationStats,
 } from '../types';
 
 export const allocationApi = {

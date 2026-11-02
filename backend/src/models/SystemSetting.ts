@@ -1,4 +1,4 @@
-import { Schema, model, Types } from 'mongoose';
+import { Schema,model,Types } from 'mongoose';
 
 export interface ISystemSetting {
   key: 'GLOBAL'; businessName: string; branchName: string; address: string; gstin: string;

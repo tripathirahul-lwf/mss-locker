@@ -1,17 +1,14 @@
-import React from 'react';
 import {
-  Eye,
-  Printer,
-  ChevronLeft,
-  ChevronRight,
-  KeyRound,
-  FileText,
-  Ban,
-  Receipt,
-  Plus,
+Eye,
+Printer,
+ChevronLeft,
+ChevronRight,
+KeyRound,Ban,
+Receipt,
+Plus
 } from 'lucide-react';
-import { Payment, PaymentQueryParams } from '../types';
-import { PaymentMethodBadge, PaymentStatusBadge } from './PaymentMethodBadge';
+import { Payment,PaymentQueryParams } from '../types';
+import { PaymentMethodBadge,PaymentStatusBadge } from './PaymentMethodBadge';
 import { Button } from '../../../components/ui/button';
 import { usePermission } from '../../../hooks/usePermission';
 
@@ -36,7 +33,6 @@ export function PaymentTable({
   payments,
   pagination,
   isLoading,
-  filters,
   onPageChange,
   onView,
   onPrintReceipt,

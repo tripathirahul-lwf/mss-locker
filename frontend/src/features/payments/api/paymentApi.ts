@@ -1,9 +1,9 @@
 import { apiClient } from '../../../services/apiClient';
 import {
-  Payment,
-  PaymentStats,
-  RecordPaymentInput,
-  PaymentQueryParams,
+Payment,
+PaymentStats,
+RecordPaymentInput,
+PaymentQueryParams,
 } from '../types';
 
 export const paymentApi = {

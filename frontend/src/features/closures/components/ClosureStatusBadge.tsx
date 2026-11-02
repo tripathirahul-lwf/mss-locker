@@ -1,13 +1,13 @@
 import React from 'react';
 import { ClosureStatus } from '../types';
 import {
-  FileText,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  ThumbsUp,
-  XCircle,
-  Ban,
+FileText,
+Clock,
+AlertTriangle,
+CheckCircle2,
+ThumbsUp,
+XCircle,
+Ban,
 } from 'lucide-react';
 
 interface ClosureStatusBadgeProps {

@@ -4,8 +4,8 @@ import { Customer } from '../models/Customer';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { Payment } from '../models/Payment';
-import { PERMISSIONS, PermissionCode } from '../constants/permissions';
-import { SyncTombstone, SyncScope } from '../models/SyncTombstone';
+import { PERMISSIONS,PermissionCode } from '../constants/permissions';
+import { SyncTombstone,SyncScope } from '../models/SyncTombstone';
 
 export interface IncrementalSyncResult {
   serverTime: string;

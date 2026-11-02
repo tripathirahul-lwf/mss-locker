@@ -1,4 +1,4 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema,model,Document,Types } from 'mongoose';
 
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'LOCKED';
 

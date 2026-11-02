@@ -1,6 +1,6 @@
 import { generatePaymentNumber } from '../utils/paymentCalculator';
 import { generateDepositNumber } from '../utils/depositCalculator';
-import mongoose, { Types } from 'mongoose';
+import mongoose,{ Types } from 'mongoose';
 import { createHash } from 'crypto';
 import { AllotmentInput } from '../validators/allotment.validator';
 import { AllotmentRequest } from '../models/AllotmentRequest';
@@ -13,7 +13,7 @@ import { Payment } from '../models/Payment';
 import { DepositTransaction } from '../models/DepositTransaction';
 import { Sequence } from '../models/Sequence';
 import { AuditLog } from '../models/AuditLog';
-import { LockerAllocationService, AllocationActor } from './allocation.service';
+import { LockerAllocationService,AllocationActor } from './allocation.service';
 import { StorageService } from './storage.service';
 import { normalizePhone } from '../utils/phone';
 const fail = (message: string, statusCode = 409) => Object.assign(new Error(message), { statusCode });

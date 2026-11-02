@@ -1,6 +1,5 @@
-import React from 'react';
 import { CustomerStats } from '../types';
-import { Users, UserCheck, ShieldCheck, Clock, ShieldAlert } from 'lucide-react';
+import { Users,UserCheck,ShieldCheck,Clock,ShieldAlert } from 'lucide-react';
 
 interface CustomerSummaryCardsProps {
   stats?: CustomerStats;

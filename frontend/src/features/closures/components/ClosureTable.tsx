@@ -2,13 +2,10 @@ import React from 'react';
 import { LockerClosure } from '../types';
 import { ClosureStatusBadge } from './ClosureStatusBadge';
 import {
-  Eye,
-  CheckCircle,
-  FileCheck2,
-  Printer,
-  ChevronLeft,
-  ChevronRight,
-  ShieldAlert,
+Eye,Printer,
+ChevronLeft,
+ChevronRight,
+ShieldAlert
 } from 'lucide-react';
 
 interface ClosureTableProps {
@@ -82,7 +79,6 @@ export const ClosureTable: React.FC<ClosureTableProps> = ({
         {closures.map((closure) => {
           const customer = closure.customerId;
           const locker = closure.lockerId;
-          const allocation = closure.allocationId;
           const isRequester = currentUserId && String(closure.requestedBy?._id) === String(currentUserId);
 
           return (

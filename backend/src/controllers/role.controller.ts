@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request,Response,NextFunction } from 'express';
 import { RoleService } from '../services/role.service';
-import { successResponse, errorResponse } from '../utils/apiResponse';
+import { successResponse,errorResponse } from '../utils/apiResponse';
 
 export class RoleController {
   static async getRoles(_req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -12,7 +12,7 @@ export class RoleController {
     }
   }
 
-  static async getRoleById(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async getRoleById(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
       const role = await RoleService.getRoleById(id);
