@@ -41,7 +41,7 @@ export const LockerModernCard = React.memo(function LockerModernCard({
   const isRenewalDue = Boolean(locker.isRenewalDue);
   const isReserved = locker.status === 'RESERVED';
 
-  const isKycVerified = locker.tenantKycStatus === 'VERIFIED';
+  const hasKycDocuments = (locker.tenantKycDocumentCount || 0) > 0;
   const hasTenant = Boolean(locker.tenantName);
 
   // Status Badge Configuration
@@ -334,13 +334,13 @@ export const LockerModernCard = React.memo(function LockerModernCard({
                   onKyc(locker);
                 }}
                 className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs border ${
-                  isKycVerified
+                  hasKycDocuments
                     ? 'bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-800'
                     : 'bg-amber-800 hover:bg-amber-900 text-white border-amber-900'
                 }`}
-                title={isKycVerified ? 'View verified KYC documents' : 'Upload pending KYC proof'}
+                title={hasKycDocuments ? 'View uploaded KYC documents' : 'Upload KYC documents'}
               >
-                {isKycVerified ? (
+                {hasKycDocuments ? (
                   <>
                     <ShieldCheck className="w-3.5 h-3.5 text-white" />
                     <span>View KYC</span>

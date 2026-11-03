@@ -22,6 +22,11 @@ LOCKER_CONDITIONS,
 import { closureReadinessService } from './closure-readiness.service';
 import { depositService } from './deposit.service';
 import { Sequence } from '../models/Sequence';
+import { Payment } from '../models/Payment';
+import { DepositTransaction } from '../models/DepositTransaction';
+import { RefundRequest } from '../models/RefundRequest';
+import { generateDepositNumber, generateRefundNumber } from '../utils/depositCalculator';
+import { generatePaymentNumber, generateReceiptNumber } from '../utils/paymentCalculator';
 
 export interface CreateClosureInput {
   allocationId: string;
@@ -74,7 +79,7 @@ export class LockerClosureService {
   /**
    * Initiates a new Locker Closure workflow with validation
    */
-  async createClosure(input: CreateClosureInput, userId: string): Promise<ILockerClosure> {
+  async createClosure(input: CreateClosureInput, userId: string, transactionSession?: ClientSession): Promise<ILockerClosure> {
     if (!input.allocationId || !Types.ObjectId.isValid(input.allocationId)) {
       const error: any = new Error('Valid allocation ID is required');
       error.statusCode = 400;
@@ -96,7 +101,7 @@ export class LockerClosureService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(closingDay) || !Number.isFinite(closingDate.getTime()) || closingDate.toISOString().slice(0, 10) !== closingDay || closingDay > today) throw fail('Closing date must be a valid calendar date on or before today.');
     if (input.closureType && !Object.values(CLOSURE_TYPES).includes(input.closureType)) throw fail('Invalid closure type.');
     if (input.physicalChecklist !== undefined) validatePhysicalChecklist(input.physicalChecklist);
-    return mongoose.connection.transaction(async (session) => {
+    const execute = async (session: ClientSession) => {
     const allocation = await LockerAllocation.findOneAndUpdate({ _id: input.allocationId }, { $inc: { __v: 1 } }, { new: true, timestamps: false });
     if (!allocation) {
       const error: any = new Error('Allocation not found');
@@ -163,6 +168,53 @@ export class LockerClosureService {
     }], { session });
 
     return closure;
+    };
+    return transactionSession ? execute(transactionSession) : mongoose.connection.transaction(execute);
+  }
+
+  // Direct counter closure: financial settlement and release commit together.
+  async closeDirect(input: CreateClosureInput & { refundedDate?: string; refundAmount: number }, userId: string, canRefund: boolean): Promise<ILockerClosure> {
+    const fail = (message: string, statusCode = 400) => Object.assign(new Error(message), { statusCode });
+    if (!input.allocationId || !Types.ObjectId.isValid(input.allocationId)) throw fail('Valid allocation ID is required.');
+    if (typeof input.closureReason !== 'string' || input.closureReason.trim().length < 3 || input.closureReason.length > 2000) throw fail('Closure reason is required.');
+    if (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 2000)) throw fail('Notes must be at most 2000 characters.');
+    if (typeof input.refundAmount !== 'number' || !Number.isFinite(input.refundAmount) || input.refundAmount < 0 || Math.abs(input.refundAmount * 100 - Math.round(input.refundAmount * 100)) > .00001) throw fail('Invalid refund amount.');
+    if (input.physicalChecklist !== undefined) validatePhysicalChecklist(input.physicalChecklist);
+    return mongoose.connection.transaction(async session => {
+      const allocation = await LockerAllocation.findOneAndUpdate({ _id: input.allocationId }, { $inc: { __v: 1 } }, { new: true, session, timestamps: false });
+      if (!allocation) throw fail('Allocation not found.', 404);
+      const completed = await LockerClosure.findOne({ allocationId: allocation._id, status: 'COMPLETED' }).session(session);
+      if (completed && allocation.status === 'CLOSED') return completed;
+      if (allocation.status !== 'ACTIVE') throw fail('This agreement is no longer active.', 409);
+      const readiness = await closureReadinessService.getReadiness(allocation._id, input.physicalChecklist, session);
+      if (!readiness.checklistComplete) throw fail('Confirm the physical handover checklist.');
+      if (readiness.outstandingInvoiceAmount > 0 || readiness.pendingRefundAmount > 0) throw fail('Settle outstanding rent and existing refund requests before closing.', 409);
+      if (Math.abs(input.refundAmount - readiness.availableRefundableBalance) > .001) throw fail('Refund balance changed. Reload the closure details.', 409);
+      const closingDay = input.requestedClosureDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const validDay = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day)) && new Date(day).toISOString().slice(0, 10) === day;
+      if (!validDay(closingDay) || closingDay > today || closingDay < allocation.startDate.toISOString().slice(0, 10)) throw fail('Invalid closing date.');
+      if (input.refundedDate && (!validDay(input.refundedDate) || input.refundedDate > closingDay || input.refundedDate < allocation.startDate.toISOString().slice(0, 10))) throw fail('Refunded date must be between opening and closing dates.');
+      if (input.refundAmount > 0) {
+        if (!canRefund) throw fail('Refund payment permission is required.', 403);
+        if (!input.refundedDate) throw fail('Refunded date is required for a deposit refund.');
+        const paymentDate = new Date(input.refundedDate + 'T00:00:00Z');
+        const refundNumber = await generateRefundNumber();
+        const [payment] = await Payment.create([{ paymentNumber: await generatePaymentNumber(), receiptNumber: await generateReceiptNumber(), customerId: allocation.customerId, allocationId: allocation._id, lockerId: allocation.lockerId, paymentPurpose: 'REFUND', amount: input.refundAmount, paymentMethod: 'CASH', paymentStatus: 'COMPLETED', paymentDate, source: 'MANUAL_ENTRY', notes: `Direct closure refund ${refundNumber}`, recordedBy: userId }], { session });
+        await DepositTransaction.create([{ depositTransactionNumber: await generateDepositNumber(), customerId: allocation.customerId, allocationId: allocation._id, lockerId: allocation.lockerId, transactionType: 'REFUND_ISSUED', amount: input.refundAmount, paymentId: payment._id, paymentMethod: 'CASH', transactionDate: paymentDate, status: 'COMPLETED', source: 'MANUAL_ENTRY', notes: `Direct closure refund ${refundNumber}`, recordedBy: userId }], { session });
+        await RefundRequest.create([{ refundNumber, customerId: allocation.customerId, allocationId: allocation._id, lockerId: allocation.lockerId, requestedAmount: input.refundAmount, approvedAmount: input.refundAmount, reason: 'Locker closure cash refund', status: 'PAID', requestedBy: userId, requestedAt: new Date(), paidBy: userId, paidAt: paymentDate, refundPaymentMethod: 'CASH', notes: 'Settled through direct counter closure' }], { session });
+      }
+      let closure: ILockerClosure | null = await LockerClosure.findOne({ allocationId: allocation._id, status: { $in: OPEN_CLOSURE_STATUSES } }).session(session);
+      if (!closure) closure = await this.createClosure(input, userId, session);
+      closure.physicalChecklist = input.physicalChecklist as IPhysicalChecklist;
+      closure.requestedClosureDate = new Date(closingDay + 'T00:00:00Z');
+      closure.refundedDate = input.refundAmount > 0 ? new Date(input.refundedDate! + 'T00:00:00Z') : undefined;
+      closure.notes = input.notes?.trim() || '';
+      closure.status = CLOSURE_STATUSES.APPROVED;
+      closure.overrideFinancial = false;
+      await closure.save({ session });
+      // Completion rechecks the ledger; inconsistent records roll back the payout too.
+      return this.completeClosure(String(closure._id), 'Direct counter closure', userId, session);
     });
   }
 
@@ -372,9 +424,10 @@ export class LockerClosureService {
   async completeClosure(
     id: string,
     completionNotes: string | undefined,
-    userId: string
+    userId: string,
+    transactionSession?: ClientSession
   ): Promise<ILockerClosure> {
-    return mongoose.connection.transaction(async (session) => {
+    const execute = async (session: ClientSession) => {
     const closure = await LockerClosure.findOneAndUpdate(
       { _id: id, status: { $in: [CLOSURE_STATUSES.APPROVED, CLOSURE_STATUSES.COMPLETED] } },
       { $set: { updatedAt: new Date() } },
@@ -409,7 +462,7 @@ export class LockerClosureService {
       throw error;
     }
 
-    const readiness = await closureReadinessService.getReadiness(allocation._id, closure.physicalChecklist);
+    const readiness = await closureReadinessService.getReadiness(allocation._id, closure.physicalChecklist, session);
     if (!readiness.checklistComplete || (!readiness.isFinanciallyCleared && !closure.overrideFinancial)) {
       throw Object.assign(new Error(`Closure readiness changed after approval: ${readiness.blockers.join(' ')}`), { statusCode: 409 });
     }
@@ -507,7 +560,8 @@ export class LockerClosureService {
     }], { session });
 
     return closure;
-    });
+    };
+    return transactionSession ? execute(transactionSession) : mongoose.connection.transaction(execute);
   }
 
   /**

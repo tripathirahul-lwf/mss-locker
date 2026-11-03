@@ -48,9 +48,19 @@ test('locker card KYC opens only the dedicated popup without billing requests',a
  const card=page.getByRole('button',{name:'Open locker 77',exact:true});const entry=card.getByRole('button',{name:/KYC/});await entry.click();
  const popup=page.getByRole('dialog',{name:'KYC & ID documents',exact:true});await expect(popup).toBeVisible();await expect(popup).toContainText('Reference Customer');
  await expect(page.getByRole('dialog')).toHaveCount(1);expect(unrelated).toHaveLength(0);
+ await expect(entry).toHaveText('View KYC');await expect(popup).toContainText('pending review');
  await popup.getByLabel('KYC document file',{exact:true}).setInputFiles({name:'direct-kyc.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6lWQAAAAASUVORK5CYII=','base64')});
  await expect(popup).toContainText('uploaded successfully');
+ await expect(entry).toHaveText('View KYC');
  await popup.getByRole('button',{name:'Close',exact:true}).click();await expect(popup).toHaveCount(0);await expect(entry).toBeFocused();expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden');
+ await page.reload();await expect(card.getByRole('button',{name:'View KYC',exact:true})).toBeVisible();
+ await card.getByRole('button',{name:'View KYC',exact:true}).click();
+ for (const name of ['direct-kyc.png','reference-id.png']) {
+  await popup.getByRole('group').filter({hasText:name}).getByRole('button',{name:'Delete',exact:true}).click();
+  await page.getByRole('alertdialog',{name:'Delete KYC document?',exact:true}).getByRole('button',{name:'Delete document',exact:true}).click();
+  await expect(popup.getByRole('group').filter({hasText:name})).toHaveCount(0);
+ }
+ await expect(card.getByRole('button',{name:'Upload KYC',exact:true})).toBeAttached();
 });
 
 test('late dossier response does not replace the selected KYC popup',async({page})=>{

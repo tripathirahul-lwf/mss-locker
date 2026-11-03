@@ -28,6 +28,7 @@ export interface Locker {
   isRenewalDue?: boolean;
   isOverdue?: boolean;
   tenantKycStatus?: string;
+  tenantKycDocumentCount?: number;
   tenantName?: string;
   tenantCode?: string;
   tenantPhone?: string;

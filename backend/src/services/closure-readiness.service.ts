@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { ClientSession,Types } from 'mongoose';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { depositService } from './deposit.service';
@@ -53,11 +53,12 @@ export class ClosureReadinessService {
    */
   async getReadiness(
     allocationId: string | Types.ObjectId,
-    checklist?: Partial<IPhysicalChecklist>
+    checklist?: Partial<IPhysicalChecklist>,
+    session?: ClientSession
   ): Promise<ClosureReadinessSummary> {
     if (!Types.ObjectId.isValid(allocationId)) throw Object.assign(new Error('Invalid allocation ID.'), { statusCode: 400 });
     const allocId = new Types.ObjectId(allocationId);
-    const allocation = await LockerAllocation.findById(allocId).lean();
+    const allocation = await LockerAllocation.findById(allocId).session(session || null).lean();
 
     if (!allocation) {
       throw Object.assign(new Error(`Allocation ${allocationId} not found`), { statusCode: 404 });
@@ -67,7 +68,7 @@ export class ClosureReadinessService {
     const allInvoices = await LockerInvoice.find({
       allocationId: allocId,
       status: { $nin: ['CANCELLED', 'DRAFT'] },
-    }).lean();
+    }).session(session || null).lean();
 
     const billingConsistent = allInvoices.every(inv => ['UNPAID', 'PARTIALLY_PAID', 'PAID'].includes(inv.paymentStatus) && ['ISSUED', 'PAID'].includes(inv.status) && [inv.totalAmount, inv.paidAmount, inv.balanceAmount].every(v => Number.isFinite(v) && v >= 0) && Math.abs(inv.totalAmount - inv.paidAmount - inv.balanceAmount) <= .011 && !(inv.paymentStatus === 'PAID' && inv.balanceAmount > 0));
     const totalInvoicesCount = allInvoices.length;
@@ -81,7 +82,7 @@ export class ClosureReadinessService {
     const outstandingInvoiceAmount = openInvoices.reduce((sum, inv) => sum + (inv.balanceAmount || 0), 0);
 
     // 2. Deposit Ledger & Refund Checks
-    const depositSummary = await depositService.getDepositSummary(allocId);
+    const depositSummary = await depositService.getDepositSummary(allocId, session);
 
     // 3. Physical Checklist Evaluation
     const missingChecklistItems: string[] = [];

@@ -459,32 +459,18 @@ test('draft refund submission and lost payout response remain safe on the locker
 });
 
 
-test('closure creation and cancellation refresh safely without trapping the user', async ({ page }) => {
+test('closure blocks outstanding rent and Back preserves the locker dossier', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Username or Email').fill('browser-test');
   await page.getByLabel('Password', { exact: true }).fill('BrowserTest123!');
   await page.getByRole('button', { name: /Sign In/i }).click();
   await page.getByRole('button', { name: 'Open locker 123', exact: true }).press('Enter');
-  const url = page.url();
   const locker = page.getByRole('dialog', { name: 'Locker #123' });
   await locker.getByRole('button', { name: 'Close Locker', exact: true }).click();
   const wizard = page.getByRole('dialog', { name: 'Close Locker 123', exact: true });
-  await expect(wizard).toContainText('Opening Due Customer');
-  await wizard.getByLabel('Reason / notes (optional)', { exact: true }).fill('No longer needed');
   await wizard.getByRole('checkbox').check();
-  const responsePromise = page.waitForResponse(response => response.url().endsWith('/api/closures') && response.request().method() === 'POST');
-  await wizard.getByRole('button', { name: 'Confirm close', exact: true }).click();
-  const response = await responsePromise;
-  expect(response.status()).toBe(201);
-  const created = (await response.json()).data;
-  const workflow = page.getByRole('dialog', { name: created.closureNumber, exact: true });
-  await expect(workflow).toBeVisible();
-  await workflow.getByRole('button', { name: 'Cancel Request', exact: true }).click();
-  await workflow.getByPlaceholder('Enter mandatory reason...').fill('Customer withdrew this test request');
-  await workflow.getByRole('button', { name: 'Confirm Action', exact: true }).click();
-  await expect(wizard).toBeVisible();
+  await expect(wizard).toContainText('Settle outstanding rent before closing.');
+  await expect(wizard.getByRole('button', { name: 'Confirm close', exact: true })).toBeDisabled();
   await wizard.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(wizard).not.toBeVisible();
   await expect(locker).toBeVisible();
-  expect(page.url()).toBe(url);
 });

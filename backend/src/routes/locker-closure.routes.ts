@@ -7,6 +7,7 @@ const router = Router();
 
 // Apply authentication to all closure routes
 router.use(authenticate);
+router.post('/direct', requirePermission(PERMISSIONS.CLOSURES_CREATE, PERMISSIONS.CLOSURES_COMPLETE), lockerClosureController.closeDirect);
 
 /**
  * GET /api/closures/stats

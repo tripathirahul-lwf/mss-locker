@@ -7,38 +7,33 @@ async function openClose(page: any) {
   const locker = page.getByRole('dialog', { name: 'Locker #77', exact: true }); await locker.getByRole('button', { name: 'Close Locker', exact: true }).click();
   const modal = page.getByRole('dialog', { name: 'Close Locker 77', exact: true }); await expect(modal).toBeVisible(); return { modal, locker };
 }
-test('close locker reference form uses actual refund status and validates handover with same-page recovery', async ({ page }, testInfo) => {
-  let count = 0;
-  await page.route(/\/api\/closures$/, async route => { if (route.request().method() !== 'POST') return route.continue(); count++; await new Promise(resolve => setTimeout(resolve, 350)); await route.fulfill({ status: 409, json: { message: 'An open closure workflow already exists.' } }); });
-  const { modal, locker } = await openClose(page); const url = page.url();
-  await expect(modal).toContainText('Reference Customer');
+test('direct close records the refund date and releases the locker without a review popup', async ({ page }) => {
+  const { modal } = await openClose(page);
+  await expect(modal.getByLabel('Refund status', { exact: true })).toHaveCount(0);
+  await expect(modal.getByLabel('Refunded date', { exact: true })).toBeEnabled();
   await expect(modal.getByLabel('Deposit refund (INR)', { exact: true })).toHaveValue('6000.00');
-  await expect(modal.getByLabel('Deposit refund (INR)', { exact: true })).toHaveJSProperty('readOnly', true);
-  await expect(modal.getByLabel('Refund status', { exact: true })).toHaveValue('Refund or settlement pending');
   await expect(modal.getByRole('button', { name: 'Confirm close', exact: true })).toBeDisabled();
-  await modal.getByRole('checkbox').check(); await expect(modal.getByRole('button', { name: 'Confirm close', exact: true })).toBeEnabled();
-  await modal.getByLabel('Closing date', { exact: true }).fill('2099-01-01'); await expect(modal.getByRole('button', { name: 'Confirm close', exact: true })).toBeDisabled();
-  await modal.getByLabel('Closing date', { exact: true }).fill(await page.evaluate(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())));
-  await modal.getByLabel('Reason / notes (optional)', { exact: true }).pressSequentially('Customer closing locker');
-  await page.screenshot({ path: testInfo.outputPath('close-reference.png') });
+  await modal.getByRole('checkbox').check();
+  const result = page.waitForResponse(r => r.url().endsWith('/api/closures/direct') && r.request().method() === 'POST');
   await modal.getByRole('button', { name: 'Confirm close', exact: true }).click();
-  await expect(modal.getByRole('button', { name: 'Submitting...', exact: true })).toBeDisabled(); await page.keyboard.press('Escape'); await expect(modal).toBeVisible();
-  await expect(modal.getByRole('alert')).toContainText('already exists'); expect(count).toBe(1);
-  await modal.getByRole('button', { name: 'Back', exact: true }).click(); await expect(locker).toBeVisible(); expect(page.url()).toBe(url);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  const response = await result; expect(response.status()).toBe(200);
+  const record = (await response.json()).data; expect(record.status).toBe('COMPLETED'); expect(record.refundedDate).toBeTruthy(); expect(record.financialSnapshot.depositRefunded).toBe(6000);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open locker 77', exact: true })).toContainText('Vacant');
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
 });
-test('close request submits once for review without marking held deposit refunded or releasing locker', async ({ page }) => {
-  const { modal, locker } = await openClose(page); const url = page.url(); let id = '', auth = '';
-  page.on('request', req => { if (req.url().endsWith('/api/closures') && req.method() === 'POST') auth = req.headers()['authorization'] || ''; });
-  try {
-    await modal.getByRole('checkbox').check(); const responsePromise = page.waitForResponse(r => r.url().endsWith('/api/closures') && r.request().method() === 'POST');
-    await modal.getByRole('button', { name: 'Confirm close', exact: true }).click(); const response = await responsePromise; expect(response.status()).toBe(201);
-    const record = (await response.json()).data; id = record._id; expect(record.status).toBe('PENDING_REVIEW'); expect(record.actualClosureDate).toBeUndefined();
-    await expect(page.getByRole('dialog', { name: record.closureNumber, exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Approve Closure', exact: true })).toHaveCount(0);
-    await page.keyboard.press('Escape'); await expect(locker).toBeVisible(); expect(page.url()).toBe(url);
-  } finally { if (id) { const response = await page.request.post(`/api/closures/${id}/cancel`, { headers: { Authorization: auth, Origin: new URL(page.url()).origin }, data: { reason: 'Browser cleanup of closure request' } }); expect(response.ok(), await response.text()).toBeTruthy(); } }
+
+test('direct close keeps failed requests in the form and validates refund dates', async ({ page }) => {
+  await page.route('**/api/closures/direct', route => route.fulfill({ status: 409, json: { message: 'Refund balance changed. Reload the closure details.' } }));
+  const { modal } = await openClose(page); await modal.getByRole('checkbox').check();
+  await modal.getByLabel('Refunded date', { exact: true }).fill('2099-01-01');
+  await expect(modal.getByRole('button', { name: 'Confirm close', exact: true })).toBeDisabled();
+  await modal.getByLabel('Refunded date', { exact: true }).fill(await modal.getByLabel('Closing date', { exact: true }).inputValue());
+  await modal.getByRole('button', { name: 'Confirm close', exact: true }).click();
+  await expect(modal.getByRole('alert')).toContainText('Refund balance changed');
+  await expect(page.getByRole('dialog')).toHaveCount(2);
 });
+
 test('Closed filter stays in dashboard and displays historical customer records with size/search and snapshot modal', async ({ page }) => {
   const id = '000000000000000000001234'; let failed = true;
   const record = { _id: id, closureNumber: 'CLS-HISTORY-77', status: 'COMPLETED', closureType: 'CUSTOMER_REQUEST', closureReason: 'Customer no longer needs locker', actualClosureDate: '2026-10-01', requestedClosureDate: '2026-10-01', requestedBy: { name: 'Counter operator' }, allocationId: { _id: '000000000000000000001235', allocationCode: 'ALC-HISTORY-77', startDate: '2020-01-01', annualRent: 1180, securityDeposit: 6000 }, lockerId: { _id: '000000000000000000001236', lockerNumber: '77', size: 'A', rackNumber: 'Rack 7', status: 'OCCUPIED' }, customerId: { _id: '000000000000000000001237', fullName: 'Previous Customer', customerCode: 'HISTORICAL-77', phone: '9823507801' }, physicalChecklist: { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true }, financialSnapshot: { outstandingAtClosure: 0, depositRefunded: 6000, depositBalanceAtClosure: 0 } };
@@ -73,30 +68,19 @@ test('missing collection is explicit and inconsistent settlement cannot be submi
     await route.fulfill({ response, json: body });
   });
   const { modal, locker } = await openClose(page);
-  await expect(modal.getByLabel('Refund status', { exact: true })).toHaveValue('No deposit collection recorded');
+  await expect(modal.getByLabel('Refunded date', { exact: true })).toBeDisabled();
   await modal.getByRole('button', { name: 'Back', exact: true }).click(); invalid = true;
   await locker.getByRole('button', { name: 'Close Locker', exact: true }).click();
   await expect(modal.getByRole('alert')).toContainText('Settlement data needs review');
   await expect(modal.getByRole('button', { name: 'Confirm close', exact: true })).toBeDisabled();
 });
 
-test('interrupted create resumes the saved request and accepts short optional notes', async ({ page }) => {
-  let id = '', auth = '', count = 0;
-  await page.route(/\/api\/closures$/, async route => {
-    if (route.request().method() !== 'POST') return route.continue();
-    count++; auth = route.request().headers()['authorization'] || '';
-    const response = await route.fetch(); expect(response.status()).toBe(201);
-    const record = (await response.json()).data; id = record._id;
-    expect(record.notes).toBe('ok'); await route.abort('failed');
+test('interrupted direct close recovers only a completed closure without opening review', async ({ page }) => {
+  let count = 0;
+  await page.route('**/api/closures/direct', async route => {
+    count++; const response = await route.fetch(); expect(response.status()).toBe(200); await route.abort('failed');
   });
-  try {
-    const { modal } = await openClose(page);
-    await modal.getByLabel('Reason / notes (optional)', { exact: true }).fill('ok');
-    await modal.getByRole('checkbox').check();
-    await modal.getByRole('button', { name: 'Confirm close', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Cancel Request', exact: true })).toBeVisible();
-    expect(count).toBe(1); await expect(modal).toHaveCount(0);
-  } finally {
-    if (id) { const response = await page.request.post(`/api/closures/${id}/cancel`, { headers: { Authorization: auth, Origin: new URL(page.url()).origin }, data: { reason: 'Browser cleanup of interrupted closure request' } }); expect(response.ok(), await response.text()).toBeTruthy(); }
-  }
+  const { modal } = await openClose(page); await modal.getByRole('checkbox').check();
+  await modal.getByRole('button', { name: 'Confirm close', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0); expect(count).toBe(1);
 });

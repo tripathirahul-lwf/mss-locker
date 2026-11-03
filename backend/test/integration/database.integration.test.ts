@@ -897,6 +897,40 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     expect(await AuditLog.countDocuments({ action: 'RENEWAL_GENERATED', entityId: String(invoice._id) })).toBe(1);
   });
 
+  it('direct closure refunds and releases atomically, resumes pending requests and replays without duplicate payouts', async () => {
+    const saved = await AllotmentService.complete(await allotment('1901', 2000), actor);
+    const allocationId = String(saved.allocation!._id);
+    const input = { allocationId, closureReason: 'Customer requested closure', requestedClosureDate: '2026-02-01', refundedDate: '2026-02-01', refundAmount: 2000, physicalChecklist: { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true, lockerCondition: 'GOOD' as const } };
+    await expect(lockerClosureService.closeDirect({ ...input, refundedDate: '2099-01-01' }, actor.userId, true)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(lockerClosureService.closeDirect(input, actor.userId, false)).rejects.toMatchObject({ statusCode: 403 });
+    const pending = await lockerClosureService.createClosure({ ...input, submitForReview: true }, actor.userId);
+    const audit = vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('audit unavailable'));
+    try { await expect(lockerClosureService.closeDirect(input, actor.userId, true)).rejects.toThrow('audit unavailable'); } finally { audit.mockRestore(); }
+    expect(await Payment.countDocuments({ allocationId, paymentPurpose: 'REFUND' })).toBe(0);
+    expect((await LockerAllocation.findById(allocationId))?.status).toBe('ACTIVE');
+    const closed = await lockerClosureService.closeDirect(input, actor.userId, true);
+    expect(String(closed._id)).toBe(String(pending._id)); expect(closed.status).toBe('COMPLETED');
+    expect(closed.refundedDate?.toISOString().slice(0, 10)).toBe('2026-02-01');
+    expect(closed.financialSnapshot?.depositRefunded).toBe(2000);
+    expect((await Locker.findById(saved.allocation!.lockerId))?.status).toBe('VACANT');
+    await Promise.all([lockerClosureService.closeDirect(input, actor.userId, true), lockerClosureService.closeDirect(input, actor.userId, true)]);
+    expect(await Payment.countDocuments({ allocationId, paymentPurpose: 'REFUND' })).toBe(1);
+    expect((await depositService.getDepositSummary(allocationId)).netDepositHeld).toBe(0);
+  });
+
+  it('direct closure refuses outstanding rent and incomplete handover', async () => {
+    const saved = await AllotmentService.complete(await allotment('1902', 0), actor);
+    const input = { allocationId: String(saved.allocation!._id), closureReason: 'Customer requested closure', refundAmount: 0, physicalChecklist: { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true } };
+    await expect(lockerClosureService.closeDirect({ ...input, physicalChecklist: { ...input.physicalChecklist, lockerEmptied: false } }, actor.userId, true)).rejects.toMatchObject({ statusCode: 400 });
+    await LockerInvoice.updateOne({ _id: saved.invoice!._id }, { $set: { balanceAmount: 1, paidAmount: 1179, paymentStatus: 'PARTIALLY_PAID' } });
+    await expect(lockerClosureService.closeDirect(input, actor.userId, true)).rejects.toMatchObject({ statusCode: 409 });
+    expect(await LockerClosure.countDocuments({ allocationId: input.allocationId })).toBe(0);
+    await LockerInvoice.updateOne({ _id: saved.invoice!._id }, { $set: { balanceAmount: 0, paidAmount: saved.invoice!.totalAmount, paymentStatus: 'PAID' } });
+    const closed = await lockerClosureService.closeDirect({ ...input, physicalChecklist: { ...input.physicalChecklist, lockerCondition: 'DAMAGED' } }, actor.userId, false);
+    expect(closed.status).toBe('COMPLETED'); expect(closed.refundedDate).toBeUndefined();
+    expect((await Locker.findById(saved.allocation!.lockerId))?.operationalStatus).toBe('DAMAGED');
+  });
+
   it('serializes closure creation and rolls back requests and review when audit logging fails', async () => {
     const saved = await AllotmentService.complete(await allotment('910', 0), actor);
     const allocationId = String(saved.allocation!._id);

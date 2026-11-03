@@ -48,6 +48,7 @@ export interface ILockerClosure extends Document {
 
   requestedClosureDate: Date;
   actualClosureDate?: Date;
+  refundedDate?: Date;
 
   financialSnapshot?: IClosureFinancialSnapshot;
   physicalChecklist: IPhysicalChecklist;
@@ -169,6 +170,7 @@ const lockerClosureSchema = new Schema<ILockerClosure>(
       default: CLOSURE_STATUSES.DRAFT,
       index: true,
     },
+    refundedDate: { type: Date },
     requestedClosureDate: {
       type: Date,
       required: true,

@@ -112,6 +112,7 @@ export function LockerKycPanel({ customerId, customerName = 'Customer', customer
         <div><h3 className="font-bold text-slate-900">KYC Documents</h3><p className="mt-1 text-sm text-slate-500">Upload images or PDFs, up to 5 MB each.</p></div>
         <span className="text-sm font-semibold text-emerald-700">{documents.length} document{documents.length === 1 ? '' : 's'} on record</span>
       </div>
+      {!loading && !failed && documents.length > 0 && kycStatus !== 'VERIFIED' && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Documents are uploaded. KYC verification is {kycStatus === 'REJECTED' ? 'rejected' : kycStatus === 'EXPIRED' ? 'expired' : 'pending review'}. Uploading a document does not verify it.</p>}
       {!loading && !failed && kycStatus === 'VERIFIED' && documents.length === 0 && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Legacy verification is recorded, but no digital KYC documents are attached. Upload documents to keep this record complete.</p>}
       {notice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}

@@ -5,6 +5,16 @@ import { closureReadinessService } from '../services/closure-readiness.service';
 import { logger } from '../utils/logger';
 
 export class LockerClosureController {
+  async closeDirect(req: Request, res: Response): Promise<void> {
+    try {
+      const user = req.user!;
+      const closure = await lockerClosureService.closeDirect(req.body, user.userId, user.isSuperAdmin || user.permissions.includes('refunds.pay'));
+      res.status(200).json({ success: true, data: closure, message: 'Locker closed successfully' });
+    } catch (error: any) {
+      res.status(serviceErrorStatus(error, 500)).json({ success: false, message: error.message || 'Could not close locker' });
+    }
+  }
+
   async getClosures(req: Request, res: Response): Promise<void> {
     try {
       const result = await lockerClosureService.getClosures(req.query as any);

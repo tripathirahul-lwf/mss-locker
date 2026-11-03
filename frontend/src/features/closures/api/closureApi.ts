@@ -19,6 +19,11 @@ export interface CreateClosurePayload {
 }
 
 export const closureApi = {
+  async closeDirect(payload: CreateClosurePayload & { refundedDate?: string; refundAmount: number }): Promise<LockerClosure> {
+    const response = await apiClient.post<{ success: boolean; data: LockerClosure }>('/closures/direct', payload);
+    return response.data.data;
+  },
+
   /**
    * Get paginated closures with search and filters
    */

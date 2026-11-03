@@ -3,6 +3,7 @@ import { Locker,ILocker } from '../models/Locker';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { Customer } from '../models/Customer';
+import { CustomerKycDocument } from '../models/CustomerKycDocument';
 import {
 CreateLockerInput,
 UpdateLockerInput,
@@ -304,6 +305,14 @@ export class LockerService {
         .lean(),
     ]);
 
+    // Attachment presence is separate from the customer's verification decision.
+    // Fetch counts once for this page, rather than a request per locker.
+    const documentCounts = await CustomerKycDocument.aggregate([
+      { $match: { customerId: { $in: activeAllocations.map(a => (a.customerId as any)?._id).filter(Boolean) }, isActive: true } },
+      { $group: { _id: '$customerId', count: { $sum: 1 } } },
+    ]);
+    const documentCountMap = new Map(documentCounts.map(row => [String(row._id), row.count as number]));
+
     const allocMap = new Map<string, any>();
     activeAllocations.forEach((a) => {
       allocMap.set(String(a.lockerId), a);
@@ -332,6 +341,7 @@ export class LockerService {
         isRenewalDue: pageGroups.dueSoon.has(lockerIdStr) || pageGroups.overdue.has(lockerIdStr),
         isOverdue: pageGroups.overdue.has(lockerIdStr),
         tenantKycStatus: alloc?.customerId?.kycStatus,
+        tenantKycDocumentCount: documentCountMap.get(String(alloc?.customerId?._id)) || 0,
         tenantName: alloc?.customerId?.fullName,
         tenantCode: alloc?.customerId?.customerCode,
         tenantPhone: alloc?.customerId?.phone,
@@ -390,6 +400,7 @@ export class LockerService {
       isRenewalDue: groups.dueSoon.has(ledgerId) || groups.overdue.has(ledgerId),
       isOverdue: groups.overdue.has(ledgerId),
       tenantKycStatus: (activeAlloc?.customerId as any)?.kycStatus,
+      tenantKycDocumentCount: activeAlloc?.customerId ? await CustomerKycDocument.countDocuments({ customerId: (activeAlloc.customerId as any)._id, isActive: true }) : 0,
       tenantName: (activeAlloc?.customerId as any)?.fullName,
       tenantCode: (activeAlloc?.customerId as any)?.customerCode,
       tenantPhone: (activeAlloc?.customerId as any)?.phone,
