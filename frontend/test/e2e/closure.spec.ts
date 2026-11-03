@@ -11,6 +11,8 @@ test('direct close records the refund date and releases the locker without a rev
   const { modal } = await openClose(page);
   await expect(modal.getByLabel('Refund status', { exact: true })).toHaveCount(0);
   await expect(modal.getByLabel('Refunded date', { exact: true })).toBeEnabled();
+  await expect(modal.getByLabel('Refunded date', { exact: true })).toHaveAttribute('type', 'date');
+  await expect(modal.getByRole('button', { name: 'Open refunded date calendar', exact: true })).toBeVisible();
   await expect(modal.getByLabel('Deposit refund (INR)', { exact: true })).toHaveValue('6000.00');
   await expect(modal.getByRole('button', { name: 'Confirm close', exact: true })).toBeDisabled();
   await modal.getByRole('checkbox').check();
@@ -34,7 +36,7 @@ test('direct close keeps failed requests in the form and validates refund dates'
   await expect(page.getByRole('dialog')).toHaveCount(2);
 });
 
-test('Closed filter stays in dashboard and displays historical customer records with size/search and snapshot modal', async ({ page }) => {
+test('Closed filter stays in dashboard and displays historical customer records with size/search and snapshot modal', async ({ page }, testInfo) => {
   const id = '000000000000000000001234'; let failed = true;
   const record = { _id: id, closureNumber: 'CLS-HISTORY-77', status: 'COMPLETED', closureType: 'CUSTOMER_REQUEST', closureReason: 'Customer no longer needs locker', actualClosureDate: '2026-10-01', requestedClosureDate: '2026-10-01', requestedBy: { name: 'Counter operator' }, allocationId: { _id: '000000000000000000001235', allocationCode: 'ALC-HISTORY-77', startDate: '2020-01-01', annualRent: 1180, securityDeposit: 6000 }, lockerId: { _id: '000000000000000000001236', lockerNumber: '77', size: 'A', rackNumber: 'Rack 7', status: 'OCCUPIED' }, customerId: { _id: '000000000000000000001237', fullName: 'Previous Customer', customerCode: 'HISTORICAL-77', phone: '9823507801' }, physicalChecklist: { lockerEmptied: true, lockerInspected: true, customerKeyReturned: true, documentsReturned: true, physicalAccessRevoked: true }, financialSnapshot: { outstandingAtClosure: 0, depositRefunded: 6000, depositBalanceAtClosure: 0 } };
   await page.route(/\/api\/closures\?/, async route => {
@@ -50,7 +52,13 @@ test('Closed filter stays in dashboard and displays historical customer records 
   failed = false; await region.getByRole('button', { name: 'Retry', exact: true }).click(); await expect(region).toContainText('Previous Customer'); await expect(region).not.toContainText('Reference Customer');
   expect(new URL(page.url()).pathname).toBe(path);
   await region.getByRole('button', { name: 'View closed record', exact: true }).click(); const modal = page.getByRole('dialog', { name: 'CLS-HISTORY-77', exact: true }); await expect(modal).toBeVisible();
-  await expect(modal.getByRole('region', { name: 'Closure financial snapshot' })).toContainText('6,000.00'); await page.keyboard.press('Escape');
+  await expect(modal.getByRole('region', { name: 'Closure financial snapshot' })).toContainText('6,000.00');
+  await expect(modal.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+  await page.screenshot({ path: testInfo.outputPath('completed-closure.png') });
+  await page.keyboard.press('Escape');
+  await expect(region.getByRole('button', { name: 'View closed record', exact: true })).toBeFocused();
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
   await page.getByLabel('Search locker #, rack, or tenant', { exact: true }).fill('missing'); await expect(region).toContainText('No closed locker records match');
   await page.getByLabel('Search locker #, rack, or tenant', { exact: true }).fill(''); await expect(region).toContainText('Previous Customer');
   await page.getByRole('combobox').first().selectOption('B'); await expect(region).toContainText('No closed locker records match');
@@ -68,7 +76,8 @@ test('missing collection is explicit and inconsistent settlement cannot be submi
     await route.fulfill({ response, json: body });
   });
   const { modal, locker } = await openClose(page);
-  await expect(modal.getByLabel('Refunded date', { exact: true })).toBeDisabled();
+  await expect(modal.getByLabel('Refunded date', { exact: true })).toHaveAttribute('type', 'date');
+  await expect(modal.getByRole('button', { name: 'Open refunded date calendar', exact: true })).toBeEnabled();
   await modal.getByRole('button', { name: 'Back', exact: true }).click(); invalid = true;
   await locker.getByRole('button', { name: 'Close Locker', exact: true }).click();
   await expect(modal.getByRole('alert')).toContainText('Settlement data needs review');
@@ -83,4 +92,29 @@ test('interrupted direct close recovers only a completed closure without opening
   const { modal } = await openClose(page); await modal.getByRole('checkbox').check();
   await modal.getByRole('button', { name: 'Confirm close', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0); expect(count).toBe(1);
+});
+
+
+test('closed record handles missing history and statement failures without showing false settlement', async ({ page }) => {
+  const id = '000000000000000000009999';
+  const record = { _id: id, closureNumber: 'CLS-INCOMPLETE', status: 'COMPLETED', customerId: null, lockerId: null, allocationId: null, physicalChecklist: {}, requestedAt: 'invalid', requestedClosureDate: 'invalid' };
+  await page.route(/\/api\/closures\?/, route => route.fulfill({ json: { success: true, data: [record], pagination: { total: 1, page: 1, totalPages: 1, limit: 12 } } }));
+  await page.route(`**/api/closures/${id}`, route => route.fulfill({ json: { success: true, data: record } }));
+  await page.route(`**/api/closures/${id}/statement-html*`, route => route.fulfill({ status: 503, json: { message: 'Statement unavailable' } }));
+  await login(page); await page.getByRole('button', { name: 'Closed', exact: true }).click();
+  await page.getByRole('button', { name: 'View closed record', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'CLS-INCOMPLETE', exact: true });
+  await expect(modal).toContainText('No historical settlement snapshot recorded');
+  await expect(modal).not.toContainText('Invalid Date');
+  await expect(modal).not.toContainText('\u20b90');
+  await modal.getByRole('button', { name: 'Close closure details', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab'); await expect(modal.getByRole('button', { name: 'Print Statement', exact: true })).toBeFocused();
+  await modal.getByRole('button', { name: 'Print Statement', exact: true }).click();
+  const statement = page.getByRole('dialog', { name: 'Closure statement', exact: true });
+  await expect(statement).toBeVisible();
+  await statement.getByRole('button', { name: 'Print Statement', exact: true }).click();
+  await expect(statement.getByRole('alert')).toContainText('Could not load the official statement');
+  await page.keyboard.press('Escape'); await expect(statement).toHaveCount(0); await expect(modal).toBeVisible();
+  await modal.getByRole('button', { name: 'Close', exact: true }).click();
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
 });

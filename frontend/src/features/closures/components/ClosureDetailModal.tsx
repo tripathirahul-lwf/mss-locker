@@ -1,3 +1,4 @@
+import { CompletedClosureModal } from './CompletedClosureModal';
 import React,{ useState,useEffect,useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -28,7 +29,13 @@ interface ClosureDetailModalProps {
   onNavigateToDeposits?: (allocationId?: string) => void;
 }
 
-export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = ({
+export const ClosureDetailModal: React.FC<ClosureDetailModalProps> = (props) => {
+  if (!props.isOpen || !props.closure) return null;
+  if (props.closure.status === 'COMPLETED') return <CompletedClosureModal closure={props.closure} onClose={props.onClose} onPrint={props.onPrint} />;
+  return <ClosureWorkflowDetailModal {...props} />;
+};
+
+const ClosureWorkflowDetailModal: React.FC<ClosureDetailModalProps> = ({
   closure,
   isOpen,
   onClose,

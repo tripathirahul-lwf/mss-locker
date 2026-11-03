@@ -87,6 +87,7 @@ export interface LockerClosure {
   status: ClosureStatus;
   requestedClosureDate: string;
   actualClosureDate?: string;
+  refundedDate?: string;
   financialSnapshot?: ClosureFinancialSnapshot;
   physicalChecklist: PhysicalChecklist;
   settlementNotes?: string;

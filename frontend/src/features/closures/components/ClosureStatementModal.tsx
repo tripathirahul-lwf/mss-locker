@@ -1,4 +1,5 @@
-import React,{ useState } from 'react';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
+import React,{ useState,useRef,useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { LockerClosure } from '../types';
 import { closureApi } from '../api/closureApi';
@@ -24,6 +25,25 @@ export const ClosureStatementModal: React.FC<ClosureStatementModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
+  const root = useRef<HTMLDivElement>(null), live = useRef({ onClose, isPrinting }); live.current = { onClose, isPrinting };
+  const [printError, setPrintError] = useState('');
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null, release = lockBodyScroll();
+    root.current?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).at(-1) !== root.current) return;
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); if (!live.current.isPrinting) live.current.onClose(); }
+      if (event.key === 'Tab') {
+        const buttons = Array.from(root.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || []).filter(el => el.getClientRects().length);
+        if (event.shiftKey && (document.activeElement === buttons[0] || document.activeElement === root.current)) { event.preventDefault(); buttons.at(-1)?.focus(); }
+        else if (!event.shiftKey && (document.activeElement === buttons.at(-1) || document.activeElement === root.current)) { event.preventDefault(); buttons[0]?.focus(); }
+      }
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => { document.removeEventListener('keydown', handler, true); release(); if (previous?.isConnected) previous.focus(); };
+  }, [isOpen]);
+
   if (!isOpen || !closure) return null;
 
   const customer = closure.customerId;
@@ -32,7 +52,10 @@ export const ClosureStatementModal: React.FC<ClosureStatementModalProps> = ({
   const snapshot = closure.financialSnapshot;
   const checklist = closure.physicalChecklist;
 
+  const recordedMoney = (value?: number) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : 'Not recorded';
   const handlePrint = async () => {
+    if (isPrinting) return;
+    setPrintError('');
     setIsPrinting(true);
     try {
       const html = await closureApi.getStatementHtml(closure._id);
@@ -63,12 +86,11 @@ export const ClosureStatementModal: React.FC<ClosureStatementModalProps> = ({
           setIsPrinting(false);
         }, 300);
       } else {
-        window.print();
+        setPrintError('Could not prepare the statement. Please retry.');
         setIsPrinting(false);
       }
-    } catch (err) {
-      console.error('Error fetching statement HTML for print:', err);
-      window.print();
+    } catch {
+      setPrintError('Could not load the official statement. Please retry.');
       setIsPrinting(false);
     }
   };
@@ -83,12 +105,14 @@ export const ClosureStatementModal: React.FC<ClosureStatementModalProps> = ({
   const modalContent = (
     <div
       className="fixed inset-0 z-[120] w-screen h-screen flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs select-none animate-in fade-in-0 duration-150 print:p-0 print:bg-white"
-      onClick={onClose}
+      onClick={() => { if (!isPrinting) onClose(); }}
     >
       <div
+        ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Closure statement"
         className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200 print:border-none print:shadow-none print:max-h-full print:rounded-none animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
+        {printError && <p role="alert" className="bg-rose-50 p-3 text-sm text-rose-800">{printError}</p>}
         {/* Screen Header */}
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-slate-50/90 shrink-0 print:hidden">
           <div className="flex items-center gap-3">
@@ -225,13 +249,13 @@ export const ClosureStatementModal: React.FC<ClosureStatementModalProps> = ({
                     Locker Periodic Tenancy Rent & Dues
                   </td>
                   <td className="p-2.5 border-r border-slate-950 text-right font-mono">
-                    ₹{Number(snapshot?.totalBilled || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {recordedMoney(snapshot?.totalBilled)}
                   </td>
                   <td className="p-2.5 border-r border-slate-950 text-right font-mono">
-                    ₹{Number(snapshot?.totalPaid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {recordedMoney(snapshot?.totalPaid)}
                   </td>
                   <td className="p-2.5 text-right font-mono font-bold">
-                    ₹{Number(snapshot?.outstandingAtClosure || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {recordedMoney(snapshot?.outstandingAtClosure)}
                   </td>
                 </tr>
                 <tr>
@@ -239,10 +263,10 @@ export const ClosureStatementModal: React.FC<ClosureStatementModalProps> = ({
                     Caution Security Deposit Ledger
                   </td>
                   <td className="p-2.5 border-r border-slate-950 text-right font-mono">
-                    ₹{Number(snapshot?.depositCollected || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {recordedMoney(snapshot?.depositCollected)}
                   </td>
                   <td className="p-2.5 border-r border-slate-950 text-right font-mono">
-                    ₹{Number(snapshot?.depositRefunded || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {recordedMoney(snapshot?.depositRefunded)}
                   </td>
                   <td className="p-2.5 text-right font-mono font-bold">
                     ₹0.00
@@ -309,7 +333,7 @@ export const ClosureStatementModal: React.FC<ClosureStatementModalProps> = ({
               This is a computer-generated permanent record of tenancy termination issued by MSS Locker safe deposit locker system.
             </p>
             <p className="font-mono">
-              Certificate Hash: {closure._id?.slice(-12).toUpperCase()} &bull; Completed: {closure.completedAt ? new Date(closure.completedAt).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')}
+              Certificate Hash: {closure._id?.slice(-12).toUpperCase()} &bull; Completed: {closure.completedAt ? new Date(closure.completedAt).toLocaleString('en-IN') : 'Not recorded'}
             </p>
           </div>
         </div>
