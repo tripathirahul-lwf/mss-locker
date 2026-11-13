@@ -252,7 +252,7 @@ test('edit locker validates amounts, preserves full fields, confirms discard and
   await expect(save).toBeDisabled();
   await form.locator('#annual-rent').fill('-1');
   await save.click();
-  await expect(form.getByRole('alert')).toContainText('required field');
+  await expect(form.getByRole('alert')).toContainText('highlighted field');
   await form.locator('#annual-rent').fill('');
   await save.click();
   await expect(form.locator('#annual-rent')).toHaveAttribute('aria-invalid', 'true');

@@ -193,7 +193,7 @@ export function LockerFormModal({
         else onClose();
       } else if (
         (event.ctrlKey || event.metaKey) &&
-        (event.key === 'Enter' || event.key === 's') &&
+        (event.key === 'Enter' || event.key.toLowerCase() === 's') &&
         !isSubmitting
       ) {
         event.preventDefault();
@@ -228,6 +228,8 @@ export function LockerFormModal({
 
   useEffect(() => {
     if (isEdit && loadingLocker) return;
+    // Opening the on-screen keyboard immediately hides most of the form on phones.
+    if (window.matchMedia?.('(pointer: coarse)').matches) return;
     const frame = requestAnimationFrame(() => lockerNumberRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [isEdit, loadingLocker]);
@@ -302,7 +304,7 @@ export function LockerFormModal({
 
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
-      setError(`Please complete ${Object.keys(nextErrors).length} required field${Object.keys(nextErrors).length > 1 ? 's' : ''}.`);
+      setError(`Please fix ${Object.keys(nextErrors).length} highlighted field${Object.keys(nextErrors).length > 1 ? 's' : ''}.`);
       window.setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0);
       return;
     }
@@ -347,6 +349,8 @@ export function LockerFormModal({
       setError(
         err.response?.data?.message || err.message || 'An error occurred while saving the locker record.'
       );
+      // The alert sits at the top of the form while Save is in the footer.
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     } finally { submittingRef.current = false; }
   };
 
@@ -367,6 +371,10 @@ export function LockerFormModal({
       {readCard('Lease', currentAllocation?.allocationCode || 'Not recorded', 'Active tenant', LAST_IN_ROW)}
     </dl>
   ) : null;
+
+  // Renewals bill the allotment's rent snapshot, so catalogue edits never reprice a running lease.
+  const leaseRentValue = isEdit && locker?.status === 'OCCUPIED' ? Number(currentAllocation?.annualRent ?? currentAllocation?.rentSnapshot) : NaN;
+  const leaseRent = Number.isFinite(leaseRentValue) && leaseRentValue >= 0 ? leaseRentValue : undefined;
 
   const sectionHeader = (id: string, title: string, aside?: React.ReactNode) => (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
@@ -502,6 +510,7 @@ export function LockerFormModal({
                     <span className="pointer-events-none absolute inset-y-0 left-3 flex select-none items-center text-base font-semibold text-slate-400">#</span>
                     <Input
                       id="locker-number"
+                      maxLength={50}
                       ref={lockerNumberRef}
                       type="text"
                       value={lockerNumber}
@@ -524,6 +533,7 @@ export function LockerFormModal({
                   </label>
                   <Input
                     id="rack-number"
+                    maxLength={50}
                     type="text"
                     value={rackNumber}
                     onChange={(e) => {
@@ -538,19 +548,45 @@ export function LockerFormModal({
                   {fieldErrors.rackNumber && <p className={ERROR_TEXT}>{fieldErrors.rackNumber}</p>}
                 </div>
 
-                <div className={CARD}>
-                  <label htmlFor="grid-position" className={LABEL}>
-                    Position <span className={OPTIONAL}>(optional)</span>
-                  </label>
-                  <Input
-                    id="grid-position"
-                    type="text"
-                    value={position}
-                    onChange={(e) => setPosition(e.target.value)}
-                    placeholder="e.g. Unit 1 (Row 2, Col 3)"
-                    className={CONTROL}
-                  />
-                </div>
+                {canViewSensitive && (
+                  <div className={CARD}>
+                    <label htmlFor="master-key-reference" className={LABEL}>
+                      Key number <span className={OPTIONAL}>(optional)</span>
+                    </label>
+                    <div className="relative mt-2">
+                      <Input
+                        id="master-key-reference"
+                        maxLength={100}
+                        type={keyRevealed ? 'text' : 'password'}
+                        value={masterKeyReference}
+                        onChange={(e) => setMasterKeyReference(e.target.value)}
+                        placeholder="e.g. 12345"
+                        autoComplete="off"
+                        className={`${CONTROL_BASE} pr-20 font-mono tracking-wider`}
+                      />
+                      <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setKeyRevealed(!keyRevealed)}
+                          className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          aria-label={keyRevealed ? 'Hide key number' : 'Show key number'}
+                        >
+                          {keyRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                        {masterKeyReference && (
+                          <button
+                            type="button"
+                            onClick={handleCopyKey}
+                            className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                            aria-label="Copy key number"
+                          >
+                            {copiedKey ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className={CARD}>
                   <label htmlFor="vault-section" className={LABEL}>
@@ -558,6 +594,7 @@ export function LockerFormModal({
                   </label>
                   <Input
                     id="vault-section"
+                    maxLength={100}
                     type="text"
                     value={section}
                     onChange={(e) => setSection(e.target.value)}
@@ -572,10 +609,26 @@ export function LockerFormModal({
                   </label>
                   <Input
                     id="floor-level"
+                    maxLength={50}
                     type="text"
                     value={floor}
                     onChange={(e) => setFloor(e.target.value)}
                     placeholder="e.g. Ground Floor"
+                    className={CONTROL}
+                  />
+                </div>
+
+                <div className={`${CARD} ${canViewSensitive ? '' : 'min-[480px]:col-span-2'}`}>
+                  <label htmlFor="grid-position" className={LABEL}>
+                    Position <span className={OPTIONAL}>(optional)</span>
+                  </label>
+                  <Input
+                    id="grid-position"
+                    maxLength={100}
+                    type="text"
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                    placeholder="e.g. Unit 1 (Row 2, Col 3)"
                     className={CONTROL}
                   />
                 </div>
@@ -664,6 +717,7 @@ export function LockerFormModal({
                       id="annual-rent"
                       type="number"
                       min="0"
+                      onWheel={(e) => e.currentTarget.blur()}
                       step="0.01"
                       value={annualRent}
                       onChange={(e) => {
@@ -680,7 +734,9 @@ export function LockerFormModal({
                     <p className={ERROR_TEXT}>{fieldErrors.annualRent}</p>
                   ) : (
                     <p className={NOTE}>
-                      {Number.isFinite(numericRent) && numericRent >= 0
+                      {leaseRent !== undefined
+                        ? `New allotments only. Current lease: ${money(leaseRent)} incl. GST.`
+                        : Number.isFinite(numericRent) && numericRent >= 0
                         ? `Before GST: ${money(Math.round(numericRent / 1.18 * 100) / 100)} · ≈ ${money(monthlyEquivalent)}/month`
                         : 'Enter the yearly rent'}
                     </p>
@@ -697,6 +753,7 @@ export function LockerFormModal({
                       id="security-deposit"
                       type="number"
                       min="0"
+                      onWheel={(e) => e.currentTarget.blur()}
                       step="0.01"
                       value={securityDeposit}
                       onChange={(e) => {
@@ -712,7 +769,7 @@ export function LockerFormModal({
                   {fieldErrors.securityDeposit ? (
                     <p className={ERROR_TEXT}>{fieldErrors.securityDeposit}</p>
                   ) : (
-                    <p className={NOTE}>Refundable on closure</p>
+                    <p className={NOTE}>{leaseRent !== undefined ? 'New allotments only. Current lease deposit is unchanged.' : 'Refundable on closure'}</p>
                   )}
                 </div>
 
@@ -773,46 +830,7 @@ export function LockerFormModal({
                   </div>
                 </div>
 
-                {canViewSensitive && (
-                  <div className={`${CARD} ${LAST_IN_ROW}`}>
-                    <label htmlFor="master-key-reference" className={LABEL}>
-                      Key number <span className={OPTIONAL}>(optional)</span>
-                    </label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="master-key-reference"
-                        type={keyRevealed ? 'text' : 'password'}
-                        value={masterKeyReference}
-                        onChange={(e) => setMasterKeyReference(e.target.value)}
-                        placeholder="e.g. 12345"
-                        autoComplete="off"
-                        className={`${CONTROL_BASE} pr-20 font-mono tracking-wider`}
-                      />
-                      <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setKeyRevealed(!keyRevealed)}
-                          className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                          aria-label={keyRevealed ? 'Hide key number' : 'Show key number'}
-                        >
-                          {keyRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                        {masterKeyReference && (
-                          <button
-                            type="button"
-                            onClick={handleCopyKey}
-                            className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            aria-label="Copy key number"
-                          >
-                            {copiedKey ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className={`${CARD} ${FULL_ROW}`}>
+                <div className={`${CARD} ${LAST_IN_ROW}`}>
                   <label htmlFor="locker-notes" className={LABEL}>
                     Notes <span className={OPTIONAL}>(optional)</span>
                   </label>
@@ -821,9 +839,12 @@ export function LockerFormModal({
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
                     placeholder="Condition, lock replacement or other remarks"
-                    rows={3}
+                    rows={2}
+                    maxLength={500}
+                    aria-describedby="locker-notes-count"
                     className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-white p-3 text-base text-slate-950 placeholder:text-slate-400 focus-visible:border-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/20"
                   />
+                  <p id="locker-notes-count" className={`${NOTE} text-right`}>{remarks.length}/500</p>
                 </div>
               </div>
             </section>
