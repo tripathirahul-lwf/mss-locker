@@ -246,7 +246,7 @@ test('edit locker validates amounts, preserves full fields, confirms discard and
   await page.getByRole('button', { name: 'Open locker 123', exact: true }).press('Enter');
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   const dossier = page.getByRole('dialog', { name: 'Locker #123', exact: true });
-  const form = page.getByRole('dialog', { name: 'Edit Locker #123', exact: true });
+  const form = dossier.getByRole('region', { name: 'Edit Locker #123', exact: true });
   await expect(form).toBeVisible();
   const save = form.getByRole('button', { name: 'Save Locker Changes', exact: true });
   await expect(save).toBeDisabled();

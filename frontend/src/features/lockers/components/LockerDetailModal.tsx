@@ -389,7 +389,9 @@ export function LockerDetailModal({
   const identityKey = identityDoc ? `${tenantId}:${identityDoc._id}:${identityDoc.documentNumber}` : null;
   const identityRevealed = Boolean(identityKey && revealedIdentityKey === identityKey);
 
-  const editPopup = inlineEdit ? <LockerFormModal locker={locker} closeRequestRef={inlineCloseRequest} onClose={() => setInlineEdit(false)} isSubmitting={editSaving} onSubmit={async data => {
+  // Edit renders inside this dialog (same header, shell and footer position)
+  // instead of stacking a second, differently styled modal on top.
+  const editPanel = inlineEdit ? <LockerFormModal embedded locker={locker} closeRequestRef={inlineCloseRequest} onClose={() => setInlineEdit(false)} isSubmitting={editSaving} onSubmit={async data => {
                     setEditSaving(true);
                     try {
                       const saved = await lockerApi.updateLocker(locker._id, data as UpdateLockerInput);
@@ -433,8 +435,8 @@ export function LockerDetailModal({
         {isOccupied ? <div className="shrink-0 bg-white px-5 pb-3 pt-5 sm:px-8 sm:pt-7">
           <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 id="locker-dossier-title" aria-label={`Locker #${locker.lockerNumber}`} className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Locker {locker.lockerNumber}</h2>
             <p className="mt-2 break-words text-sm text-slate-600 sm:text-base">Size {locker.size} &bull; {formatRackTitle(locker.rackNumber)} &bull; Key {canViewSensitive ? locker.masterKeyReference || 'Not assigned' : 'Restricted'}</p></div>
-            <div className="flex flex-wrap justify-end gap-2"><span aria-label="Payment and renewal status" className={`rounded-full px-3 py-1.5 text-xs font-bold sm:text-sm ${health.style}`}>{health.label}</span>
-            {canUpdate && <button type="button" aria-label="Edit" aria-expanded={inlineEdit} disabled={editSaving || kycBusy} onClick={() => { if (inlineEdit) inlineCloseRequest.current?.(); else { setActiveTab('details'); setInlineEdit(true); } }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Edit3 className="h-4 w-4" /></button>}
+            <div className="flex flex-wrap items-center justify-end gap-2">{inlineEdit ? <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900 sm:text-sm">Editing details</span> : <span aria-label="Payment and renewal status" className={`rounded-full px-3 py-1.5 text-xs font-bold sm:text-sm ${health.style}`}>{health.label}</span>}
+            {canUpdate && <button type="button" aria-label={inlineEdit ? 'Stop editing' : 'Edit'} aria-pressed={inlineEdit} disabled={editSaving || kycBusy} onClick={() => { if (inlineEdit) inlineCloseRequest.current?.(); else { setActiveTab('details'); setInlineEdit(true); } }} className={`rounded-lg p-2 ${inlineEdit ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' : 'text-slate-600 hover:bg-slate-100'}`}><Edit3 className="h-4 w-4" /></button>}
             <button type="button" onClick={() => closeCallback.current()} disabled={editSaving || kycBusy} aria-label="Close modal" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
           </div>
         </div> : <>        {/* 1. Refined Bank Header */}
@@ -617,7 +619,9 @@ export function LockerDetailModal({
         {/* 3. Modal Body Content */}
         </>}
 
-        <div className={`p-4 sm:p-5 overflow-y-auto min-h-0 flex-1 space-y-3.5 ${isOccupied ? 'sm:px-8 sm:pb-7' : ''}`}>
+        {editPanel}
+
+        <div className={`p-4 sm:p-5 overflow-y-auto min-h-0 flex-1 space-y-3.5 ${isOccupied ? 'sm:px-8 sm:pb-7' : ''} ${inlineEdit ? 'hidden' : ''}`}>
 
           {/* TAB 1: DETAILS */}
           {allocationLoading && <p role="status">Loading allotment...</p>}
@@ -1151,7 +1155,7 @@ export function LockerDetailModal({
         </div>
 
         {/* 4. Footer Action Bar */}
-        <div className="shrink-0 flex flex-wrap gap-2 items-center justify-between p-3.5 sm:px-6 sm:py-4 bg-slate-50/90 border-t border-slate-200/80">
+        <div className={`shrink-0 flex flex-wrap gap-2 items-center justify-between p-3.5 sm:px-6 sm:py-4 bg-slate-50/90 border-t border-slate-200/80 ${inlineEdit ? 'hidden' : ''}`}>
           <Button
             variant="outline"
             size="sm"
@@ -1272,8 +1276,6 @@ export function LockerDetailModal({
           onClose={() => setViewingReceiptPayment(null)}
         />
       )}
-
-      {editPopup}
 
       {/* State Transition Confirmation Modals */}
       <ConfirmationModal
