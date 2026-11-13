@@ -2,24 +2,7 @@ import { lockBodyScroll } from '../../../utils/bodyScrollLock';
 import React,{ useState,useEffect,useRef,useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-X,
-Ruler,
-AlertCircle,
-Building,
-ChevronDown,
-Eye,
-EyeOff,
-Copy,
-Check,
-IndianRupee,
-ShieldCheck,
-RotateCcw,Phone,
-Layers,
-MapPin,
-Lock,
-Loader2
-} from 'lucide-react';
+import { X,AlertCircle,ChevronDown,Eye,EyeOff,Copy,Check,RotateCcw,Loader2 } from 'lucide-react';
 import { Locker,CreateLockerInput,UpdateLockerInput,LockerStatus,OperationalStatus } from '../types';
 import { LOCKER_SIZES } from '../constants';
 import { Button } from '../../../components/ui/button';
@@ -28,8 +11,25 @@ import { usePermission } from '../../../hooks/usePermission';
 import { lockerApi } from '../api/lockerApi';
 import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 import { allocationApi } from '../../allocations/api/allocationApi';
+import { money } from './OccupiedLockerSummary';
 
 const PRIMARY_SIZES = ['A', 'B', 'C', 'D'] as const;
+const SIZE_SHORT_LABELS: Record<string, string> = { A: 'Small', B: 'Medium', C: 'Large', D: 'XL' };
+
+// Visual tokens shared with the locker detail view (OccupiedLockerSummary cards)
+// so editing looks like the same screen, not a different product.
+const GRID = 'grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:grid-cols-3 sm:gap-4';
+const CARD = 'min-w-0 rounded-2xl bg-slate-100 p-4 sm:p-5';
+const FULL_ROW = 'min-[480px]:col-span-2 md:col-span-3';
+const LAST_IN_ROW = 'min-[480px]:col-span-2 md:col-span-1';
+const LABEL = 'block text-sm text-slate-600';
+const OPTIONAL = 'text-slate-400';
+const NOTE = 'mt-1 text-xs text-slate-600';
+const ERROR_TEXT = 'mt-1 text-xs font-medium text-rose-700';
+const CONTROL_BASE = 'h-12 min-h-12 w-full rounded-xl border-slate-300 bg-white px-3 text-base font-semibold text-slate-950 placeholder:font-normal placeholder:text-slate-400 focus-visible:border-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/20 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:opacity-100';
+const CONTROL = `mt-2 ${CONTROL_BASE}`;
+const CONTROL_ERROR = 'border-rose-400 focus-visible:border-rose-500 focus-visible:ring-rose-500/20';
+const SELECT = 'cursor-pointer appearance-none border pl-3 pr-9';
 
 interface LockerFormModalProps {
   locker?: Locker | null;
@@ -266,16 +266,6 @@ export function LockerFormModal({
     }
   };
 
-  const applySizeDefaults = (sizeCode: string) => {
-    const sizeDef = LOCKER_SIZES.find((s) => s.code === sizeCode);
-    if (sizeDef) {
-      setAnnualRent(sizeDef.defaultRent);
-      setSecurityDeposit(sizeDef.defaultDeposit);
-      clearFieldError('annualRent');
-      clearFieldError('securityDeposit');
-    }
-  };
-
   const resetTariffs = () => {
     if (!selectedSizeDefinition) return;
     setAnnualRent(selectedSizeDefinition.defaultRent);
@@ -362,35 +352,25 @@ export function LockerFormModal({
 
   const isPrimarySize = PRIMARY_SIZES.includes(size as any);
 
-  const tenantBar = isEdit && locker?.status === 'OCCUPIED' && currentTenant ? (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-100 p-4 text-sm">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-sm font-semibold text-white">
-          {currentTenant.fullName.charAt(0).toUpperCase()}
-        </div>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate font-semibold text-slate-900">{currentTenant.fullName}</span>
-            <span className="rounded bg-emerald-100/80 px-1.5 font-mono text-sm text-emerald-800">{currentTenant.customerCode}</span>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
-            {currentTenant.phone && (
-              <span className="flex items-center gap-1">
-                <Phone className="h-3 w-3 text-slate-400" />
-                <span>{currentTenant.phone}</span>
-              </span>
-            )}
-            {currentAllocation?.allocationCode && <span className="hidden sm:inline">Lease #{currentAllocation.allocationCode}</span>}
-          </div>
-        </div>
-      </div>
-      <span className="shrink-0 rounded-md border border-emerald-200 bg-white px-2 py-0.5 text-sm font-medium text-emerald-800 shadow-2xs">Active Tenant</span>
+  const readCard = (label: string, value: React.ReactNode, note?: React.ReactNode, extra = '') => (
+    <div className={`${CARD} ${extra}`}>
+      <dt className="text-sm text-slate-600">{label}</dt>
+      <dd className="mt-1 break-words text-base font-semibold leading-relaxed text-slate-950">{value}</dd>
+      {note && <dd className={NOTE}>{note}</dd>}
     </div>
+  );
+
+  const tenantCards = isEdit && locker?.status === 'OCCUPIED' && currentTenant ? (
+    <dl className={GRID} aria-label="Current tenant">
+      {readCard('Customer', currentTenant.fullName, currentTenant.customerCode)}
+      {readCard('Phone', currentTenant.phone || 'Not recorded')}
+      {readCard('Lease', currentAllocation?.allocationCode || 'Not recorded', 'Active tenant', LAST_IN_ROW)}
+    </dl>
   ) : null;
 
-  const sectionHeader = (icon: React.ReactNode, title: string, aside?: React.ReactNode) => (
+  const sectionHeader = (id: string, title: string, aside?: React.ReactNode) => (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-      <h3 className="flex items-center gap-2 text-base font-semibold text-emerald-800">{icon}{title}</h3>
+      <h3 id={id} className="text-base font-semibold text-emerald-800">{title}</h3>
       {aside}
     </div>
   );
@@ -484,9 +464,6 @@ export function LockerFormModal({
               <X className="w-5 h-5" />
             </button>
           </div>
-
-          {/* Active Tenant Context Bar (If locker is currently occupied) */}
-          {tenantBar && <div className="mt-5">{tenantBar}</div>}
         </div>
 
         }
@@ -497,38 +474,32 @@ export function LockerFormModal({
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
         >
           <fieldset disabled={isSubmitting} className="contents">
-          <div ref={scrollContainerRef} className={embedded ? "min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 pb-7 pt-1 text-base sm:space-y-7 sm:px-8" : "px-4 pb-7 pt-2 sm:px-8 space-y-6 overflow-y-auto min-h-0 flex-1 text-base overscroll-contain"}>
-            {embedded && tenantBar}
+          <div ref={scrollContainerRef} className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 pb-7 pt-1 text-base sm:space-y-7 sm:px-8">
             {error && (
-              <div
-                role="alert"
-                className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-2 text-sm"
-              >
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <div role="alert" className="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* 1. Location & Dimensions Card */}
-            <div className="space-y-4">
-              {sectionHeader(
-                <Building className="h-4 w-4" />,
-                'Location & Dimensions',
-                <span className="text-xs font-medium text-slate-500">
-                  <span className="font-semibold text-rose-600">*</span> Required fields
-                </span>
-              )}
+            {/* Tenant context: same read-only cards as the locker detail view */}
+            {tenantCards}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Locker Number */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <label htmlFor="locker-number" className="font-semibold text-slate-700 text-sm block">
-                    Locker Number <span className="text-rose-600 font-semibold">*</span>
+            {/* 1. Location & size */}
+            <section className="space-y-4" aria-labelledby="locker-form-location">
+              {sectionHeader('locker-form-location', 'Location & size', (
+                <span className="text-xs text-slate-500">
+                  <span className="font-semibold text-rose-600">*</span> Required
+                </span>
+              ))}
+
+              <div className={GRID}>
+                <div className={CARD}>
+                  <label htmlFor="locker-number" className={LABEL}>
+                    Locker number <span className="text-rose-600">*</span>
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm select-none">
-                      #
-                    </span>
+                  <div className="relative mt-2">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex select-none items-center text-base font-semibold text-slate-400">#</span>
                     <Input
                       id="locker-number"
                       ref={lockerNumberRef}
@@ -541,160 +512,49 @@ export function LockerFormModal({
                       placeholder="e.g. 101"
                       required
                       aria-invalid={Boolean(fieldErrors.lockerNumber)}
-                      className={`h-12 pl-7 text-base bg-white font-semibold text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs ${
-                        fieldErrors.lockerNumber
-                          ? 'border-rose-400 ring-1 ring-rose-400'
-                          : 'border-slate-300'
-                      }`}
+                      className={`${CONTROL_BASE} pl-7 ${fieldErrors.lockerNumber ? CONTROL_ERROR : ''}`}
                     />
                   </div>
-                  {fieldErrors.lockerNumber && (
-                    <p className="text-sm font-medium text-rose-600">{fieldErrors.lockerNumber}</p>
-                  )}
+                  {fieldErrors.lockerNumber && <p className={ERROR_TEXT}>{fieldErrors.lockerNumber}</p>}
                 </div>
 
-                {/* Rack Number */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <label htmlFor="rack-number" className="font-semibold text-slate-700 text-sm block">
-                    Rack Identifier <span className="text-rose-600 font-semibold">*</span>
+                <div className={CARD}>
+                  <label htmlFor="rack-number" className={LABEL}>
+                    Rack <span className="text-rose-600">*</span>
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">
-                      <Layers className="w-3.5 h-3.5" />
-                    </span>
-                    <Input
-                      id="rack-number"
-                      type="text"
-                      value={rackNumber}
-                      onChange={(e) => {
-                        setRackNumber(e.target.value);
-                        clearFieldError('rackNumber');
-                      }}
-                      placeholder="e.g. Rack 493"
-                      required
-                      aria-invalid={Boolean(fieldErrors.rackNumber)}
-                      className={`h-12 pl-8 text-base bg-white font-medium text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs ${
-                        fieldErrors.rackNumber
-                          ? 'border-rose-400 ring-1 ring-rose-400'
-                          : 'border-slate-300'
-                      }`}
-                    />
-                  </div>
-                  {fieldErrors.rackNumber && (
-                    <p className="text-sm font-medium text-rose-600">{fieldErrors.rackNumber}</p>
-                  )}
+                  <Input
+                    id="rack-number"
+                    type="text"
+                    value={rackNumber}
+                    onChange={(e) => {
+                      setRackNumber(e.target.value);
+                      clearFieldError('rackNumber');
+                    }}
+                    placeholder="e.g. Rack 493"
+                    required
+                    aria-invalid={Boolean(fieldErrors.rackNumber)}
+                    className={`${CONTROL} ${fieldErrors.rackNumber ? CONTROL_ERROR : ''}`}
+                  />
+                  {fieldErrors.rackNumber && <p className={ERROR_TEXT}>{fieldErrors.rackNumber}</p>}
                 </div>
 
-                {/* Size Classification with Quick Segmented Selector */}
-                <div className="sm:col-span-2 space-y-3 rounded-2xl bg-slate-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <label className="font-semibold text-slate-700 text-sm block">
-                      Size Classification <span className="text-rose-600 font-semibold">*</span>
-                    </label>
-                    {selectedSizeDefinition && (
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs">
-                        <Ruler className="h-3.5 w-3.5 text-slate-400" />
-                        {selectedSizeDefinition.dimensions}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Segmented Pill Selector for Primary Sizes + Dropdown for Custom/Extended */}
-                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 p-1 bg-slate-200/60 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => handleSizeChange('A')}
-                      className={`min-h-12 rounded-xl text-sm transition-all cursor-pointer ${
-                        size === 'A'
-                          ? 'bg-emerald-800 text-white font-bold shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
-                      }`}
-                    >
-                      A • Small
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSizeChange('B')}
-                      className={`min-h-12 rounded-xl text-sm transition-all cursor-pointer ${
-                        size === 'B'
-                          ? 'bg-emerald-800 text-white font-bold shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
-                      }`}
-                    >
-                      B • Med
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSizeChange('C')}
-                      className={`min-h-12 rounded-xl text-sm transition-all cursor-pointer ${
-                        size === 'C'
-                          ? 'bg-emerald-800 text-white font-bold shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
-                      }`}
-                    >
-                      C • Large
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSizeChange('D')}
-                      className={`min-h-12 rounded-xl text-sm transition-all cursor-pointer ${
-                        size === 'D'
-                          ? 'bg-emerald-800 text-white font-bold shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
-                      }`}
-                    >
-                      D • XL
-                    </button>
-                    <div className="col-span-4 sm:col-span-1 relative">
-                      <select
-                        value={isPrimarySize ? '' : size}
-                        onChange={(e) => {
-                          if (e.target.value) handleSizeChange(e.target.value);
-                        }}
-                        className={`w-full h-12 pl-2 pr-6 text-sm font-medium rounded-lg appearance-none cursor-pointer transition-all ${
-                          !isPrimarySize
-                            ? 'bg-emerald-800 text-white font-bold shadow-xs'
-                            : 'bg-transparent text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        <option value="" disabled>
-                          {isPrimarySize ? 'More sizes...' : `Size ${size}`}
-                        </option>
-                        {LOCKER_SIZES.filter((s) => !PRIMARY_SIZES.includes(s.code as any)).map((s) => (
-                          <option key={s.code} value={s.code} className="text-slate-900 bg-white font-medium">
-                            {s.label} ({s.code})
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown
-                        className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 ${
-                          !isPrimarySize ? 'text-white' : 'text-slate-400'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Standard Tariff Prompt if tariffs differ from size defaults */}
-                  {isEdit && selectedSizeDefinition && (numericRent !== selectedSizeDefinition.defaultRent || numericDeposit !== selectedSizeDefinition.defaultDeposit) && (
-                    <div className="flex items-center justify-between text-sm bg-slate-100/90 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                      <span className="text-slate-600">
-                        Size {size} standard: <strong className="text-slate-800">₹{selectedSizeDefinition.defaultRent.toLocaleString('en-IN')}/yr</strong> &bull; Deposit <strong className="text-slate-800">₹{selectedSizeDefinition.defaultDeposit.toLocaleString('en-IN')}</strong>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => applySizeDefaults(size)}
-                        className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 bg-white border border-emerald-300 px-2 py-0.5 rounded shadow-2xs cursor-pointer hover:bg-emerald-50 transition"
-                      >
-                        Apply Standard Tariff
-                      </button>
-                    </div>
-                  )}
+                <div className={CARD}>
+                  <label htmlFor="grid-position" className={LABEL}>
+                    Position <span className={OPTIONAL}>(optional)</span>
+                  </label>
+                  <Input
+                    id="grid-position"
+                    type="text"
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                    placeholder="e.g. Unit 1 (Row 2, Col 3)"
+                    className={CONTROL}
+                  />
                 </div>
 
-                {/* Vault Section */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <label htmlFor="vault-section" className="font-semibold text-slate-700 text-sm block">
-                    Vault Section <span className="font-normal text-slate-400">(optional)</span>
+                <div className={CARD}>
+                  <label htmlFor="vault-section" className={LABEL}>
+                    Vault section <span className={OPTIONAL}>(optional)</span>
                   </label>
                   <Input
                     id="vault-section"
@@ -702,14 +562,13 @@ export function LockerFormModal({
                     value={section}
                     onChange={(e) => setSection(e.target.value)}
                     placeholder="e.g. Main Vault Room"
-                    className="h-12 text-base bg-white border-slate-300 rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 font-medium text-slate-900 shadow-2xs"
+                    className={CONTROL}
                   />
                 </div>
 
-                {/* Floor Level */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <label htmlFor="floor-level" className="font-semibold text-slate-700 text-sm block">
-                    Floor Level <span className="font-normal text-slate-400">(optional)</span>
+                <div className={CARD}>
+                  <label htmlFor="floor-level" className={LABEL}>
+                    Floor <span className={OPTIONAL}>(optional)</span>
                   </label>
                   <Input
                     id="floor-level"
@@ -717,68 +576,90 @@ export function LockerFormModal({
                     value={floor}
                     onChange={(e) => setFloor(e.target.value)}
                     placeholder="e.g. Ground Floor"
-                    className="h-12 text-base bg-white border-slate-300 rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 font-medium text-slate-900 shadow-2xs"
+                    className={CONTROL}
                   />
                 </div>
 
-                {/* Grid Position */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4 sm:col-span-2">
-                  <label htmlFor="grid-position" className="font-semibold text-slate-700 text-sm block">
-                    Grid Position / Coordinates <span className="font-normal text-slate-400">(optional)</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">
-                      <MapPin className="w-3.5 h-3.5" />
+                <div className={`${CARD} ${FULL_ROW}`} role="group" aria-labelledby="locker-size-label">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span id="locker-size-label" className={LABEL}>
+                      Size <span className="text-rose-600">*</span>
                     </span>
-                    <Input
-                      id="grid-position"
-                      type="text"
-                      value={position}
-                      onChange={(e) => setPosition(e.target.value)}
-                      placeholder="e.g. Unit 1 (Row 2, Column 3)"
-                      className="h-12 pl-8 text-base bg-white border-slate-300 rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 font-medium text-slate-900 shadow-2xs"
-                    />
+                    {selectedSizeDefinition && (
+                      <span className="text-xs text-slate-600">{selectedSizeDefinition.dimensions}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {PRIMARY_SIZES.map((code) => {
+                      const definition = LOCKER_SIZES.find((item) => item.code === code);
+                      const selected = size === code;
+                      return (
+                        <button
+                          key={code}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => handleSizeChange(code)}
+                          className={`min-h-12 rounded-xl border px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/30 ${
+                            selected
+                              ? 'border-emerald-700 bg-emerald-700 text-white'
+                              : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-700 hover:text-emerald-800'
+                          }`}
+                        >
+                          {code} &bull; {SIZE_SHORT_LABELS[code] || definition?.label || code}
+                        </button>
+                      );
+                    })}
+                    <div className="relative col-span-2 sm:col-span-1">
+                      <select
+                        aria-label="More sizes"
+                        value={isPrimarySize ? '' : size}
+                        onChange={(e) => {
+                          if (e.target.value) handleSizeChange(e.target.value);
+                        }}
+                        className={`h-12 w-full appearance-none rounded-xl border pl-3 pr-9 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/30 ${
+                          !isPrimarySize
+                            ? 'border-emerald-700 bg-emerald-700 text-white'
+                            : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-700'
+                        }`}
+                      >
+                        <option value="" disabled>
+                          {isPrimarySize ? 'More sizes' : `Size ${size}`}
+                        </option>
+                        {LOCKER_SIZES.filter((s) => !PRIMARY_SIZES.includes(s.code as any)).map((s) => (
+                          <option key={s.code} value={s.code} className="bg-white font-medium text-slate-900">
+                            {s.label} ({s.code})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${!isPrimarySize ? 'text-white' : 'text-slate-400'}`} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* 2. Rental Tariff & Deposit Card */}
-            <div className="space-y-4">
-              {sectionHeader(
-                <IndianRupee className="h-4 w-4" />,
-                'Rental Tariff & Security Deposit',
-                tariffIsCustomized ? (
-                  <button
-                    type="button"
-                    onClick={resetTariffs}
-                    className="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Reset standard (₹{selectedSizeDefinition?.defaultRent} / ₹{selectedSizeDefinition?.defaultDeposit})</span>
-                  </button>
-                ) : (
-                  <span className="text-sm font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                    Standard Size {size} Tariff
-                  </span>
-                )
-              )}
+            {/* 2. Rent & deposit */}
+            <section className="space-y-4" aria-labelledby="locker-form-tariff">
+              {sectionHeader('locker-form-tariff', 'Rent & deposit', tariffIsCustomized && selectedSizeDefinition ? (
+                <button
+                  type="button"
+                  onClick={resetTariffs}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 underline"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Use size {size} standard ({money(selectedSizeDefinition.defaultRent)} / {money(selectedSizeDefinition.defaultDeposit)})
+                </button>
+              ) : (
+                <span className="text-xs text-slate-500">Size {size} standard tariff</span>
+              ))}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Annual Rent */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="annual-rent" className="font-semibold text-slate-700 text-sm block">
-                      Annual Rent (₹) <span className="text-rose-600 font-semibold">*</span>
-                    </label>
-                    <span className="text-xs text-slate-500 font-medium">
-                      ≈ ₹{monthlyEquivalent.toLocaleString('en-IN')}/mo
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold select-none">
-                      ₹
-                    </span>
+              <div className={GRID}>
+                <div className={CARD}>
+                  <label htmlFor="annual-rent" className={LABEL}>
+                    Annual rent incl. GST <span className="text-rose-600">*</span>
+                  </label>
+                  <div className="relative mt-2">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex select-none items-center text-base font-semibold text-slate-400">₹</span>
                     <Input
                       id="annual-rent"
                       type="number"
@@ -792,32 +673,26 @@ export function LockerFormModal({
                       required
                       inputMode="decimal"
                       aria-invalid={Boolean(fieldErrors.annualRent)}
-                      className={`h-12 pl-7 text-base bg-white font-semibold text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 tabular-nums shadow-2xs ${
-                        fieldErrors.annualRent
-                          ? 'border-rose-400 ring-1 ring-rose-400'
-                          : 'border-slate-300'
-                      }`}
+                      className={`${CONTROL_BASE} pl-7 tabular-nums ${fieldErrors.annualRent ? CONTROL_ERROR : ''}`}
                     />
                   </div>
-                  {fieldErrors.annualRent && (
-                    <p className="text-sm font-medium text-rose-600">{fieldErrors.annualRent}</p>
+                  {fieldErrors.annualRent ? (
+                    <p className={ERROR_TEXT}>{fieldErrors.annualRent}</p>
+                  ) : (
+                    <p className={NOTE}>
+                      {Number.isFinite(numericRent) && numericRent >= 0
+                        ? `Before GST: ${money(Math.round(numericRent / 1.18 * 100) / 100)} · ≈ ${money(monthlyEquivalent)}/month`
+                        : 'Enter the yearly rent'}
+                    </p>
                   )}
                 </div>
 
-                {/* Security Deposit */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="security-deposit" className="font-semibold text-slate-700 text-sm block">
-                      Security Deposit (₹) <span className="text-rose-600 font-semibold">*</span>
-                    </label>
-                    <span className="text-xs text-slate-500 font-medium">
-                      Refundable Escrow
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold select-none">
-                      ₹
-                    </span>
+                <div className={CARD}>
+                  <label htmlFor="security-deposit" className={LABEL}>
+                    Security deposit <span className="text-rose-600">*</span>
+                  </label>
+                  <div className="relative mt-2">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex select-none items-center text-base font-semibold text-slate-400">₹</span>
                     <Input
                       id="security-deposit"
                       type="number"
@@ -831,139 +706,105 @@ export function LockerFormModal({
                       required
                       inputMode="decimal"
                       aria-invalid={Boolean(fieldErrors.securityDeposit)}
-                      className={`h-12 pl-7 text-base bg-white font-semibold text-slate-900 rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 tabular-nums shadow-2xs ${
-                        fieldErrors.securityDeposit
-                          ? 'border-rose-400 ring-1 ring-rose-400'
-                          : 'border-slate-300'
-                      }`}
+                      className={`${CONTROL_BASE} pl-7 tabular-nums ${fieldErrors.securityDeposit ? CONTROL_ERROR : ''}`}
                     />
                   </div>
-                  {fieldErrors.securityDeposit && (
-                    <p className="text-sm font-medium text-rose-600">{fieldErrors.securityDeposit}</p>
+                  {fieldErrors.securityDeposit ? (
+                    <p className={ERROR_TEXT}>{fieldErrors.securityDeposit}</p>
+                  ) : (
+                    <p className={NOTE}>Refundable on closure</p>
                   )}
                 </div>
 
-                {/* Move-in Commercial Total Bar */}
-                <div className="sm:col-span-2 p-4 rounded-xl bg-white border border-slate-200/90 flex items-center justify-between shadow-2xs">
-                  <span className="text-sm text-slate-500 font-medium">
-                    Annual Rent + Required Deposit (catalogue):
-                  </span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">
-                    ₹{(numericRent + numericDeposit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
+                <div className={`${CARD} ${LAST_IN_ROW}`}>
+                  <p className={LABEL}>Rent + deposit (catalogue)</p>
+                  <p className="mt-1 break-words text-base font-semibold leading-relaxed tabular-nums text-slate-950">
+                    {Number.isFinite(numericRent + numericDeposit) ? money(numericRent + numericDeposit) : 'Not recorded'}
+                  </p>
+                  <p className={NOTE}>Amount due at a new allotment</p>
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* 3. Status & Operational Governance Card */}
-            <div className="space-y-4">
-              {sectionHeader(<ShieldCheck className="h-4 w-4" />, 'Status & Access Governance')}
+            {/* 3. Status & access */}
+            <section className="space-y-4" aria-labelledby="locker-form-status">
+              {sectionHeader('locker-form-status', 'Status & access')}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Occupancy Status */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="occupancy-status" className="font-semibold text-slate-700 text-sm block">
-                      Occupancy Status
-                    </label>
-                    {isEdit && locker?.status === 'OCCUPIED' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        <Lock className="h-3 w-3" />
-                        Leased to Client
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
+              <div className={GRID}>
+                <div className={CARD}>
+                  <label htmlFor="occupancy-status" className={LABEL}>Occupancy</label>
+                  <div className="relative mt-2">
                     <select
                       id="occupancy-status"
                       value={status}
                       onChange={(e) => setStatus(e.target.value as LockerStatus)}
                       disabled={isEdit && ['OCCUPIED', 'RESERVED'].includes(locker?.status || '')}
-                      className={`w-full h-12 pl-3 pr-8 rounded-xl font-medium text-sm appearance-none shadow-2xs ${
-                        isEdit && locker?.status === 'OCCUPIED'
-                          ? 'bg-slate-100/90 border border-slate-200 text-slate-500 cursor-not-allowed'
-                          : 'bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 cursor-pointer'
-                      }`}
+                      className={`${CONTROL_BASE} ${SELECT}`}
                     >
-                      <option value="VACANT">Vacant (Available for lease)</option>
-                      <option value="OCCUPIED" disabled={status !== 'OCCUPIED'}>Occupied (Leased to customer)</option>
-                      <option value="RESERVED" disabled={status !== 'RESERVED'}>Reserved (Pending allotment)</option>
-                      <option value="BLOCKED">Blocked (Legal / Dispute hold)</option>
+                      <option value="VACANT">Vacant</option>
+                      <option value="OCCUPIED" disabled={status !== 'OCCUPIED'}>Occupied</option>
+                      <option value="RESERVED" disabled={status !== 'RESERVED'}>Reserved</option>
+                      <option value="BLOCKED">Blocked (legal / dispute hold)</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   </div>
-                  {isEdit && locker?.status === 'OCCUPIED' && currentTenant && (
-                    <p className="text-xs font-normal text-slate-500 mt-1">
-                      Active lease held by <span className="font-semibold text-slate-800">{currentTenant.fullName}</span>. To vacate this locker, use the Close Locker action.
+                  {isEdit && locker?.status === 'OCCUPIED' && (
+                    <p className={NOTE}>
+                      {currentTenant ? `Leased to ${currentTenant.fullName}. ` : ''}Use Close locker to vacate.
                     </p>
                   )}
                 </div>
 
-                {/* Operational Health */}
-                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <label htmlFor="operational-status" className="font-semibold text-slate-700 text-sm block">
-                    Operational Health
-                  </label>
-                  <div className="relative">
+                <div className={CARD}>
+                  <label htmlFor="operational-status" className={LABEL}>Condition</label>
+                  <div className="relative mt-2">
                     <select
                       id="operational-status"
                       value={operationalStatus}
                       onChange={(e) => setOperationalStatus(e.target.value as OperationalStatus)}
-                      className="w-full h-12 pl-3 pr-8 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 text-sm appearance-none cursor-pointer shadow-2xs"
+                      className={`${CONTROL_BASE} ${SELECT}`}
                     >
-                      <option value="ACTIVE">● Active (Operational)</option>
-                      <option value="MAINTENANCE">▲ Maintenance / Servicing</option>
-                      <option value="DAMAGED">■ Damaged (Key/Lock Issue)</option>
-                      <option value="DECOMMISSIONED">✕ Decommissioned (Inactive)</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="MAINTENANCE">Under maintenance</option>
+                      <option value="DAMAGED">Damaged (key / lock issue)</option>
+                      <option value="DECOMMISSIONED">Decommissioned</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   </div>
                 </div>
 
-                {/* Master Key Reference */}
                 {canViewSensitive && (
-                  <div className="sm:col-span-2 space-y-2 rounded-2xl bg-slate-100 p-4">
-                    <div className="flex items-center justify-between">
-                      <label htmlFor="master-key-reference" className="font-semibold text-slate-700 text-sm block">
-                        Master Key Reference <span className="font-normal text-slate-400">(optional)</span>
-                      </label>
-                      <span className="text-xs text-slate-400 font-normal">
-                        Vault physical key index
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">
-                        <Lock className="w-3.5 h-3.5" />
-                      </span>
+                  <div className={`${CARD} ${LAST_IN_ROW}`}>
+                    <label htmlFor="master-key-reference" className={LABEL}>
+                      Key number <span className={OPTIONAL}>(optional)</span>
+                    </label>
+                    <div className="relative mt-2">
                       <Input
                         id="master-key-reference"
                         type={keyRevealed ? 'text' : 'password'}
                         value={masterKeyReference}
                         onChange={(e) => setMasterKeyReference(e.target.value)}
-                        placeholder="e.g. MK-R493-01"
-                        className="h-12 pl-8 text-base bg-white border-slate-300 pr-16 text-slate-900 font-mono tracking-wider font-semibold rounded-xl focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs"
+                        placeholder="e.g. 12345"
+                        autoComplete="off"
+                        className={`${CONTROL_BASE} pr-20 font-mono tracking-wider`}
                       />
-                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                      <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
                         <button
                           type="button"
                           onClick={() => setKeyRevealed(!keyRevealed)}
-                          className="h-6.5 w-6.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors"
-                          title={keyRevealed ? 'Hide Master Key' : 'Reveal Master Key'}
+                          className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          aria-label={keyRevealed ? 'Hide key number' : 'Show key number'}
                         >
-                          {keyRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          {keyRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                         {masterKeyReference && (
                           <button
                             type="button"
                             onClick={handleCopyKey}
-                            className="h-6.5 w-6.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors"
-                            title="Copy to clipboard"
+                            className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                            aria-label="Copy key number"
                           >
-                            {copiedKey ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-600" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
+                            {copiedKey ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
                           </button>
                         )}
                       </div>
@@ -971,22 +812,21 @@ export function LockerFormModal({
                   </div>
                 )}
 
-                {/* Notes */}
-                <div className="sm:col-span-2 space-y-2 rounded-2xl bg-slate-100 p-4">
-                  <label htmlFor="locker-notes" className="font-semibold text-slate-700 text-sm block">
-                    Maintenance & Custody Notes <span className="font-normal text-slate-400">(optional)</span>
+                <div className={`${CARD} ${FULL_ROW}`}>
+                  <label htmlFor="locker-notes" className={LABEL}>
+                    Notes <span className={OPTIONAL}>(optional)</span>
                   </label>
                   <textarea
                     id="locker-notes"
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
-                    placeholder="Physical condition notes, lock replacement logs, or ledger remarks..."
-                    rows={2}
-                    className="w-full p-2.5 text-base bg-white border border-slate-300 rounded-xl focus:border-emerald-700 focus:outline-none focus:ring-1 focus:ring-emerald-700/20 font-normal resize-none shadow-2xs"
+                    placeholder="Condition, lock replacement or other remarks"
+                    rows={3}
+                    className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-white p-3 text-base text-slate-950 placeholder:text-slate-400 focus-visible:border-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/20"
                   />
                 </div>
               </div>
-            </div>
+            </section>
           </div>
 
           {/* Modal Footer */}
@@ -994,26 +834,26 @@ export function LockerFormModal({
             <div className="text-sm">
               {isEdit ? (
                 isDirty ? (
-                  <span className="inline-flex items-center gap-1.5 font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-sm">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                     <span>{modifiedFieldsCount} field{modifiedFieldsCount > 1 ? 's' : ''} modified</span>
                   </span>
                 ) : (
-                  <span className="text-slate-400 text-sm">No changes detected</span>
+                  <span className="text-xs text-slate-500">No changes yet</span>
                 )
               ) : (
-                <span className="text-slate-400 text-sm">Ctrl + Enter or Ctrl + S to save</span>
+                <span className="text-xs text-slate-500">Ctrl + S to save</span>
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="ml-auto flex items-center justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={requestClose}
                 disabled={isSubmitting}
-                className="rounded-xl border-slate-300 text-slate-700 font-semibold text-sm min-h-11 px-5 cursor-pointer hover:bg-slate-100"
+                className="rounded-xl border-slate-300 text-slate-700 font-semibold text-xs h-9 px-4 cursor-pointer hover:bg-slate-100"
               >
                 Cancel
               </Button>
@@ -1021,16 +861,12 @@ export function LockerFormModal({
                 type="submit"
                 size="sm"
                 disabled={isSubmitting || (isEdit && !isDirty)}
-                className={`font-bold shadow-xs rounded-xl text-sm min-h-11 px-5 transition-all active:scale-[0.98] flex items-center gap-1.5 ${
-                  isEdit && !isDirty
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200'
-                    : 'bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer'
-                }`}
+                className="rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs h-9 px-4 shadow-xs gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:opacity-100 disabled:shadow-none"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Saving changes...</span>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Saving...</span>
                   </>
                 ) : isEdit ? (
                   'Save Locker Changes'
