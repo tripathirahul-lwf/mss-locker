@@ -66,7 +66,11 @@ export class AllotmentService {
         const [depositPayment] = await Payment.create([{ ...paymentFields, paymentNumber: await generatePaymentNumber(), receiptNumber: `${input.receiptNumber}-DEP`, paymentPurpose: 'SECURITY_DEPOSIT', amount: input.securityDeposit, idempotencyKey: `${input.requestId}:deposit` }], { session });
         await DepositTransaction.create([{ customerId: customer._id, allocationId, lockerId: locker._id, depositTransactionNumber: await generateDepositNumber(), transactionType: 'DEPOSIT_RECEIVED', amount: input.securityDeposit, paymentId: depositPayment._id, paymentMethod: 'CASH', transactionDate: new Date(input.receiptDate), status: 'COMPLETED', source: 'MANUAL_ENTRY', recordedBy: actor.userId }], { session });
       }
-      if (input.photo) customer.photoUrl = input.photo.fileUrl;
+      if (input.photo) {
+        customer.photoUrl = input.photo.fileUrl;
+        await CustomerKycDocument.create([{ customerId: customer._id, documentType: 'OTHER', documentNumber: '', documentUrl: input.photo.fileUrl, documentName: input.photo.fileName || 'KYC photo', mimeType: input.photo.mimeType, fileSize: input.photo.size, isPrimary: false, verificationStatus: 'PENDING', createdBy: actor.userId }], { session });
+        if (customer.kycStatus !== 'VERIFIED') customer.kycStatus = 'PARTIAL';
+      }
       if (input.idDocument) {
         await CustomerKycDocument.create([{ customerId: customer._id, documentType: input.idDocument.documentType, documentNumber: input.idDocument.documentType === 'OTHER' ? input.idDocument.documentNumber : input.idDocument.documentNumber.replace(/\s/g, '').toUpperCase(), documentUrl: input.idDocument.fileUrl, documentName: input.idDocument.fileName, mimeType: input.idDocument.mimeType, fileSize: input.idDocument.size, isPrimary: !(await CustomerKycDocument.exists({ customerId: customer._id, isPrimary: true, isActive: true }).session(session)), verificationStatus: 'PENDING', createdBy: actor.userId }], { session });
         if (customer.kycStatus !== 'VERIFIED') customer.kycStatus = 'PARTIAL';

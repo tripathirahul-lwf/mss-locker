@@ -9,6 +9,7 @@ Ban,Loader2
 import { Payment } from '../types';
 import { Button } from '../../../components/ui/button';
 
+import { apiClient } from '../../../services/apiClient';
 import { paymentApi } from '../api/paymentApi';
 
 interface PaymentReceiptModalProps {
@@ -45,6 +46,21 @@ export function PaymentReceiptModal({
   payment,
   onClose,
 }: PaymentReceiptModalProps) {
+  const [generated, setGenerated] = useState(!payment.proofUrl);
+  const [attachment, setAttachment] = useState<{ url: string; type: string } | null>(null);
+  const [attachmentError, setAttachmentError] = useState('');
+  const [attachmentRetry, setAttachmentRetry] = useState(0);
+  useEffect(() => {
+    if (!payment.proofUrl || generated) return;
+    const controller = new AbortController(); let objectUrl: string | undefined;
+    setAttachment(null); setAttachmentError('');
+    const source = payment.proofUrl.startsWith('/api/') ? payment.proofUrl.slice(4) : payment.proofUrl.startsWith('/uploads/') ? `/upload/private/${payment.proofUrl.split('/').pop()}` : payment.proofUrl;
+    apiClient.get(source, { responseType: 'blob', signal: controller.signal }).then(response => {
+      if (controller.signal.aborted) return;
+      objectUrl = URL.createObjectURL(response.data); setAttachment({ url: objectUrl, type: response.data.type });
+    }).catch(() => { if (!controller.signal.aborted) setAttachmentError('Could not load the uploaded receipt. Please retry.'); });
+    return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [payment.proofUrl, generated, attachmentRetry]);
   const customer = payment.customerId;
   const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -116,6 +132,8 @@ export function PaymentReceiptModal({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (!generated && payment.proofUrl) return createPortal(<div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/60 p-4"><div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Uploaded receipt ${payment.receiptNumber}`} tabIndex={-1} className="flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"><header className="flex items-center justify-between gap-3 border-b p-4"><div><h2 className="text-xl font-bold">Uploaded receipt</h2><p className="text-sm text-slate-600">{payment.proofDocumentName || payment.receiptNumber}</p></div><Button variant="outline" onClick={onClose} aria-label="Close uploaded receipt"><X className="h-5 w-5" /></Button></header><div className="min-h-0 overflow-auto bg-slate-50 p-4">{attachmentError ? <p role="alert">{attachmentError} <button type="button" className="underline" onClick={() => setAttachmentRetry(v => v + 1)}>Retry receipt</button></p> : !attachment ? <p role="status">Loading uploaded receipt...</p> : attachment.type.includes('pdf') ? <iframe title="Uploaded receipt document" src={attachment.url} className="h-[65dvh] w-full" /> : <img src={attachment.url} onError={() => setAttachmentError('Could not display the uploaded receipt image. Please retry.')} alt="Uploaded receipt" className="mx-auto max-h-[65dvh] max-w-full object-contain" />}</div><footer className="flex flex-wrap justify-between gap-3 border-t p-4"><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setGenerated(true)}>View generated receipt</Button></footer></div></div>, document.body);
 
   const modalContent = (
     <div
@@ -335,6 +353,7 @@ export function PaymentReceiptModal({
             </table>
           </div>
 
+          {invoice && <section aria-label="Receipt GST breakdown" className="rounded-xl border border-slate-200 p-3"><h3 className="mb-2 text-sm font-semibold">Linked bill: GST breakdown</h3><table className="w-full text-sm"><tbody>{([['Rent (as recorded)', invoice.baseRent], ['GST (as recorded)', invoice.taxAmount], ['Other charges / adjustments', Number.isFinite(invoice.baseRent) && Number.isFinite(invoice.taxAmount) ? Math.round((invoice.totalAmount - invoice.baseRent! - invoice.taxAmount!) * 100) / 100 : undefined], ['Bill total', invoice.totalAmount], ['This receipt payment', payment.amount]] as const).map(([label, value]) => <tr key={label}><th className="py-1 text-left font-medium">{label}</th><td className="py-1 text-right">{typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : 'Not recorded'}</td></tr>)}</tbody></table><p className="mt-2 text-xs text-slate-500">Bill amounts are shown in full; the receipt may be a partial payment.</p></section>}
           {/* Financial Totals & Words Box */}
           <div className="p-3.5 border border-slate-950 bg-slate-50 space-y-2">
             <div className="flex items-center justify-between">

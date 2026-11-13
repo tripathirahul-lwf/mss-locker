@@ -936,6 +936,7 @@ export class PaymentService {
       </tbody>
     </table>
 
+    ${payment.invoiceId ? `<table class="line-table" aria-label="Receipt GST breakdown"><thead><tr><th colspan="2">Linked bill: GST breakdown</th></tr></thead><tbody>${[['Rent (as recorded)', invoice.baseRent], ['GST (as recorded)', invoice.taxAmount], ['Other charges / adjustments', Number.isFinite(invoice.baseRent) && Number.isFinite(invoice.taxAmount) ? Math.round((invoice.totalAmount - invoice.baseRent - invoice.taxAmount) * 100) / 100 : undefined], ['Bill total', invoice.totalAmount], ['This receipt payment', payment.amount]].map(([label, value]) => `<tr><td>${label}</td><td style="text-align:right">${typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : 'Not recorded'}</td></tr>`).join('')}</tbody></table><p style="font-size:8pt">Bill amounts are shown in full; this receipt may be a partial payment.</p>` : ''}
     <!-- Total Box -->
     <div class="total-box">
       <table style="width: 100%;">

@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs';
 import { RenewalCollectionRequest } from '../../src/models/RenewalCollectionRequest';
 import { RenewalCollectionService } from '../../src/services/renewalCollection.service';
 import { renewalCollectionSchema } from '../../src/validators/renewalCollection.validator';
@@ -136,6 +137,91 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     const locker = await Locker.create({ lockerNumber: number, lockerCode: `LCK-${number}`, size: 'A', rackNumber: 'R1', annualRent: 1180, securityDeposit: deposit });
     return allotmentSchema.parse({ requestId: randomUUID(), cashReceived: true, receiptDate: '2026-02-01', lockerId: String(locker._id), customer: { fullName: 'Counter Customer', phone: `987654${number.padStart(4,'0')}` }, keyNumber: `KEY-${number}`, startDate: '2026-01-01', billingCycle: 'TRIENNIAL', annualRent: 1180, annualBaseRent: 1000, securityDeposit: deposit, receiptNumber: `BOOK-${number}` });
   }
+
+  it('client audit preserves both KYC uploads, original receipt and recorded GST', async () => {
+    const input = allotmentSchema.parse({ ...await allotment('1980'), photo: { fileUrl: '/uploads/kyc/photo-a.png', fileName: 'photo-a.png', size: 100, mimeType: 'image/png' }, idDocument: { fileUrl: '/uploads/kyc/proof-a.png', fileName: 'proof-a.png', size: 100, mimeType: 'image/png', documentType: 'OTHER' }, receipt: { fileUrl: '/uploads/kyc/receipt-a.png', fileName: 'receipt-a.png', size: 100, mimeType: 'image/png' } });
+    const saved = await AllotmentService.complete(input, actor);
+    const customerId = String((saved.allocation!.customerId as any)._id);
+    const docs = await CustomerKycService.getKycDocuments(customerId, false);
+    expect(docs.map(doc => doc.documentName).sort()).toEqual(['photo-a.png', 'proof-a.png']);
+    expect(saved.payments.every(payment => payment.proofUrl === '/uploads/kyc/receipt-a.png')).toBe(true);
+    const rent = saved.payments.find(payment => payment.paymentPurpose === 'INVOICE_PAYMENT')!;
+    const html = await paymentService.generatePaymentReceiptHtml(String(rent._id));
+    expect(html).toContain('Receipt GST breakdown'); expect(html).toContain('GST (as recorded)');
+    await CustomerKycDocument.updateOne({ documentUrl: '/uploads/kyc/photo-a.png' }, { $set: { isActive: false } });
+    const legacy = await CustomerKycService.getKycDocuments(customerId, false);
+    expect(legacy.some(doc => doc.isProfilePhoto && doc.documentUrl === '/uploads/kyc/photo-a.png')).toBe(true);
+    await CustomerKycDocument.updateOne({ documentUrl: '/uploads/kyc/photo-a.png' }, { $set: { isActive: true } });
+    const photo = await CustomerKycDocument.findOne({ documentUrl: '/uploads/kyc/photo-a.png' });
+    const cleanup = vi.spyOn(StorageService, 'deleteFile').mockResolvedValue(undefined);
+    try {
+      await CustomerKycService.updateKycDocument(String(photo!._id), { documentUrl: '/uploads/kyc/replaced-photo.png' }, actor.userId);
+      expect((await Customer.findById(customerId))?.photoUrl).toBe('/uploads/kyc/replaced-photo.png');
+      await CustomerKycService.deleteKycDocument(String(photo!._id), actor.userId);
+      expect((await CustomerKycService.getKycDocuments(customerId, false)).map(doc => doc.documentName)).toEqual(['proof-a.png']);
+    } finally { cleanup.mockRestore(); }
+
+  });
+
+  it('client audit exports due soon and overdue using dashboard classification with permission checks', async () => {
+    const saved = await AllotmentService.complete(await allotment('1981', 0), actor);
+    const date = new Date(); date.setUTCDate(date.getUTCDate() + 10);
+    await LockerAllocation.updateOne({ _id: saved.allocation!._id }, { $set: { nextRenewalDueDate: date } });
+    await request(app).get('/api/reports/locker-dues/export').query({ status: 'DUE_SOON' }).expect(401);
+    const token = await apiOperator([PERMISSIONS.REPORTS_EXPORT, PERMISSIONS.LOCKERS_VIEW]);
+    const result = await request(app).get('/api/reports/locker-dues/export').set('Authorization', `Bearer ${token}`).query({ status: 'DUE_SOON' }).buffer(true).parse((response, done) => { const chunks: Buffer[] = []; response.on('data', chunk => chunks.push(Buffer.from(chunk))); response.on('end', () => done(null, Buffer.concat(chunks))); }).expect(200);
+    expect(result.headers['content-type']).toContain('spreadsheetml'); expect(result.body.length).toBeGreaterThan(100);
+    const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(result.body);
+    expect(workbook.worksheets[0].getRow(2).getCell(1).value).toBe('1981');
+    await request(app).get('/api/reports/locker-dues/export').set('Authorization', `Bearer ${token}`).query({ status: 'ALL' }).expect(400);
+    const limited = await apiOperator([PERMISSIONS.LOCKERS_VIEW]);
+    await request(app).get('/api/reports/locker-dues/export').set('Authorization', `Bearer ${limited}`).query({ status: 'OVERDUE' }).expect(403);
+    const capped = vi.spyOn(LockerService, 'getLockers').mockResolvedValueOnce({ lockers: [], pagination: { page: 1, limit: 10001, total: 10001, totalPages: 1 } });
+    try {
+      const large = await request(app).get('/api/reports/locker-dues/export').set('Authorization', `Bearer ${token}`).query({ status: 'OVERDUE' }).expect(413);
+      expect(large.headers['content-type']).toContain('application/json'); expect(large.body.message).toContain('10,000');
+    } finally { capped.mockRestore(); }
+
+  });
+
+  it('locker Excel export preserves filters, dates, all rows and complete active-tenancy balances', async () => {
+    const soon = await AllotmentService.complete(await allotment('1982', 0), actor);
+    const overdue = await AllotmentService.complete(await allotment('1983', 0), actor);
+    const boundary = await AllotmentService.complete(await allotment('1984', 0), actor);
+    const outside = await AllotmentService.complete(await allotment('1985', 0), actor);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const shifted = (days: number) => new Date(Date.parse(today + 'T00:00:00Z') + days * 86400000);
+    await LockerAllocation.updateOne({ _id: soon.allocation!._id }, { $set: { nextRenewalDueDate: shifted(10) } });
+    await LockerAllocation.updateOne({ _id: overdue.allocation!._id }, { $set: { nextRenewalDueDate: shifted(365) } });
+    await LockerAllocation.updateOne({ _id: boundary.allocation!._id }, { $set: { nextRenewalDueDate: shifted(30) } });
+    await LockerAllocation.updateOne({ _id: outside.allocation!._id }, { $set: { nextRenewalDueDate: shifted(31) } });
+    await Locker.updateOne({ _id: soon.allocation!.lockerId }, { $set: { size: 'B' } });
+    const addBill = async (number: string, balance: number, days: number, allocationId = overdue.allocation!._id) => {
+      const { _id, __v, ...base } = overdue.invoice!.toObject();
+      return LockerInvoice.create({ ...base, invoiceNumber: number, allocationId, invoiceType: 'RENEWAL', status: 'ISSUED', paymentStatus: 'UNPAID', dueDate: shifted(days), totalAmount: balance, paidAmount: 0, balanceAmount: balance });
+    };
+    await addBill('EXPORT-A', 10.1, -2); await addBill('EXPORT-B', 20.2, -1);
+    await addBill('EXPORT-OLD-TENANCY', 999, -5, new mongoose.Types.ObjectId());
+    const token = await apiOperator([PERMISSIONS.REPORTS_EXPORT, PERMISSIONS.LOCKERS_VIEW]);
+    const download = async (query: Record<string, string | number>, access = token) => {
+      const response = await request(app).get('/api/reports/locker-dues/export').set('Authorization', `Bearer ${access}`).query(query).buffer(true).parse((res, done) => { const chunks: Buffer[] = []; res.on('data', chunk => chunks.push(Buffer.from(chunk))); res.on('end', () => done(null, Buffer.concat(chunks))); }).expect(200);
+      const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(response.body); return workbook.worksheets[0];
+    };
+    const rows = await download({ status: 'DUE_SOON', page: 99, limit: 1 });
+    expect(rows.rowCount).toBe(3); expect([rows.getRow(2).getCell(1).value, rows.getRow(3).getCell(1).value]).toEqual(['1982', '1984']);
+    expect(rows.getRow(2).getCell(7).value).toBeInstanceOf(Date); expect(rows.getRow(2).getCell(7).numFmt).toBe('dd/mm/yyyy');
+    expect(rows.getRow(2).getCell(6).type).toBe(ExcelJS.ValueType.String); expect(rows.getRow(2).getCell(10).value).toBe(0);
+    expect((await download({ status: 'DUE_SOON', size: 'B' })).rowCount).toBe(2);
+    expect((await download({ status: 'DUE_SOON', search: '1984' })).getRow(2).getCell(1).value).toBe('1984');
+    expect((await download({ status: 'DUE_SOON', search: 'no-such-customer' })).rowCount).toBe(1);
+    const late = await download({ status: 'OVERDUE' });
+    expect(late.rowCount).toBe(2); expect(late.getRow(2).getCell(1).value).toBe('1983');
+    expect(late.getRow(2).getCell(9).value).toBe(2); expect(late.getRow(2).getCell(10).value).toBe(30.3);
+    expect((late.getRow(2).getCell(8).value as Date).toISOString()).toBe(shifted(-2).toISOString());
+    expect((await download({ status: 'DUE_SOON', search: 'KEY-1982' })).rowCount).toBe(1);
+    const sensitive = await apiOperator([PERMISSIONS.REPORTS_EXPORT, PERMISSIONS.LOCKERS_VIEW, PERMISSIONS.LOCKERS_VIEW_SENSITIVE]);
+    expect((await download({ status: 'DUE_SOON', search: 'KEY-1982' }, sensitive)).rowCount).toBe(2);
+  });
 
   it('atomically collects three-year rent, KYC charge and deposit, and replays a lost response safely', async () => {
     const input = await allotment();

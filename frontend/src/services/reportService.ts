@@ -10,6 +10,22 @@ export interface OperationalReport {
 }
 
 export const reportService = {
+  async exportLockerDues(params: { status: string; search?: string; size?: string; rackNumber?: string }) {
+    try {
+      const response = await apiClient.get('/reports/locker-dues/export', { params, responseType: 'blob', timeout: 60000 });
+      const url = URL.createObjectURL(response.data), anchor = document.createElement('a');
+      try {
+        anchor.href = url; anchor.download = `lockers-${params.status.toLowerCase()}.xlsx`; document.body.appendChild(anchor); anchor.click();
+      } finally { anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    } catch (error: any) {
+      if (error.response?.data instanceof Blob) {
+        let message: string | undefined;
+        try { message = JSON.parse(await error.response.data.text()).message; } catch { /* Use the normal fallback for non-JSON errors. */ }
+        if (message) throw new Error(message);
+      }
+      throw new Error(error.response?.data?.message || 'Could not export lockers. Please retry.');
+    }
+  },
   async overview(from: string, to: string) {
     const response = await apiClient.get('/reports/overview', { params: { from, to } });
     return response.data.data as OperationalReport;

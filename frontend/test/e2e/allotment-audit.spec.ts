@@ -24,3 +24,49 @@ test('numberless ID upload saves a generic document with server-provided compres
  const docs = await page.request.get(`/api/customers/${id}/kyc`); expect(docs.ok()).toBeTruthy(); const rows = (await docs.json()).data; expect(rows[0]).toMatchObject({ documentType: 'OTHER', documentNumber: '', verificationStatus: 'PENDING', mimeType: 'image/webp' });
  await expect(page.getByRole('heading', { name: 'Allotment Complete', exact: true })).toBeVisible();
 });
+
+
+test('both allotment KYC files preview and photo replacement/deletion persist after reload', async ({ page }, info) => {
+ // The isolated server returns synthetic storage URLs; serve the uploaded image bytes at that boundary.
+ await page.route('**/api/upload/private/browser-fixture-*.png', route => route.fulfill({ status: 200, contentType: 'image/png', body: png }));
+ const unit = info.project.name === 'mobile' ? '8' : '7';
+ const modal = await open(page, unit);
+ await modal.getByLabel('New customer name').fill(`Dual KYC ${unit}`);
+ await modal.getByLabel('Phone', { exact: true }).fill(`987658000${unit}`);
+ await modal.getByLabel('Key number').fill(`DUAL-KEY-${unit}`);
+ await modal.getByLabel('Receipt number', { exact: true }).fill(`DUAL-${unit}`);
+ await modal.getByLabel('KYC photo', { exact: true }).setInputFiles({ name: 'customer-photo.png', mimeType: 'image/png', buffer: png });
+ await modal.getByLabel('ID proof (image or PDF)', { exact: true }).setInputFiles({ name: 'identity-proof.png', mimeType: 'image/png', buffer: png });
+ await modal.getByRole('checkbox').check();
+ await modal.getByRole('button', { name: 'Collect & Allot Locker', exact: true }).click();
+ await expect(page.getByRole('heading', { name: 'Allotment Complete', exact: true })).toBeVisible();
+ await page.getByRole('button', { name: 'Done & Close', exact: true }).click();
+ const showKyc = async () => {
+  await page.getByRole('button', { name: `Open locker ${unit}`, exact: true }).getByRole('button', { name: 'View KYC', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'KYC & ID documents', exact: true });
+  await expect(dialog).toBeVisible();
+  return dialog;
+ };
+ let kyc = await showKyc();
+ await expect(kyc.getByText('2 documents on record')).toBeVisible();
+ for (const name of ['customer-photo.png', 'identity-proof.png']) {
+  await kyc.getByRole('group').filter({ hasText: name }).getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: `${name} Preview`, exact: true });
+  await expect(preview).toBeVisible();
+  await expect.poll(() => preview.getByRole('img', { name, exact: true }).evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await preview.getByRole('button', { name: 'Close preview', exact: true }).click();
+ }
+ const chooser = page.waitForEvent('filechooser');
+ await kyc.getByRole('group').filter({ hasText: 'customer-photo.png' }).getByRole('button', { name: 'Replace', exact: true }).click();
+ await (await chooser).setFiles({ name: 'replaced-photo.png', mimeType: 'image/png', buffer: png });
+ await expect(kyc.getByText('replaced-photo.png', { exact: true })).toBeVisible();
+ await expect(kyc.getByText('2 documents on record')).toBeVisible();
+ await kyc.getByRole('group').filter({ hasText: 'replaced-photo.png' }).getByRole('button', { name: 'Delete', exact: true }).click();
+ await page.getByRole('alertdialog').getByRole('button', { name: 'Delete document', exact: true }).click();
+ await expect(kyc.getByText('1 document on record')).toBeVisible();
+ await page.reload();
+ kyc = await showKyc();
+ await expect(kyc.getByText('1 document on record')).toBeVisible();
+ await expect(kyc.getByText('identity-proof.png', { exact: true })).toBeVisible();
+ await expect(kyc.getByText('KYC photo (customer profile)', { exact: true })).toHaveCount(0);
+});

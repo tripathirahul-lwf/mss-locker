@@ -186,3 +186,70 @@ test('imported paid bills do not invent receipts or display a different tenancy 
   await expect(history).toContainText('Historical bill marked paid; no receipt is recorded.');
   await expect(history).not.toContainText('WRONG-TENANCY-RECEIPT');
 });
+
+
+test('client audit opens uploaded receipt first and generated receipt includes recorded GST', async ({ page }) => {
+  await page.route(/\/api\/payments\/[a-f0-9]{24}$/, async route => {
+    const response = await route.fetch(), body = await response.json();
+    body.data.proofUrl = '/api/upload/private/client-receipt.png'; body.data.proofDocumentName = 'client-receipt.png';
+    await route.fulfill({ response, json: body });
+  });
+  await page.route('**/api/upload/private/client-receipt.png', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yK4sAAAAASUVORK5CYII=', 'base64') }));
+  const modal = await openOccupied(page);
+  await modal.getByRole('button', { name: 'View receipt REFERENCE-77', exact: true }).click();
+  const uploaded = page.getByRole('dialog', { name: 'Uploaded receipt REFERENCE-77', exact: true });
+  await expect(uploaded.getByRole('img', { name: 'Uploaded receipt', exact: true })).toBeVisible();
+  await expect.poll(() => uploaded.getByRole('img', { name: 'Uploaded receipt', exact: true }).evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await uploaded.getByRole('button', { name: 'View generated receipt', exact: true }).click();
+  const generated = page.getByRole('dialog', { name: 'Payment receipt REFERENCE-77', exact: true });
+  await expect(generated.getByRole('region', { name: 'Receipt GST breakdown' })).toContainText('540.00');
+  await expect(generated.getByRole('region', { name: 'Receipt GST breakdown' })).toContainText('3,590.00');
+});
+
+test('client audit exports Due Soon lockers from the same dashboard', async ({ page }) => {
+  const locker = await openOccupied(page); await expect(locker).toBeVisible(); await locker.getByRole('button', { name: 'Close', exact: true }).click(); await expect(locker).toHaveCount(0);
+  await page.getByRole('button', { name: 'Due Soon', exact: true }).click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Due Soon Excel', exact: true }).click();
+  expect((await download).suggestedFilename()).toBe('lockers-due_soon.xlsx');
+});
+
+
+test('Excel export displays server errors and can retry without leaving the dashboard', async ({ page }) => {
+  let attempts = 0;
+  await page.route('**/api/reports/locker-dues/export?*', async route => {
+    attempts++;
+    if (attempts === 1) return route.fulfill({ status: 413, json: { message: 'Narrow the search before exporting.' } });
+    return route.continue();
+  });
+  const locker = await openOccupied(page); await expect(locker).toBeVisible(); await locker.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Overdue', exact: true }).click();
+  const path = page.url(), button = page.getByRole('button', { name: 'Export Overdue Excel', exact: true });
+  await button.click(); await expect(page.getByRole('alert')).toContainText('Narrow the search before exporting.');
+  await expect(button).toBeEnabled();
+  const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+  expect(download.suggestedFilename()).toBe('lockers-overdue.xlsx'); expect(page.url()).toBe(path); expect(attempts).toBe(2);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+
+test('uploaded receipt failure stays visible and retries the original PDF', async ({ page }) => {
+ await page.route(/\/api\/payments\/[a-f0-9]{24}$/, async route => {
+  const response = await route.fetch(), body = await response.json();
+  body.data.proofUrl = '/api/upload/private/client-receipt.pdf'; body.data.proofDocumentName = 'client-receipt.pdf';
+  await route.fulfill({ response, json: body });
+ });
+ let attempts = 0;
+ await page.route('**/api/upload/private/client-receipt.pdf', route => {
+  attempts++;
+  return attempts === 1 ? route.fulfill({ status: 503, body: 'Unavailable' }) : route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF' });
+ });
+ const modal = await openOccupied(page);
+ await modal.getByRole('button', { name: 'View receipt REFERENCE-77', exact: true }).click();
+ const uploaded = page.getByRole('dialog', { name: 'Uploaded receipt REFERENCE-77', exact: true });
+ await expect(uploaded.getByRole('alert')).toContainText('Could not load the uploaded receipt');
+ await expect(page.getByRole('dialog', { name: 'Payment receipt REFERENCE-77', exact: true })).toHaveCount(0);
+ await uploaded.getByRole('button', { name: 'Retry receipt', exact: true }).click();
+ await expect(uploaded.locator('iframe[title="Uploaded receipt document"]')).toHaveAttribute('src', /^blob:/);
+ expect(attempts).toBe(2);
+});

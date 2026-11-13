@@ -59,6 +59,7 @@ export interface Customer {
 }
 
 export interface CustomerKycDocument {
+  isProfilePhoto?: boolean;
   _id: string;
   customerId: string;
   documentType: KycDocumentType;

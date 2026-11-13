@@ -1,3 +1,4 @@
+import { reportService } from '../../../services/reportService';
 import { ClosedLockerRecords } from './ClosedLockerRecords';
 import { lazy,Suspense,useState,useEffect,useRef,useImperativeHandle,forwardRef,useMemo,useCallback } from 'react';
 import { useQuery,useQueryClient,keepPreviousData } from '@tanstack/react-query';
@@ -58,6 +59,8 @@ export const DashboardLockersSection = forwardRef<
   const canViewKyc=usePermission('customers.kyc.view');
   const canViewAllocations=usePermission('allocations.view');
   const detailRequest=useRef(0);
+  const canExport = usePermission('reports.export');
+  const [exporting, setExporting] = useState(false), [exportError, setExportError] = useState('');
   const canAllocate = usePermission('allocations.create');
 
   // Filter & Pagination State initialized from URL query params or localStorage
@@ -477,6 +480,7 @@ export const DashboardLockersSection = forwardRef<
               })}
           </div>
 
+          {canExport && ['OVERDUE', 'DUE_SOON'].includes(statusParam) && <div className="space-y-1"><Button variant="outline" disabled={exporting} onClick={async () => { setExporting(true); setExportError(''); try { await reportService.exportLockerDues({ status: statusParam, search: search.trim() || undefined, size, rackNumber }); } catch (error) { setExportError(error instanceof Error ? error.message : 'Could not export lockers. Please retry.'); } finally { setExporting(false); } }}>{exporting ? 'Exporting...' : `Export ${statusParam === 'OVERDUE' ? 'Overdue' : 'Due Soon'} Excel`}</Button>{exportError && <p role="alert" className="text-xs text-red-700">{exportError}</p>}</div>}
           {/* View Switcher: Cards, Table, Racks */}
           <div className="vault-view-switcher flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 shrink-0 self-start lg:self-auto">
             <button

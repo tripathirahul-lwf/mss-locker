@@ -294,7 +294,7 @@ export class LockerService {
         status: 'ACTIVE',
       })
         .select('lockerId customerId startDate endDate billingCycle paidThroughDate nextRenewalDueDate')
-        .populate('customerId', 'fullName customerCode phone kycStatus')
+        .populate('customerId', 'fullName customerCode phone kycStatus photoUrl')
         .lean(),
       LockerInvoice.find({
         lockerId: { $in: lockerIds },
@@ -309,9 +309,9 @@ export class LockerService {
     // Fetch counts once for this page, rather than a request per locker.
     const documentCounts = await CustomerKycDocument.aggregate([
       { $match: { customerId: { $in: activeAllocations.map(a => (a.customerId as any)?._id).filter(Boolean) }, isActive: true } },
-      { $group: { _id: '$customerId', count: { $sum: 1 } } },
+      { $group: { _id: '$customerId', count: { $sum: 1 }, urls: { $addToSet: '$documentUrl' } } },
     ]);
-    const documentCountMap = new Map(documentCounts.map(row => [String(row._id), row.count as number]));
+    const documentCountMap = new Map(documentCounts.map(row => [String(row._id), { count: row.count as number, urls: row.urls as string[] }]));
 
     const allocMap = new Map<string, any>();
     activeAllocations.forEach((a) => {
@@ -341,7 +341,7 @@ export class LockerService {
         isRenewalDue: pageGroups.dueSoon.has(lockerIdStr) || pageGroups.overdue.has(lockerIdStr),
         isOverdue: pageGroups.overdue.has(lockerIdStr),
         tenantKycStatus: alloc?.customerId?.kycStatus,
-        tenantKycDocumentCount: documentCountMap.get(String(alloc?.customerId?._id)) || 0,
+        tenantKycDocumentCount: (documentCountMap.get(String(alloc?.customerId?._id))?.count || 0) + (alloc?.customerId?.photoUrl && !documentCountMap.get(String(alloc.customerId._id))?.urls.includes(alloc.customerId.photoUrl) ? 1 : 0),
         tenantName: alloc?.customerId?.fullName,
         tenantCode: alloc?.customerId?.customerCode,
         tenantPhone: alloc?.customerId?.phone,
@@ -383,7 +383,7 @@ export class LockerService {
     const sanitized = this.sanitizeLocker(locker, canViewSensitive);
     const [activeAlloc, pendingInv] = await Promise.all([
       LockerAllocation.findOne({ lockerId: locker._id, status: 'ACTIVE' })
-        .populate('customerId', 'fullName customerCode phone kycStatus')
+        .populate('customerId', 'fullName customerCode phone kycStatus photoUrl')
         .lean(),
       LockerInvoice.findOne({
         lockerId: locker._id,

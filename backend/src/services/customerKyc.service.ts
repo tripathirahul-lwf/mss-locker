@@ -123,7 +123,12 @@ export class CustomerKycService {
       .populate('verifiedBy', 'name username')
       .populate('createdBy', 'name username');
 
-    return docs.map((d) => this.sanitizeKycDoc(d, canViewSensitive));
+    const result = docs.map((d) => this.sanitizeKycDoc(d, canViewSensitive));
+    const customer = await Customer.findById(customerId).select('photoUrl').lean();
+    if (customer?.photoUrl && !docs.some(doc => doc.documentUrl === customer.photoUrl)) {
+      result.push({ _id: `profile-photo:${customerId}`, customerId, documentType: 'OTHER', documentNumber: '', documentUrl: customer.photoUrl, documentName: 'KYC photo (customer profile)', isProfilePhoto: true, verificationStatus: 'PENDING', isPrimary: false, isActive: true } as any);
+    }
+    return result;
   }
 
   /**
@@ -222,6 +227,7 @@ export class CustomerKycService {
       StorageService.assertPrivateDocumentUrl(input.documentUrl.trim());
       doc.documentUrl = input.documentUrl.trim();
     }
+    if (replacedDocumentUrl) await Customer.updateOne({ _id: doc.customerId, photoUrl: replacedDocumentUrl }, { $set: { photoUrl: doc.documentUrl } });
     if (input.documentName) doc.documentName = input.documentName.trim();
     if (input.mimeType) doc.mimeType = input.mimeType;
     if (input.fileSize !== undefined) doc.fileSize = input.fileSize;
@@ -344,6 +350,7 @@ export class CustomerKycService {
     }
     await Customer.findOneAndUpdate({ _id: doc.customerId }, { $inc: { __v: 1 } }, { timestamps: false });
 
+    await Customer.updateOne({ _id: doc.customerId, photoUrl: doc.documentUrl }, { $unset: { photoUrl: '' } });
     doc.isActive = false;
     await doc.save();
     deletedUrl = doc.documentUrl;
