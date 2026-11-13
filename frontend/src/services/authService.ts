@@ -66,6 +66,12 @@ export const authService = {
     return response.data.message;
   },
 
+  /** Drops local session state after the server has rejected the session. */
+  clearLocalSession(): void {
+    setAccessToken(null);
+    setSessionHint(false);
+  },
+
   async restoreSession(): Promise<User | null> {
     if (!localStorage.getItem(SESSION_HINT_KEY)) return null;
     if (!restorePromise) {

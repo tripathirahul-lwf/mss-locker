@@ -1,6 +1,7 @@
 import React,{ createContext,useContext,useState,useEffect,useCallback } from 'react';
 import { User } from '../types/auth';
 import { authService,LoginCredentials } from '../services/authService';
+import { SESSION_EXPIRED_EVENT } from '../services/apiClient';
 import { offlineSyncService } from '../offline/services/offline-sync.service';
 
 export interface AuthContextValue {
@@ -43,6 +44,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     initSession();
   }, [initSession]);
+
+  // A definitive refresh rejection mid-session ends the session so the
+  // protected routes redirect to login rather than showing raw 401 errors.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      authService.clearLocalSession();
+      setUser(null);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, []);
 
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);

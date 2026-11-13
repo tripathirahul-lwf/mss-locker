@@ -28,6 +28,24 @@ describe('authentication outage responses', () => {
     expect(response.status).toBe(401);
     expect(response.headers['set-cookie']).toBeDefined();
   });
+  it('falls back to a later duplicate refresh cookie when the first is stale', async () => {
+    const spy = vi.spyOn(AuthService, 'refresh').mockImplementation(async (token: string) => {
+      if (token !== 'fresh-token') throw new Error('Session expired or revoked');
+      return { accessToken: 'access', newRefreshToken: 'rotated', user: { id: 'u1' } as any };
+    });
+    const response = await request(authApp).post('/api/auth/refresh')
+      .set('Cookie', 'vault_refresh_token=stale-token; vault_refresh_token=fresh-token');
+    expect(response.status).toBe(200);
+    expect(spy.mock.calls.map(call => call[0])).toEqual(['stale-token', 'fresh-token']);
+    expect(String(response.headers['set-cookie'])).toContain('vault_refresh_token=rotated');
+  });
+  it('does not try further candidates after an infrastructure failure', async () => {
+    const spy = vi.spyOn(AuthService, 'refresh').mockRejectedValue(Object.assign(new Error('server selection failed'), { name: 'MongoServerSelectionError' }));
+    const response = await request(authApp).post('/api/auth/refresh')
+      .set('Cookie', 'vault_refresh_token=a; vault_refresh_token=b');
+    expect(response.status).toBe(503);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
   it('rejects missing tokens without an internal error', async () => {
     const response = await request(authApp).post('/api/auth/refresh');
     expect(response.status).toBe(401);

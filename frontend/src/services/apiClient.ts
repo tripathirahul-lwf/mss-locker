@@ -2,6 +2,9 @@ import axios,{ AxiosError,AxiosInstance,InternalAxiosRequestConfig } from 'axios
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+/** Fired when the server definitively rejects the refresh session. */
+export const SESSION_EXPIRED_EVENT = 'auth:session-expired';
+
 // In-memory access token storage
 let currentAccessToken: string | null = null;
 
@@ -112,6 +115,9 @@ apiClient.interceptors.response.use(
         // otherwise valid session. Clear it only on an authoritative auth rejection.
         if (refreshStatus === 400 || refreshStatus === 401 || refreshStatus === 403) {
           setAccessToken(null);
+          // Let the auth layer end the session and route to login instead of
+          // leaving screens stranded with raw "status code 401" errors.
+          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
         }
         return Promise.reject(refreshError);
       } finally {
