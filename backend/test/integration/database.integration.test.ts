@@ -1,3 +1,9 @@
+// Configure Mongoose before application imports register their models.
+vi.hoisted(async () => {
+  const { default: mongoose } = await import('mongoose');
+  mongoose.set('autoCreate', false);
+  mongoose.set('autoIndex', false);
+});
 import ExcelJS from 'exceljs';
 import { RenewalCollectionRequest } from '../../src/models/RenewalCollectionRequest';
 import { RenewalCollectionService } from '../../src/services/renewalCollection.service';
@@ -66,14 +72,14 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     replicaSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
     mongoose.set('transactionAsyncLocalStorage', true);
     await mongoose.connect(replicaSet.getUri(), { dbName: 'vault-ledger-integration' });
+    // Create collections and indexes explicitly after the disposable connection is ready.
+    await Promise.all(Object.values(mongoose.models).map(model => model.syncIndexes()));
   }, 120_000);
 
   beforeEach(async () => {
-    await mongoose.connection.db?.dropDatabase();
-    await RenewalCollectionRequest.syncIndexes();
-    await Sequence.syncIndexes();
-    await Payment.syncIndexes();
-    await AllotmentRequest.syncIndexes();
+    // Preserve collections and indexes between tests, including idempotency constraints.
+    // Only this suite's disposable replica is connected here.
+    await Promise.all(Object.values(mongoose.connection.collections).map(collection => collection.deleteMany({})));
   });
 
   afterAll(async () => {
