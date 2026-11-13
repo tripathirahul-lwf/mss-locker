@@ -130,9 +130,40 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     expect(typeof sheet.getCell('H2').value).toBe('number');
     expect(sheet.getColumn(8).numFmt).toBe('#,##0.00');
     expect(workbook.getWorksheet('Summary')!.getCell('B3').value).toBe(28);
+    const lastPage = await request(app).get(endpoint + '&page=999').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(lastPage.body.data.page).toBe(2);
+    expect(lastPage.body.data.invoices).toHaveLength(3);
+    await request(app).get(endpoint + '&page=100001').set('Authorization', `Bearer ${token}`).expect(400);
+    await request(app).get(endpoint + '&page=1&page=2').set('Authorization', `Bearer ${token}`).expect(400);
+    const aggregate = vi.spyOn(LockerInvoice, 'aggregate').mockReturnValue({ session: async () => [{ count: 10001 }] } as any);
+    const find = vi.spyOn(LockerInvoice, 'find');
+    try {
+      await request(app).get(exportEndpoint).set('Authorization', `Bearer ${exporter}`).expect(413);
+      expect(find).not.toHaveBeenCalled();
+    } finally { aggregate.mockRestore(); find.mockRestore(); }
+
 
     await request(app).get('/api/reports/gst?from=2026-02-30').set('Authorization', `Bearer ${token}`).expect(400);
     await request(app).get('/api/reports/gst?page=0').set('Authorization', `Bearer ${token}`).expect(400);
+  });
+
+  it('GST review covers SYSTEM zero and absent tax, preserves recorded figures and returns an empty period safely', async () => {
+    const completed = await AllotmentService.complete(await allotment('1987'), actor);
+    const copy = (await LockerInvoice.findById(completed.invoice!._id))!.toObject();
+    delete (copy as any)._id; delete (copy as any).__v;
+    const rows = await LockerInvoice.create([
+      { ...copy, invoiceNumber: 'GST-SYSTEM-ZERO', source: 'SYSTEM', issueDate: new Date('2026-11-02T10:00:00Z'), baseRent: 1180, taxAmount: 0, totalAmount: 1180 },
+      { ...copy, invoiceNumber: 'GST-MISSING', source: 'SYSTEM', issueDate: new Date('2026-11-02T10:00:00Z'), baseRent: 100.1, taxAmount: 0, totalAmount: 100.1 },
+      { ...copy, invoiceNumber: 'GST-AFTER', issueDate: new Date('2026-11-02T18:30:00Z') },
+    ]);
+    await LockerInvoice.collection.updateOne({ _id: rows[1]._id }, { $unset: { taxAmount: '' } });
+    const token = await apiOperator([PERMISSIONS.REPORTS_VIEW]);
+    const result = await request(app).get('/api/reports/gst?from=2026-11-02&to=2026-11-02').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(result.body.data.summary).toMatchObject({ count: 2, unitemizedCount: 2, taxAmount: 0, baseRent: 1280.1 });
+    expect(result.body.data.invoices.find((row: any) => row.invoiceNumber === 'GST-MISSING').taxAmount).toBe(0);
+    expect((await LockerInvoice.findById(rows[0]._id))!.taxAmount).toBe(0);
+    const empty = await request(app).get('/api/reports/gst?from=2000-01-01&to=2000-01-01&page=99').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(empty.body.data).toMatchObject({ invoices: [], page: 1, totalPages: 1, summary: { count: 0, taxAmount: 0 } });
   });
 
   it('keeps 30-day boundaries, overdue and KYC filters consistent with dashboard counts', async () => {

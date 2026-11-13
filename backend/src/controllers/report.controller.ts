@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { LockerAllocation } from '../models/LockerAllocation';
 import { LockerInvoice } from '../models/LockerInvoice';
 import { PERMISSIONS } from '../constants/permissions';
@@ -85,32 +86,49 @@ export const getGstRegister = async (req: Request, res: Response, next: NextFunc
   try {
     const exporting = req.path.endsWith('/export');
     const { start, end } = reportRange(req.query.from as string, req.query.to as string);
-    const page = exporting ? 1 : Number(req.query.page || 1);
-    if (!Number.isSafeInteger(page) || page < 1) throw Object.assign(new Error('Invalid page'), { statusCode: 400 });
+    if (!exporting && req.query.page !== undefined && (typeof req.query.page !== 'string' || !/^\d+$/.test(req.query.page))) throw Object.assign(new Error('Invalid page'), { statusCode: 400 });
+    const requestedPage = exporting ? 1 : Number(req.query.page ?? 1);
+    if (!Number.isSafeInteger(requestedPage) || requestedPage < 1 || requestedPage > 100000) throw Object.assign(new Error('Invalid page'), { statusCode: 400 });
     const match = { status: { $in: ['ISSUED', 'PAID'] }, issueDate: { $gte: start, $lte: end } };
-    const [summary, invoices] = await Promise.all([
-      LockerInvoice.aggregate([{ $match: match }, { $group: { _id: null, count: { $sum: 1 }, baseRent: { $sum: '$baseRent' }, adjustments: { $sum: { $subtract: [{ $subtract: ['$totalAmount', '$taxAmount'] }, '$baseRent'] } }, taxAmount: { $sum: '$taxAmount' }, totalAmount: { $sum: '$totalAmount' }, paidAmount: { $sum: '$paidAmount' }, balanceAmount: { $sum: '$balanceAmount' }, unitemizedCount: { $sum: { $cond: [{ $and: [{ $eq: ['$source', 'LEGACY_IMPORT'] }, { $eq: ['$taxAmount', 0] }] }, 1, 0] } } } }]),
-      LockerInvoice.find(match).select('invoiceNumber invoiceType source issueDate baseRent taxAmount totalAmount paidAmount balanceAmount paymentStatus customerId lockerId').populate('customerId', 'fullName customerCode').populate('lockerId', 'lockerNumber size').sort({ issueDate: -1, _id: -1 }).skip((page - 1) * 25).limit(exporting ? 10001 : 25).lean(),
-    ]);
-    const totals = summary[0] || { count: 0, baseRent: 0, adjustments: 0, taxAmount: 0, totalAmount: 0, paidAmount: 0, balanceAmount: 0, unitemizedCount: 0 };
-    delete totals._id;
+    // A zero tax field alone does not establish exemption, including SYSTEM bills made by old imports.
+    const reviewCondition = { $and: [{ $lte: [{ $ifNull: ['$taxAmount', 0] }, 0] }, { $gt: ['$totalAmount', 0] }] };
+    const moneySum = (field: string) => ({ $sum: { $round: [{ $ifNull: ['$' + field, 0] }, 2] } });
+    let totals: any;
+    let invoices: any[] = [];
+    let page = 1;
+    // Keep summary and rows on the same ledger snapshot while payments/edits may run concurrently.
+    await mongoose.connection.transaction(async session => {
+      const summary = await LockerInvoice.aggregate([
+        { $match: match },
+        { $group: { _id: null, count: { $sum: 1 }, baseRent: moneySum('baseRent'), adjustments: { $sum: { $round: [{ $subtract: [{ $subtract: ['$totalAmount', { $ifNull: ['$taxAmount', 0] }] }, '$baseRent'] }, 2] } }, taxAmount: moneySum('taxAmount'), totalAmount: moneySum('totalAmount'), paidAmount: moneySum('paidAmount'), balanceAmount: moneySum('balanceAmount'), unitemizedCount: { $sum: { $cond: [reviewCondition, 1, 0] } } } },
+      ]).session(session);
+      totals = summary[0] || { count: 0, baseRent: 0, adjustments: 0, taxAmount: 0, totalAmount: 0, paidAmount: 0, balanceAmount: 0, unitemizedCount: 0 };
+      delete totals._id;
+      for (const field of ['baseRent', 'adjustments', 'taxAmount', 'totalAmount', 'paidAmount', 'balanceAmount']) totals[field] = Math.round((totals[field] + Number.EPSILON) * 100) / 100;
+      if (exporting && totals.count > 10000) throw Object.assign(new Error('Export exceeds 10,000 bills. Select a shorter date range.'), { statusCode: 413 });
+      page = Math.min(requestedPage, Math.max(1, Math.ceil(totals.count / 25)));
+      invoices = await LockerInvoice.find(match).select('invoiceNumber invoiceType source issueDate baseRent taxAmount totalAmount paidAmount balanceAmount paymentStatus customerId lockerId').populate('customerId', 'fullName customerCode').populate('lockerId', 'lockerNumber size').sort({ issueDate: -1, _id: -1 }).skip((page - 1) * 25).limit(exporting ? 10000 : 25).session(session).lean();
+    }, { readConcern: { level: 'snapshot' } });
+    for (const row of invoices) {
+      for (const field of ['baseRent', 'taxAmount', 'totalAmount', 'paidAmount', 'balanceAmount']) row[field] = Number.isFinite(row[field]) ? Math.round((row[field] + Number.EPSILON) * 100) / 100 : 0;
+    }
     res.setHeader('Cache-Control', 'private, no-store');
     if (exporting) {
-      if (totals.count > 10000) throw Object.assign(new Error('Export exceeds 10,000 bills. Select a shorter date range.'), { statusCode: 413 });
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet('GST bills');
       sheet.addRow(['Bill', 'Issue date', 'Customer', 'Customer code', 'Locker', 'Rent before GST (INR)', 'Other / discount (INR)', 'GST recorded (INR)', 'Bill total (INR)', 'Paid (INR)', 'Balance (INR)', 'Payment status', 'GST note']);
       for (const row of invoices as any[]) {
         const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(row.issueDate);
-        sheet.addRow([row.invoiceNumber, new Date(day + 'T00:00:00Z'), row.customerId?.fullName || '', row.customerId?.customerCode || '', String(row.lockerId?.lockerNumber || ''), row.baseRent, Math.round((row.totalAmount - row.taxAmount - row.baseRent) * 100) / 100, row.taxAmount, row.totalAmount, row.paidAmount, row.balanceAmount, row.paymentStatus, row.source === 'LEGACY_IMPORT' && row.taxAmount === 0 ? 'GST not itemized in import' : '']);
+        sheet.addRow([row.invoiceNumber, new Date(day + 'T00:00:00Z'), row.customerId?.fullName || '', row.customerId?.customerCode || '', String(row.lockerId?.lockerNumber || ''), row.baseRent, Math.round((row.totalAmount - row.taxAmount - row.baseRent) * 100) / 100, row.taxAmount, row.totalAmount, row.paidAmount, row.balanceAmount, row.paymentStatus, !(row.taxAmount > 0) && row.totalAmount > 0 ? 'Zero/missing GST; review original bill' : '']);
       }
       sheet.getRow(1).font = { bold: true }; sheet.views = [{ state: 'frozen', ySplit: 1 }]; sheet.autoFilter = 'A1:M1';
       sheet.columns.forEach(column => { column.width = 24; });
       sheet.getColumn(2).numFmt = 'dd/mm/yyyy'; sheet.getColumn(5).numFmt = '@';
       for (let column = 6; column <= 11; column++) sheet.getColumn(column).numFmt = '#,##0.00';
       const summarySheet = workbook.addWorksheet('Summary');
-      summarySheet.addRows([['Period from (IST)', start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })], ['Period to (IST)', end.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })], ['Bills', totals.count], ['Rent before GST (INR)', totals.baseRent], ['Other / discount (INR)', totals.adjustments], ['GST billed (INR)', totals.taxAmount], ['Invoice total (INR)', totals.totalAmount], ['Paid (INR)', totals.paidAmount], ['Balance (INR)', totals.balanceAmount], ['GST not itemized (imported bills)', totals.unitemizedCount], ['Basis', 'Recorded invoice GST, including unpaid bills; not net tax payable.'], ['Exclusions', 'Draft/cancelled bills and refundable deposits.']]);
+      summarySheet.addRows([['Period from (IST)', start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })], ['Period to (IST)', end.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })], ['Bills', totals.count], ['Rent before GST (INR)', totals.baseRent], ['Other / discount (INR)', totals.adjustments], ['Recorded GST (INR)', totals.taxAmount], ['Invoice total (INR)', totals.totalAmount], ['Paid (INR)', totals.paidAmount], ['Balance (INR)', totals.balanceAmount], ['Zero/missing GST bills to review', totals.unitemizedCount], ['Basis', 'Recorded invoice GST, including unpaid bills; not net tax payable.'], ['Exclusions', 'Draft/cancelled bills and refundable deposits.']]);
       summarySheet.getColumn(1).width = 36; summarySheet.getColumn(2).width = 75;
+      for (let row = 4; row <= 9; row++) summarySheet.getCell(row, 2).numFmt = '#,##0.00';
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename="gst-register.xlsx"');
       await workbook.xlsx.write(res); res.end(); return;

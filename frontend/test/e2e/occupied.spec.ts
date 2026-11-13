@@ -264,7 +264,7 @@ test('GST tab stays on dashboard and shows invoice tax with date validation', as
  await register.getByLabel('To date', { exact: true }).fill('2030-12-31');
  await expect(register.getByText('REFERENCE-77', { exact: true })).toHaveCount(0);
  await expect(register.getByRole('table')).toBeVisible();
- await expect(register).toContainText('GST billed');
+ await expect(register).toContainText('Recorded GST');
  await expect(register).toContainText('540.00');
  expect(new URL(page.url()).pathname).toBe('/');
 
@@ -278,4 +278,35 @@ test('GST tab stays on dashboard and shows invoice tax with date validation', as
  await page.getByRole('button', { name: 'All', exact: true }).click();
  await expect(register).toHaveCount(0);
  await expect(page.getByRole('button', { name: 'Open locker 77', exact: true })).toBeVisible();
+});
+
+
+test('GST marks SYSTEM zero-tax bills for review and recovers after export failure', async ({ page }) => {
+ await page.route('**/api/reports/gst?*', async route => {
+  const response = await route.fetch(), body = await response.json();
+  body.data.summary.unitemizedCount = 1;
+  body.data.invoices[0].taxAmount = 0;
+  body.data.invoices[0].source = 'SYSTEM';
+  await route.fulfill({ response, json: body });
+ });
+ let attempts = 0;
+ await page.route('**/api/reports/gst/export?*', async route => {
+  attempts++;
+  if (attempts === 1) return route.fulfill({ status: 413, json: { message: 'Select a shorter date range.' } });
+  return route.continue();
+ });
+ const locker = await openOccupied(page); await expect(locker).toBeVisible();
+ await locker.getByRole('button', { name: 'Close', exact: true }).click();
+ await page.getByRole('button', { name: 'GST', exact: true }).click();
+ const register = page.getByRole('region', { name: 'GST register', exact: true });
+ await register.getByLabel('From date', { exact: true }).fill('2020-01-01');
+ await register.getByLabel('To date', { exact: true }).fill('2030-12-31');
+ await expect(register).toContainText('GST total may be incomplete');
+ await expect(register).toContainText('Zero GST');
+ await register.getByRole('button', { name: 'Export Excel', exact: true }).click();
+ await expect(register.getByRole('alert')).toContainText('Select a shorter date range.');
+ const download = page.waitForEvent('download');
+ await register.getByRole('button', { name: 'Export Excel', exact: true }).click();
+ await download;
+ await expect(register.getByRole('alert')).toHaveCount(0);
 });
