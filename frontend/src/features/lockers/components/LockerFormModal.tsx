@@ -365,7 +365,7 @@ export function LockerFormModal({
 
   const modalContent = (
     <div
-      className={embedded ? "min-w-0" : "fixed inset-0 z-[110] flex h-[100dvh] w-screen items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6 animate-in fade-in-0 duration-150"}
+      className={embedded ? "min-w-0" : "fixed inset-0 z-[110] flex h-[100dvh] w-screen items-center justify-center bg-slate-950/70 p-3 backdrop-blur-xs sm:p-5 animate-in fade-in-0 duration-150"}
       onMouseDown={(event) => {
         if (!embedded && event.target === event.currentTarget) requestClose();
       }}
@@ -375,12 +375,12 @@ export function LockerFormModal({
         role={embedded ? undefined : "dialog"}
         aria-modal={embedded ? undefined : true}
         aria-labelledby={embedded ? undefined : "locker-form-title"}
-        className={embedded ? "min-w-0 bg-white" : "flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl text-base text-slate-950"}
+        className={embedded ? "min-w-0 bg-white" : "flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl text-base text-slate-950"}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        {!embedded && <div className="bg-white px-5 pb-4 pt-6 sm:px-8 sm:pt-8 shrink-0">
-          <div className="flex items-center justify-between gap-3">
+        {!embedded && <div className="bg-white px-4 pb-5 pt-5 sm:px-8 sm:pt-7 shrink-0">
+          <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="hidden">
                 <KeyRound className="w-5 h-5 text-emerald-700" />
@@ -395,7 +395,7 @@ export function LockerFormModal({
                   </h2>
                   {isEdit && (
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm font-medium border ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold border ${
                         locker?.status === 'OCCUPIED'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                           : locker?.status === 'VACANT'
@@ -418,7 +418,7 @@ export function LockerFormModal({
                 </div>
                 <p className="text-sm sm:text-base text-slate-600 mt-2">
                   {isEdit
-                    ? `${formatRackTitle(locker?.rackNumber)} • ${locker?.section || 'Main Vault'} • Size ${locker?.size}`
+                    ? `Size ${locker?.size} \u2022 ${formatRackTitle(locker?.rackNumber)}`
                     : 'Register a new safe-deposit box compartment into the vault registry'}
                 </p>
               </div>
@@ -426,16 +426,16 @@ export function LockerFormModal({
             <button
               type="button"
               onClick={requestClose}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-slate-600 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-600 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               aria-label="Close dialog"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Active Tenant Context Bar (If locker is currently occupied) */}
           {isEdit && locker?.status === 'OCCUPIED' && currentTenant && (
-            <div className="mt-3.5 flex items-center justify-between gap-3 p-2.5 px-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-sm">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-slate-100 text-sm">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="h-7 w-7 rounded-lg bg-emerald-600 text-white font-semibold text-sm flex items-center justify-center shrink-0">
                   {currentTenant.fullName.charAt(0).toUpperCase()}
@@ -449,7 +449,7 @@ export function LockerFormModal({
                       {currentTenant.customerCode}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600 mt-1">
                     {currentTenant.phone && (
                       <span className="flex items-center gap-1">
                         <Phone className="w-3 h-3 text-slate-400" />
@@ -479,7 +479,7 @@ export function LockerFormModal({
           className={embedded ? "min-w-0" : "flex min-h-0 flex-col flex-1 overflow-hidden"}
         >
           <fieldset disabled={isSubmitting} className="contents">
-          <div ref={scrollContainerRef} className={embedded ? "space-y-4 text-sm" : "px-5 py-4 sm:px-8 space-y-5 overflow-y-auto min-h-0 flex-1 text-base overscroll-contain"}>
+          <div ref={scrollContainerRef} className={embedded ? "space-y-4 text-sm" : "px-4 pb-7 pt-2 sm:px-8 space-y-6 overflow-y-auto min-h-0 flex-1 text-base overscroll-contain"}>
             {error && (
               <div
                 role="alert"
@@ -491,7 +491,7 @@ export function LockerFormModal({
             )}
 
             {/* 1. Location & Dimensions Card */}
-            <div className="rounded-2xl bg-slate-100 p-4 sm:p-6 space-y-4">
+            <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/70">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs">
@@ -503,14 +503,14 @@ export function LockerFormModal({
                     </h3>
                   </div>
                 </div>
-                <span className="text-[10.5px] text-slate-400 font-medium">
+                <span className="text-xs text-slate-400 font-medium">
                   <span className="text-rose-600 font-semibold">*</span> Required fields
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Locker Number */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <label htmlFor="locker-number" className="font-semibold text-slate-700 text-sm block">
                     Locker Number <span className="text-rose-600 font-semibold">*</span>
                   </label>
@@ -543,7 +543,7 @@ export function LockerFormModal({
                 </div>
 
                 {/* Rack Number */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <label htmlFor="rack-number" className="font-semibold text-slate-700 text-sm block">
                     Rack Identifier <span className="text-rose-600 font-semibold">*</span>
                   </label>
@@ -575,7 +575,7 @@ export function LockerFormModal({
                 </div>
 
                 {/* Size Classification with Quick Segmented Selector */}
-                <div className="sm:col-span-2 space-y-2">
+                <div className="sm:col-span-2 space-y-3 rounded-2xl bg-slate-100 p-4">
                   <div className="flex items-center justify-between">
                     <label className="font-semibold text-slate-700 text-sm block">
                       Size Classification <span className="text-rose-600 font-semibold">*</span>
@@ -639,7 +639,7 @@ export function LockerFormModal({
                         onChange={(e) => {
                           if (e.target.value) handleSizeChange(e.target.value);
                         }}
-                        className={`w-full h-8 pl-2 pr-6 text-sm font-medium rounded-lg appearance-none cursor-pointer transition-all ${
+                        className={`w-full h-12 pl-2 pr-6 text-sm font-medium rounded-lg appearance-none cursor-pointer transition-all ${
                           !isPrimarySize
                             ? 'bg-emerald-800 text-white font-bold shadow-xs'
                             : 'bg-transparent text-slate-500 hover:text-slate-800'
@@ -671,7 +671,7 @@ export function LockerFormModal({
                       <button
                         type="button"
                         onClick={() => applySizeDefaults(size)}
-                        className="text-[10.5px] font-semibold text-emerald-800 hover:text-emerald-950 bg-white border border-emerald-300 px-2 py-0.5 rounded shadow-2xs cursor-pointer hover:bg-emerald-50 transition"
+                        className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 bg-white border border-emerald-300 px-2 py-0.5 rounded shadow-2xs cursor-pointer hover:bg-emerald-50 transition"
                       >
                         Apply Standard Tariff
                       </button>
@@ -680,7 +680,7 @@ export function LockerFormModal({
                 </div>
 
                 {/* Vault Section */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <label htmlFor="vault-section" className="font-semibold text-slate-700 text-sm block">
                     Vault Section <span className="font-normal text-slate-400">(optional)</span>
                   </label>
@@ -695,7 +695,7 @@ export function LockerFormModal({
                 </div>
 
                 {/* Floor Level */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <label htmlFor="floor-level" className="font-semibold text-slate-700 text-sm block">
                     Floor Level <span className="font-normal text-slate-400">(optional)</span>
                   </label>
@@ -710,7 +710,7 @@ export function LockerFormModal({
                 </div>
 
                 {/* Grid Position */}
-                <div className="space-y-1 sm:col-span-2">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4 sm:col-span-2">
                   <label htmlFor="grid-position" className="font-semibold text-slate-700 text-sm block">
                     Grid Position / Coordinates <span className="font-normal text-slate-400">(optional)</span>
                   </label>
@@ -732,7 +732,7 @@ export function LockerFormModal({
             </div>
 
             {/* 2. Rental Tariff & Deposit Card */}
-            <div className="rounded-2xl bg-slate-100 p-4 sm:p-6 space-y-4">
+            <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/70">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs">
@@ -760,14 +760,14 @@ export function LockerFormModal({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Annual Rent */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <div className="flex items-center justify-between">
                     <label htmlFor="annual-rent" className="font-semibold text-slate-700 text-sm block">
                       Annual Rent (₹) <span className="text-rose-600 font-semibold">*</span>
                     </label>
-                    <span className="text-[10.5px] text-slate-500 font-medium">
+                    <span className="text-xs text-slate-500 font-medium">
                       ≈ ₹{monthlyEquivalent.toLocaleString('en-IN')}/mo
                     </span>
                   </div>
@@ -801,12 +801,12 @@ export function LockerFormModal({
                 </div>
 
                 {/* Security Deposit */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <div className="flex items-center justify-between">
                     <label htmlFor="security-deposit" className="font-semibold text-slate-700 text-sm block">
                       Security Deposit (₹) <span className="text-rose-600 font-semibold">*</span>
                     </label>
-                    <span className="text-[10.5px] text-slate-500 font-medium">
+                    <span className="text-xs text-slate-500 font-medium">
                       Refundable Escrow
                     </span>
                   </div>
@@ -840,7 +840,7 @@ export function LockerFormModal({
                 </div>
 
                 {/* Move-in Commercial Total Bar */}
-                <div className="sm:col-span-2 p-2.5 rounded-xl bg-white border border-slate-200/90 flex items-center justify-between shadow-2xs">
+                <div className="sm:col-span-2 p-4 rounded-xl bg-white border border-slate-200/90 flex items-center justify-between shadow-2xs">
                   <span className="text-sm text-slate-500 font-medium">
                     Annual Rent + Required Deposit (catalogue):
                   </span>
@@ -852,7 +852,7 @@ export function LockerFormModal({
             </div>
 
             {/* 3. Status & Operational Governance Card */}
-            <div className="rounded-2xl bg-slate-100 p-4 sm:p-6 space-y-4">
+            <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/70">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs">
@@ -866,15 +866,15 @@ export function LockerFormModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Occupancy Status */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <div className="flex items-center justify-between">
                     <label htmlFor="occupancy-status" className="font-semibold text-slate-700 text-sm block">
                       Occupancy Status
                     </label>
                     {isEdit && locker?.status === 'OCCUPIED' && (
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                         🔒 Leased to Client
                       </span>
                     )}
@@ -899,14 +899,14 @@ export function LockerFormModal({
                     <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   </div>
                   {isEdit && locker?.status === 'OCCUPIED' && currentTenant && (
-                    <p className="text-[10.5px] font-normal text-slate-500 mt-1">
+                    <p className="text-xs font-normal text-slate-500 mt-1">
                       Active lease held by <span className="font-semibold text-slate-800">{currentTenant.fullName}</span>. To vacate this locker, use the Close Locker action.
                     </p>
                   )}
                 </div>
 
                 {/* Operational Health */}
-                <div className="space-y-1">
+                <div className="space-y-2 rounded-2xl bg-slate-100 p-4">
                   <label htmlFor="operational-status" className="font-semibold text-slate-700 text-sm block">
                     Operational Health
                   </label>
@@ -928,12 +928,12 @@ export function LockerFormModal({
 
                 {/* Master Key Reference */}
                 {canViewSensitive && (
-                  <div className="sm:col-span-2 space-y-1">
+                  <div className="sm:col-span-2 space-y-2 rounded-2xl bg-slate-100 p-4">
                     <div className="flex items-center justify-between">
                       <label htmlFor="master-key-reference" className="font-semibold text-slate-700 text-sm block">
                         Master Key Reference <span className="font-normal text-slate-400">(optional)</span>
                       </label>
-                      <span className="text-[10.5px] text-slate-400 font-normal">
+                      <span className="text-xs text-slate-400 font-normal">
                         Vault physical key index
                       </span>
                     </div>
@@ -978,7 +978,7 @@ export function LockerFormModal({
                 )}
 
                 {/* Notes */}
-                <div className="sm:col-span-2 space-y-1">
+                <div className="sm:col-span-2 space-y-2 rounded-2xl bg-slate-100 p-4">
                   <label htmlFor="locker-notes" className="font-semibold text-slate-700 text-sm block">
                     Maintenance & Custody Notes <span className="font-normal text-slate-400">(optional)</span>
                   </label>
@@ -996,7 +996,7 @@ export function LockerFormModal({
           </div>
 
           {/* Modal Footer */}
-          <div className="px-5 py-5 sm:px-8 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="px-4 py-4 sm:px-6 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="text-sm">
               {isEdit ? (
                 isDirty ? (
@@ -1019,7 +1019,7 @@ export function LockerFormModal({
                 size="sm"
                 onClick={requestClose}
                 disabled={isSubmitting}
-                className="rounded-2xl border-slate-300 text-slate-700 font-bold text-base min-h-12 px-6 cursor-pointer hover:bg-slate-100"
+                className="rounded-2xl border-slate-300 text-slate-700 font-semibold text-sm min-h-11 px-5 cursor-pointer hover:bg-slate-100"
               >
                 Cancel
               </Button>
@@ -1027,7 +1027,7 @@ export function LockerFormModal({
                 type="submit"
                 size="sm"
                 disabled={isSubmitting || (isEdit && !isDirty)}
-                className={`font-bold shadow-xs rounded-2xl text-base min-h-12 px-6 transition-all active:scale-[0.98] flex items-center gap-1.5 ${
+                className={`font-bold shadow-xs rounded-xl text-sm min-h-11 px-5 transition-all active:scale-[0.98] flex items-center gap-1.5 ${
                   isEdit && !isDirty
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200'
                     : 'bg-emerald-800 hover:bg-emerald-900 text-white cursor-pointer'
