@@ -5,7 +5,7 @@ import { LockerService } from '../services/locker.service';
 import { lockerQuerySchema } from '../validators/locker.validator';
 import { NextFunction,Request,Response } from 'express';
 import ExcelJS from 'exceljs';
-import { reportService } from '../services/report.service';
+import { reportRange, reportService } from '../services/report.service';
 import { successResponse } from '../utils/apiResponse';
 
 export const getReportOverview = async (req: Request, res: Response, next: NextFunction) => {
@@ -77,5 +77,23 @@ export const exportLockerDues = async (req: Request, res: Response, next: NextFu
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="lockers-${params.status!.toLowerCase()}.xlsx"`);
     await workbook.xlsx.write(res); res.end();
+  } catch (error) { next(error); }
+};
+
+
+export const getGstRegister = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { start, end } = reportRange(req.query.from as string, req.query.to as string);
+    const page = Number(req.query.page || 1);
+    if (!Number.isSafeInteger(page) || page < 1) throw Object.assign(new Error('Invalid page'), { statusCode: 400 });
+    const match = { status: { $in: ['ISSUED', 'PAID'] }, issueDate: { $gte: start, $lte: end } };
+    const [summary, invoices] = await Promise.all([
+      LockerInvoice.aggregate([{ $match: match }, { $group: { _id: null, count: { $sum: 1 }, baseRent: { $sum: '$baseRent' }, adjustments: { $sum: { $subtract: [{ $subtract: ['$totalAmount', '$taxAmount'] }, '$baseRent'] } }, taxAmount: { $sum: '$taxAmount' }, totalAmount: { $sum: '$totalAmount' }, paidAmount: { $sum: '$paidAmount' }, balanceAmount: { $sum: '$balanceAmount' }, unitemizedCount: { $sum: { $cond: [{ $and: [{ $eq: ['$source', 'LEGACY_IMPORT'] }, { $eq: ['$taxAmount', 0] }] }, 1, 0] } } } }]),
+      LockerInvoice.find(match).select('invoiceNumber invoiceType source issueDate baseRent taxAmount totalAmount paidAmount balanceAmount paymentStatus customerId lockerId').populate('customerId', 'fullName customerCode').populate('lockerId', 'lockerNumber size').sort({ issueDate: -1, _id: -1 }).skip((page - 1) * 25).limit(25).lean(),
+    ]);
+    const totals = summary[0] || { count: 0, baseRent: 0, adjustments: 0, taxAmount: 0, totalAmount: 0, paidAmount: 0, balanceAmount: 0, unitemizedCount: 0 };
+    delete totals._id;
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json(successResponse('Recorded invoice GST register', { summary: totals, invoices, page, totalPages: Math.max(1, Math.ceil(totals.count / 25)) }));
   } catch (error) { next(error); }
 };

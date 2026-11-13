@@ -96,6 +96,32 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     return { locker, customer };
   }
 
+  it('GST register uses recorded invoice tax, excludes cancelled drafts, validates dates and enforces report access', async () => {
+    const completed = await AllotmentService.complete(await allotment('1986'), actor);
+    const invoice = completed.invoice!;
+    await LockerInvoice.updateOne({ _id: invoice._id }, { issueDate: new Date('2026-11-01T18:30:00Z') });
+    const copy = (await LockerInvoice.findById(invoice._id))!.toObject();
+    delete (copy as any)._id; delete (copy as any).__v;
+    await LockerInvoice.create([
+      { ...copy, invoiceNumber: 'GST-CANCELLED', status: 'CANCELLED', taxAmount: 999 },
+      { ...copy, invoiceNumber: 'GST-DRAFT', status: 'DRAFT', taxAmount: 999 },
+      { ...copy, invoiceNumber: 'GST-BEFORE', issueDate: new Date('2026-11-01T18:29:59Z') },
+      { ...copy, invoiceNumber: 'GST-LEGACY', source: 'LEGACY_IMPORT', baseRent: 1000, taxAmount: 0, totalAmount: 1000, subtotal: 1000 },
+    ]);
+    const token = await apiOperator([PERMISSIONS.REPORTS_VIEW]);
+    const endpoint = '/api/reports/gst?from=2026-11-02&to=2026-11-02';
+    await request(app).get(endpoint).expect(401);
+    const restricted = await apiOperator([PERMISSIONS.LOCKERS_VIEW]);
+    await request(app).get(endpoint).set('Authorization', `Bearer ${restricted}`).expect(403);
+    const response = await request(app).get(endpoint).set('Authorization', `Bearer ${token}`).expect(200);
+    expect(response.body.data.summary.count).toBe(2);
+    expect(response.body.data.summary.taxAmount).toBe(invoice.taxAmount);
+    expect(response.body.data.summary.unitemizedCount).toBe(1);
+    expect(response.body.data.invoices.map((row: any) => row.invoiceNumber)).not.toContain('GST-CANCELLED');
+    await request(app).get('/api/reports/gst?from=2026-02-30').set('Authorization', `Bearer ${token}`).expect(400);
+    await request(app).get('/api/reports/gst?page=0').set('Authorization', `Bearer ${token}`).expect(400);
+  });
+
   it('keeps 30-day boundaries, overdue and KYC filters consistent with dashboard counts', async () => {
     await tenancy('1', -1);
     await tenancy('2', 0, true);

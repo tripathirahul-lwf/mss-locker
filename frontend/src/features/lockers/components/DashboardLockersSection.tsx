@@ -1,3 +1,4 @@
+import { GstRegister } from './GstRegister';
 import { reportService } from '../../../services/reportService';
 import { ClosedLockerRecords } from './ClosedLockerRecords';
 import { lazy,Suspense,useState,useEffect,useRef,useImperativeHandle,forwardRef,useMemo,useCallback } from 'react';
@@ -77,6 +78,8 @@ export const DashboardLockersSection = forwardRef<
     : 'cards';
 
   const [statusParam, setStatusParamState] = useState<string>(initialResolvedStatus);
+  const canViewGst = usePermission('reports.view');
+  const gstView = statusParam === 'GST';
   const closedView = ['CLOSED', 'CLOSED_RECORDS'].includes(statusParam);
   const [viewMode, setViewModeState] = useState<'cards' | 'table' | 'by_rack'>(initialResolvedView);
   const [page, setPageState] = useState<number>(() => Math.max(1, Number(searchParams.get('page')) || 1));
@@ -231,7 +234,7 @@ export const DashboardLockersSection = forwardRef<
     refetch: refetchList,
   } = useQuery({
     queryKey: ['lockers', queryFilters],
-    enabled: !closedView,
+    enabled: !closedView && !gstView,
     queryFn: async ({ signal }) => {
       if (viewMode !== 'by_rack') return lockerApi.getLockers(queryFilters, signal);
       const allLockers = await lockerApi.getAllLockers(queryFilters, signal);
@@ -379,7 +382,7 @@ export const DashboardLockersSection = forwardRef<
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { if (closedView) void queryClient.invalidateQueries({ queryKey: ['closed-locker-records'] }); else void refetchList(); }}
+            onClick={() => { if (gstView) void queryClient.invalidateQueries({ queryKey: ['gst-register'] }); else if (closedView) void queryClient.invalidateQueries({ queryKey: ['closed-locker-records'] }); else void refetchList(); }}
             disabled={isFetching}
             className="h-8 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold gap-1.5 px-3 cursor-pointer shadow-2xs"
             title="Refresh lockers data"
@@ -428,6 +431,7 @@ export const DashboardLockersSection = forwardRef<
               { key: 'KYC_PENDING', label: 'KYC Pending', count: lockerStats?.kycPending ?? 0, dotColor: 'bg-amber-500' },
               { key: 'KYC_DONE', label: 'KYC Done', count: lockerStats?.kycDone ?? 0, dotColor: 'bg-emerald-500' },
               { key: 'CLOSED_RECORDS', label: 'Closed', count: undefined, dotColor: 'bg-slate-500' },
+              { key: 'GST', label: 'GST', count: undefined, dotColor: 'bg-emerald-500', show: canViewGst },
               {
                 key: 'RESERVED',
                 label: 'Reserved',
@@ -485,7 +489,7 @@ export const DashboardLockersSection = forwardRef<
           <div className="vault-view-switcher flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 shrink-0 self-start lg:self-auto">
             <button
               type="button"
-              disabled={closedView}
+              disabled={closedView || gstView}
               onClick={() => setViewMode('cards')}
               className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
                 viewMode === 'cards'
@@ -500,7 +504,7 @@ export const DashboardLockersSection = forwardRef<
 
             <button
               type="button"
-              disabled={closedView}
+              disabled={closedView || gstView}
               onClick={() => setViewMode('table')}
               className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
                 viewMode === 'table'
@@ -515,7 +519,7 @@ export const DashboardLockersSection = forwardRef<
 
             <button
               type="button"
-              disabled={closedView}
+              disabled={closedView || gstView}
               onClick={() => setViewMode('by_rack')}
               className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition ${
                 viewMode === 'by_rack'
@@ -531,7 +535,7 @@ export const DashboardLockersSection = forwardRef<
         </div>
 
         {/* Lower Tier: Search, Size, Sort, and Pagination */}
-        <div className="vault-search-row border-t border-slate-100 bg-slate-50/50 p-2.5 sm:px-4 sm:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+        {!gstView && <div className={`vault-search-row border-t border-slate-100 bg-slate-50/50 p-2.5 sm:px-4 sm:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5`}>
           {/* Search Box */}
           <div className="relative flex-1 min-w-[220px] max-w-md">
             {isFetching && localSearch ? (
@@ -596,7 +600,7 @@ export const DashboardLockersSection = forwardRef<
             <div className="relative flex items-center min-w-[145px] bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-2.5 transition focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-600 shadow-2xs">
               <ArrowUpDown className="h-3.5 w-3.5 text-emerald-700 shrink-0 pointer-events-none mr-1.5" />
               <select
-                disabled={closedView}
+                disabled={closedView || gstView}
                 value={`${sortBy}-${sortOrder}`}
                 onChange={(e) => {
                   const [sb, so] = e.target.value.split('-');
@@ -629,7 +633,7 @@ export const DashboardLockersSection = forwardRef<
             )}
 
             {/* Mini Pagination Controls */}
-            {!closedView && viewMode !== 'by_rack' && totalPages > 1 && (
+            {!closedView && !gstView && viewMode !== 'by_rack' && totalPages > 1 && (
               <div className="flex items-center gap-1 pl-1 border-l border-slate-200 ml-1">
                 <Button
                   variant="outline"
@@ -657,11 +661,11 @@ export const DashboardLockersSection = forwardRef<
               </div>
             )}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Main Lockers Content Display */}
-      {closedView ? <ClosedLockerRecords search={search} size={size} page={page} onPage={setPage} /> : isListError ? (
+      {gstView ? (canViewGst ? <GstRegister /> : <p role="alert">You do not have permission to view GST reports.</p>) : closedView ? <ClosedLockerRecords search={search} size={size} page={page} onPage={setPage} /> : isListError ? (
         <div
           role="alert"
           className="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center"

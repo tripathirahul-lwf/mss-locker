@@ -253,3 +253,24 @@ test('uploaded receipt failure stays visible and retries the original PDF', asyn
  await expect(uploaded.locator('iframe[title="Uploaded receipt document"]')).toHaveAttribute('src', /^blob:/);
  expect(attempts).toBe(2);
 });
+
+
+test('GST tab stays on dashboard and shows invoice tax with date validation', async ({ page }, info) => {
+ const locker = await openOccupied(page); await expect(locker).toBeVisible();
+ await locker.getByRole('button', { name: 'Close', exact: true }).click();
+ await page.getByRole('button', { name: 'GST', exact: true }).click();
+ const register = page.getByRole('region', { name: 'GST register', exact: true });
+ await register.getByLabel('From date', { exact: true }).fill('2020-01-01');
+ await register.getByLabel('To date', { exact: true }).fill('2030-12-31');
+ await expect(register.getByText('REFERENCE-77', { exact: true })).toHaveCount(0);
+ await expect(register.getByRole('table')).toBeVisible();
+ await expect(register).toContainText('GST billed');
+ await expect(register).toContainText('540.00');
+ expect(new URL(page.url()).pathname).toBe('/');
+ await page.screenshot({ path: info.outputPath('gst-register.png') });
+ await register.getByLabel('To date', { exact: true }).fill('2019-01-01');
+ await expect(register.getByRole('alert')).toContainText('valid date range');
+ await page.getByRole('button', { name: 'All', exact: true }).click();
+ await expect(register).toHaveCount(0);
+ await expect(page.getByRole('button', { name: 'Open locker 77', exact: true })).toBeVisible();
+});
