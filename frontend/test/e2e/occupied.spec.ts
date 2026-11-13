@@ -267,6 +267,11 @@ test('GST tab stays on dashboard and shows invoice tax with date validation', as
  await expect(register).toContainText('GST billed');
  await expect(register).toContainText('540.00');
  expect(new URL(page.url()).pathname).toBe('/');
+
+ const downloadPromise = page.waitForEvent('download');
+ await register.getByRole('button', { name: 'Export Excel', exact: true }).click();
+ expect((await downloadPromise).suggestedFilename()).toBe('gst-2020-01-01-to-2030-12-31.xlsx');
+ await expect(register.getByRole('button', { name: 'Export Excel', exact: true })).toBeEnabled();
  await page.screenshot({ path: info.outputPath('gst-register.png') });
  await register.getByLabel('To date', { exact: true }).fill('2019-01-01');
  await expect(register.getByRole('alert')).toContainText('valid date range');

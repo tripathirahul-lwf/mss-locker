@@ -118,6 +118,19 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     expect(response.body.data.summary.taxAmount).toBe(invoice.taxAmount);
     expect(response.body.data.summary.unitemizedCount).toBe(1);
     expect(response.body.data.invoices.map((row: any) => row.invoiceNumber)).not.toContain('GST-CANCELLED');
+    const exportEndpoint = '/api/reports/gst/export?from=2026-11-02&to=2026-11-02&page=99';
+    await request(app).get(exportEndpoint).set('Authorization', `Bearer ${token}`).expect(403);
+    const exporter = await apiOperator([PERMISSIONS.REPORTS_VIEW, PERMISSIONS.REPORTS_EXPORT]);
+    await LockerInvoice.create(Array.from({ length: 26 }, (_, index) => ({ ...copy, invoiceNumber: `GST-EXTRA-${index}` })));
+    const exported = await request(app).get(exportEndpoint).set('Authorization', `Bearer ${exporter}`).buffer(true).parse((res, done) => { const chunks: Buffer[] = []; res.on('data', chunk => chunks.push(Buffer.from(chunk))); res.on('end', () => done(null, Buffer.concat(chunks))); }).expect(200);
+    const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(exported.body);
+    const sheet = workbook.getWorksheet('GST bills')!;
+    expect(sheet.rowCount).toBe(29); // Header + all 28 bills, beyond the 25-row page.
+    expect(sheet.getCell('B2').value).toBeInstanceOf(Date);
+    expect(typeof sheet.getCell('H2').value).toBe('number');
+    expect(sheet.getColumn(8).numFmt).toBe('#,##0.00');
+    expect(workbook.getWorksheet('Summary')!.getCell('B3').value).toBe(28);
+
     await request(app).get('/api/reports/gst?from=2026-02-30').set('Authorization', `Bearer ${token}`).expect(400);
     await request(app).get('/api/reports/gst?page=0').set('Authorization', `Bearer ${token}`).expect(400);
   });

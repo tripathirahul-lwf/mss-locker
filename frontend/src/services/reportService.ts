@@ -10,6 +10,21 @@ export interface OperationalReport {
 }
 
 export const reportService = {
+  async exportGst(from: string, to: string) {
+    try {
+      const response = await apiClient.get('/reports/gst/export', { params: { from, to }, responseType: 'blob', timeout: 60000 });
+      const url = URL.createObjectURL(response.data), anchor = document.createElement('a');
+      try { anchor.href = url; anchor.download = `gst-${from}-to-${to}.xlsx`; document.body.appendChild(anchor); anchor.click(); }
+      finally { anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    } catch (error: any) {
+      if (error.response?.data instanceof Blob) {
+        let message: string | undefined;
+        try { message = JSON.parse(await error.response.data.text()).message; } catch { /* Non-JSON error. */ }
+        if (message) throw new Error(message);
+      }
+      throw new Error('Could not export GST. Please retry.');
+    }
+  },
   async exportLockerDues(params: { status: string; search?: string; size?: string; rackNumber?: string }) {
     try {
       const response = await apiClient.get('/reports/locker-dues/export', { params, responseType: 'blob', timeout: 60000 });

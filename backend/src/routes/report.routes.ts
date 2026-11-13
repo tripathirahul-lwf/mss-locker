@@ -7,5 +7,6 @@ const router = Router();
 router.get('/overview', authenticate, requirePermission(PERMISSIONS.REPORTS_VIEW), getReportOverview);
 router.get('/export', authenticate, requirePermission(PERMISSIONS.REPORTS_EXPORT), exportReport);
 router.get('/locker-dues/export', authenticate, requirePermission(PERMISSIONS.REPORTS_EXPORT, PERMISSIONS.LOCKERS_VIEW), exportLockerDues);
+router.get('/gst/export', authenticate, requirePermission(PERMISSIONS.REPORTS_VIEW, PERMISSIONS.REPORTS_EXPORT), getGstRegister);
 router.get('/gst', authenticate, requirePermission(PERMISSIONS.REPORTS_VIEW), getGstRegister);
 export default router;
