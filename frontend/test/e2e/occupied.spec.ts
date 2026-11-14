@@ -266,6 +266,11 @@ test('GST tab stays on dashboard and shows invoice tax with date validation', as
  await expect(register.getByRole('table')).toBeVisible();
  await expect(register).toContainText('Recorded GST');
  await expect(register).toContainText('540.00');
+ await expect(register.getByRole('columnheader', { name: 'Other / discount', exact: true })).toHaveCount(0);
+ const paidRow = register.getByRole('row').filter({ hasText: 'INV-2026-000002' });
+ await expect(paidRow).toContainText('3,540.00');
+ await expect(paidRow).not.toContainText('3,590.00');
+ await expect(paidRow).not.toContainText('50.00');
  expect(new URL(page.url()).pathname).toBe('/');
 
  const downloadPromise = page.waitForEvent('download');

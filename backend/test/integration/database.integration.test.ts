@@ -147,6 +147,28 @@ describe('MongoDB transaction, concurrency and sync integration', () => {
     await request(app).get('/api/reports/gst?page=0').set('Authorization', `Bearer ${token}`).expect(400);
   });
 
+  it('GST report and Excel exclude KYC fees while original invoice and payment stay unchanged', async () => {
+    const input = allotmentSchema.parse({ ...await allotment('1988'), billingCycle: 'ANNUAL', annualBaseRent: 1000, annualRent: 1180 });
+    const completed = await AllotmentService.complete(input, actor);
+    const invoice = completed.invoice!;
+    const token = await apiOperator([PERMISSIONS.REPORTS_VIEW, PERMISSIONS.REPORTS_EXPORT]);
+    const range = 'from=2026-01-01&to=2026-12-31';
+    const response = await request(app).get('/api/reports/gst?' + range).set('Authorization', `Bearer ${token}`).expect(200);
+    expect(response.body.data.summary).toMatchObject({ baseRent: 1000, taxAmount: 180, rentGstTotal: 1180 });
+    expect(response.body.data.invoices[0]).toMatchObject({ baseRent: 1000, taxAmount: 180, rentGstTotal: 1180, totalAmount: 1230 });
+    const exported = await request(app).get('/api/reports/gst/export?' + range).set('Authorization', `Bearer ${token}`).buffer(true).parse((res, done) => { const chunks: Buffer[] = []; res.on('data', chunk => chunks.push(Buffer.from(chunk))); res.on('end', () => done(null, Buffer.concat(chunks))); }).expect(200);
+    const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(exported.body);
+    const sheet = workbook.getWorksheet('GST bills')!;
+    expect(sheet.getCell('F2').value).toBe(1000);
+    expect(sheet.getCell('G2').value).toBe(180);
+    expect(sheet.getCell('H2').value).toBe(1180);
+    expect(sheet.getRow(1).values).not.toContain('Other / discount (INR)');
+    expect(workbook.getWorksheet('Summary')!.getCell('B6').value).toBe(1180);
+    const stored = await LockerInvoice.findById(invoice._id);
+    expect(stored).toMatchObject({ totalAmount: 1230, paidAmount: 1230, otherCharges: 50, taxAmount: 180 });
+    expect((await Payment.findOne({ invoiceId: invoice._id }))!.amount).toBe(1230);
+  });
+
   it('GST review covers SYSTEM zero and absent tax, preserves recorded figures and returns an empty period safely', async () => {
     const completed = await AllotmentService.complete(await allotment('1987'), actor);
     const copy = (await LockerInvoice.findById(completed.invoice!._id))!.toObject();
