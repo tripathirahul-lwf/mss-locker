@@ -259,6 +259,9 @@ export async function importExcelData(): Promise<void> {
         const dueStatus = determineDueStatus(dueDate, alloc.rentSnapshot);
 
         const { periodStart, periodEnd } = calculateBillingPeriod(dueDate, 'ANNUAL');
+        const invoiceTotal = alloc.rentSnapshot;
+        const baseRent = Math.round((invoiceTotal / 1.18) * 100) / 100;
+        const taxAmount = Math.round((invoiceTotal - baseRent) * 100) / 100;
 
         invoicesToInsert.push({
           invoiceNumber: invNumber,
@@ -271,15 +274,15 @@ export async function importExcelData(): Promise<void> {
           issueDate: new Date(),
           dueDate,
           billingCycle: 'ANNUAL',
-          baseRent: alloc.rentSnapshot,
+          baseRent,
           lateFee: 0,
           discount: 0,
           otherCharges: 0,
-          taxAmount: 0,
-          subtotal: alloc.rentSnapshot,
-          totalAmount: alloc.rentSnapshot,
+          taxAmount,
+          subtotal: baseRent,
+          totalAmount: invoiceTotal,
           paidAmount: 0,
-          balanceAmount: alloc.rentSnapshot,
+          balanceAmount: invoiceTotal,
           status: 'ISSUED',
           paymentStatus: 'UNPAID',
           dueStatus,
@@ -310,6 +313,9 @@ export async function importExcelData(): Promise<void> {
 
       const invNumber = `INV-HIST-${String(billNo).padStart(6, '0')}`;
       const { periodStart, periodEnd } = calculateBillingPeriod(billDate, 'ANNUAL');
+      const invoiceTotal = amount;
+      const baseRent = Math.round((invoiceTotal / 1.18) * 100) / 100;
+      const taxAmount = Math.round((invoiceTotal - baseRent) * 100) / 100;
 
       invoicesToInsert.push({
         invoiceNumber: invNumber,
@@ -322,14 +328,14 @@ export async function importExcelData(): Promise<void> {
         issueDate: billDate,
         dueDate: billDate,
         billingCycle: 'ANNUAL',
-        baseRent: amount,
+        baseRent,
         lateFee: 0,
         discount: 0,
         otherCharges: 0,
-        taxAmount: 0,
-        subtotal: amount,
-        totalAmount: amount,
-        paidAmount: amount,
+        taxAmount,
+        subtotal: baseRent,
+        totalAmount: invoiceTotal,
+        paidAmount: invoiceTotal,
         balanceAmount: 0,
         status: 'PAID',
         paymentStatus: 'PAID',
