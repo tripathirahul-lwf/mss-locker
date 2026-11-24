@@ -890,7 +890,7 @@ export function LockerDetailModal({
                 invoices={invoices} payments={lockerPayments}
                 historyState={!canViewInvoices ? 'restricted' : invoicesLoading ? 'loading' : invoicesError ? 'error' : 'ready'}
                 receiptState={!canViewPayments ? 'restricted' : paymentsLoading ? 'loading' : paymentsError ? 'error' : 'ready'}
-                canReceipt={canViewPayments} canRenew={canViewInvoices && !invoicesLoading && !invoicesError && !unpaidInvoice && canGenerateRenewal && canRecordPayment && ['All good', 'Due soon', 'Renewal overdue'].includes(health.label)}
+                canReceipt={canViewPayments} canRenew={canViewInvoices && !invoicesLoading && !invoicesError && !unpaidInvoice && canGenerateRenewal && canRecordPayment && !['Status unavailable'].includes(health.label)}
                 canKyc={canViewKyc} canClose={canCloseLocker} canPay={canRecordPayment && !['Billing needs review', 'Coverage needs review', 'Status unavailable'].includes(health.label)} unpaid={unpaidInvoice}
                 loadingReceiptId={loadingReceiptId} receiptError={receiptError} onReceipt={payment => void openReceipt(payment)}
                 onRenew={() => setRenewingAllocation(currentAlloc)} onKyc={() => setActiveTab(value => value === 'kyc' ? 'details' : 'kyc')} onCloseLocker={() => setClosureOpen(true)}
