@@ -35,7 +35,7 @@ router.delete(
 router.get(
   '/private/cloud/:token',
   authenticate,
-  requireAnyPermission(PERMISSIONS.CUSTOMERS_KYC_VIEW, PERMISSIONS.PAYMENTS_VIEW),
+  requireAnyPermission(PERMISSIONS.CUSTOMERS_KYC_VIEW, PERMISSIONS.PAYMENTS_VIEW, PERMISSIONS.PAYMENTS_CREATE),
   UploadController.downloadPrivateCloudFile
 );
 

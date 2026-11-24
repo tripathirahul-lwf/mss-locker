@@ -25,8 +25,9 @@ import { renewalApi } from '../../renewals/api/renewalApi';
 import { LockerInvoice } from '../../renewals/types';
 import { RecordPaymentInput,PaymentMethod,Payment } from '../types';
 import { paymentApi } from '../api/paymentApi';
-import { customerApi } from '../../customers/api/customerApi';
 import { CameraCaptureModal } from './CameraCaptureModal';
+import { DocumentPreviewModal } from '../../customers/components/DocumentPreviewModal';
+import { apiClient } from '../../../services/apiClient';
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -77,6 +78,15 @@ export function RecordPaymentModal({
 
   // Proof / Document attachment state
   const [proofUrl, setProofUrl] = useState<string>('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{
+    isOpen: boolean;
+    url: string;
+    documentName: string;
+    documentType: string;
+    mimeType: string;
+    fileSize: number;
+  } | null>(null);
   const [proofDocumentName, setProofDocumentName] = useState<string>('');
   const [proofFileSize, setProofFileSize] = useState<number | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
@@ -178,6 +188,7 @@ export function RecordPaymentModal({
     setUploadProgress(15);
 
     try {
+      setProofFile(file);
       const result = await paymentApi.uploadProof(file, (percent) => {
         setUploadProgress(percent);
       });
@@ -210,17 +221,57 @@ export function RecordPaymentModal({
   };
 
   const handleRemoveProof = () => {
+    if (previewDoc?.url) {
+      URL.revokeObjectURL(previewDoc.url);
+      setPreviewDoc(null);
+    }
+    setProofFile(null);
     setProofUrl('');
     setProofDocumentName('');
     setProofFileSize(null);
     setProofUploadError(null);
   };
 
-  const handleOpenProof = () => {
-    if (!proofUrl) return;
-    customerApi.openProtectedFile(proofUrl).catch(() => {
-      window.open(proofUrl, '_blank', 'noopener,noreferrer');
-    });
+  const handleOpenProof = async (overrideUrl?: string) => {
+    const targetUrl = overrideUrl || proofUrl;
+    if (!overrideUrl && proofFile) {
+      const url = URL.createObjectURL(proofFile);
+      setPreviewDoc({
+        isOpen: true,
+        url,
+        documentName: proofFile.name,
+        documentType: 'Payment Proof',
+        mimeType: proofFile.type,
+        fileSize: proofFile.size,
+      });
+      return;
+    }
+
+    if (targetUrl) {
+      try {
+        const response = await apiClient.get(targetUrl, { responseType: 'blob' });
+        const url = URL.createObjectURL(response.data);
+        const fileName = overrideUrl ? 'Payment Proof' : proofDocumentName || 'Payment Proof';
+        const mime = response.data.type || (fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+        setPreviewDoc({
+          isOpen: true,
+          url,
+          documentName: fileName,
+          documentType: 'Payment Proof',
+          mimeType: mime,
+          fileSize: response.data.size,
+        });
+      } catch (err: any) {
+        setProofUploadError('Could not open preview for this document.');
+      }
+    }
+  };
+
+  const handleClosePreview = () => {
+    if (previewDoc?.url) {
+      URL.revokeObjectURL(previewDoc.url);
+    }
+    setPreviewDoc(null);
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -394,11 +445,7 @@ export function RecordPaymentModal({
                     <span>Attached</span>
                     <button
                       type="button"
-                      onClick={() => {
-                        customerApi.openProtectedFile(recordedPayment.proofUrl!).catch(() => {
-                          window.open(recordedPayment.proofUrl, '_blank', 'noopener,noreferrer');
-                        });
-                      }}
+                      onClick={() => handleOpenProof(recordedPayment.proofUrl!)}
                       className="ml-1 text-emerald-800 hover:text-emerald-950 underline flex items-center gap-0.5 cursor-pointer font-semibold"
                     >
                       <span>View</span>
@@ -918,7 +965,7 @@ export function RecordPaymentModal({
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={handleOpenProof}
+                            onClick={() => handleOpenProof()}
                             className="px-3 py-1.5 rounded-lg text-sm font-semibold text-emerald-800 bg-white hover:bg-emerald-100/80 border border-emerald-300 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -1127,6 +1174,17 @@ export function RecordPaymentModal({
         onCapture={handleFileUpload}
         onFallbackNativeCamera={() => cameraInputRef.current?.click()}
       />
+      {previewDoc && (
+        <DocumentPreviewModal
+          isOpen={previewDoc.isOpen}
+          onClose={handleClosePreview}
+          documentUrl={previewDoc.url}
+          documentName={previewDoc.documentName}
+          documentType={previewDoc.documentType}
+          mimeType={previewDoc.mimeType}
+          fileSize={previewDoc.fileSize}
+        />
+      )}
     </>
   );
 }

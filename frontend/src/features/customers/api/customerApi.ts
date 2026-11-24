@@ -119,16 +119,21 @@ export const customerApi = {
   },
 
   openProtectedFile: async (url: string): Promise<void> => {
-    const popup = window.open('', '_blank', 'noopener,noreferrer');
     try {
       const response = await apiClient.get(url, { responseType: 'blob' });
       const objectUrl = URL.createObjectURL(response.data);
-      if (popup) popup.location.href = objectUrl;
-      else window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      const popup = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      if (!popup) {
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.click();
+      }
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     } catch (error) {
-      popup?.close();
       throw error;
     }
+
   },
 };
