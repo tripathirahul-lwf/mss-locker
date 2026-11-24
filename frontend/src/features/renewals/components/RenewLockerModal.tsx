@@ -1,12 +1,27 @@
 import { lockBodyScroll } from '../../../utils/bodyScrollLock';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Loader2, X, RotateCw } from 'lucide-react';
+import {
+  Check,
+  Loader2,
+  X,
+  RotateCw,
+  Camera,
+  UploadCloud,
+  FileText,
+  Image as ImageIcon,
+  Trash2,
+  Eye,
+  CheckCircle2,
+  Banknote,
+  QrCode,
+  Building2,
+} from 'lucide-react';
 import { LockerAllocation } from '../../allocations/types';
 import { apiClient } from '../../../services/apiClient';
 import { customerApi } from '../../customers/api/customerApi';
-import { AllotmentDocumentUploadBox } from '../../allocations/components/AllotmentDocumentUploadBox';
 import { DocumentPreviewModal } from '../../customers/components/DocumentPreviewModal';
+import { CameraCaptureModal } from '../../payments/components/CameraCaptureModal';
 import { Button } from '../../../components/ui/button';
 import { ledgerDate } from '../../lockers/components/OccupiedLockerSummary';
 
@@ -27,6 +42,8 @@ interface CollectionPayload {
   receiptNumber: string;
   receiptDate: string;
   cashReceived: boolean;
+  paymentMethod?: 'CASH' | 'UPI' | 'BANK_TRANSFER';
+  paymentReference?: string;
   receipt?: ReceiptAsset;
 }
 
@@ -48,6 +65,12 @@ const today = () =>
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 function tenureDate(start: string, term: string) {
   if (!start) return '';
@@ -91,6 +114,8 @@ export function RenewLockerModal({
       : ''
   );
   const [next, setNext] = useState(tenureDate(start, initialTerm));
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI' | 'BANK_TRANSFER'>('CASH');
+  const [paymentReference, setPaymentReference] = useState('');
   const [receipt, setReceipt] = useState('');
   const [receiptDate, setReceiptDate] = useState(today);
   const [file, setFile] = useState<File | null>(null);
@@ -100,7 +125,12 @@ export function RenewLockerModal({
   const [uncertain, setUncertain] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
-  // Document preview state for clean lightbox popup
+  // Tablet Camera and Document Preview State
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   const [previewDoc, setPreviewDoc] = useState<{
     isOpen: boolean;
     url: string;
@@ -182,15 +212,63 @@ export function RenewLockerModal({
     };
   }, []);
 
-  const handleOpenPreview = (selectedFile: File, label: string) => {
-    const url = URL.createObjectURL(selectedFile);
+  const handleSelectFile = (selectedFile: File) => {
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (selectedFile.size > MAX_SIZE) {
+      setError('File exceeds 5MB limit. Please upload a smaller compressed image or PDF.');
+      return;
+    }
+    const validMimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!validMimes.includes(selectedFile.type.toLowerCase())) {
+      setError('Only JPG, PNG, WebP, and PDF files are supported.');
+      return;
+    }
+    setError('');
+    setFile(selectedFile);
+    uploaded.current = null;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) {
+      handleSelectFile(selected);
+    }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const selected = e.dataTransfer.files?.[0];
+    if (selected) {
+      handleSelectFile(selected);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    if (previewDoc?.url) {
+      URL.revokeObjectURL(previewDoc.url);
+      setPreviewDoc(null);
+    }
+    setFile(null);
+    uploaded.current = null;
+  };
+
+  const handleOpenLocalPreview = () => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
     setPreviewDoc({
       isOpen: true,
       url,
-      documentName: selectedFile.name,
-      documentType: label,
-      mimeType: selectedFile.type,
-      fileSize: selectedFile.size,
+      documentName: file.name,
+      documentType:
+        paymentMethod === 'UPI'
+          ? 'UPI Payment Proof'
+          : paymentMethod === 'BANK_TRANSFER'
+          ? 'Bank Transfer Advice'
+          : 'Cash Voucher',
+      mimeType: file.type,
+      fileSize: file.size,
     });
   };
 
@@ -222,6 +300,14 @@ export function RenewLockerModal({
     receiptDate < day(allocation.startDate)
       ? 'Receipt date must be between the opening date and today.'
       : '';
+
+  const referenceIssue =
+    paymentMethod === 'UPI' && !paymentReference.trim()
+      ? 'Enter UPI reference / UTR number.'
+      : paymentMethod === 'BANK_TRANSFER' && !paymentReference.trim()
+      ? 'Enter Bank Transfer / IMPS UTR number.'
+      : '';
+
   const readiness =
     allocation.status !== 'ACTIVE'
       ? 'This agreement is not active.'
@@ -231,7 +317,8 @@ export function RenewLockerModal({
         nextIssue ||
         receiptDateIssue ||
         (!receipt.trim() ? 'Enter a receipt number to enable Renew.' : '') ||
-        (!cashConfirmed ? 'Confirm cash collection to proceed.' : '');
+        referenceIssue ||
+        (!cashConfirmed ? 'Confirm payment collection to proceed.' : '');
   const valid = !readiness;
   const customPeriod =
     validDay(start) && validDay(next) && next > start && next !== tenureDate(start, term);
@@ -284,6 +371,8 @@ export function RenewLockerModal({
           receiptNumber: receipt.trim(),
           receiptDate,
           cashReceived: true,
+          paymentMethod,
+          ...(paymentReference.trim() ? { paymentReference: paymentReference.trim() } : {}),
           ...(uploaded.current ? { receipt: uploaded.current } : {}),
         };
       }
@@ -296,7 +385,7 @@ export function RenewLockerModal({
       setUncertain(ambiguous);
       setError(
         ambiguous
-          ? 'Could not confirm the saved renewal. Do not collect cash again. Check & retry using this same request.'
+          ? 'Could not confirm the saved renewal. Do not collect payment again. Check & retry using this same request.'
           : err.response?.data?.message || err.message || 'Could not renew this locker.'
       );
       if (!ambiguous) {
@@ -312,20 +401,20 @@ export function RenewLockerModal({
   };
 
   const inputClass =
-    'mt-1.5 w-full h-11 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 transition-colors shadow-2xs font-medium';
+    'mt-1 w-full h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 transition-colors shadow-2xs font-medium';
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-xs sm:p-6">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-xs sm:p-5">
       <div
         ref={root}
         role="dialog"
         aria-modal="true"
         aria-labelledby="renew-cash-title"
         tabIndex={-1}
-        className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl outline-none"
+        className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl outline-none"
       >
         {/* Header */}
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-6 py-5 sm:px-8">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:px-7">
           <div>
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
@@ -338,11 +427,11 @@ export function RenewLockerModal({
                 Renew &mdash; Locker {allocation.lockerId?.lockerNumber}
               </h2>
             </div>
-            <p className="mt-1 text-xs sm:text-sm text-slate-600">
+            <p className="mt-0.5 text-xs sm:text-sm text-slate-600">
               <strong className="text-slate-900">
                 {allocation.customerId?.fullName || 'Customer'}
               </strong>{' '}
-              &middot; Current Renewal: {ledgerDate(start)}
+              {allocation.lockerId?.size ? `(Size ${allocation.lockerId.size})` : ''} &middot; Current Renewal: {ledgerDate(start)}
             </p>
           </div>
           <button
@@ -358,24 +447,24 @@ export function RenewLockerModal({
 
         {/* Form Body */}
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 space-y-5 overflow-y-auto px-6 py-5 sm:px-8">
+          <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4 sm:px-7">
             {error && (
               <p
                 role="alert"
-                className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs sm:text-sm text-rose-900 font-medium"
+                className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs sm:text-sm text-rose-900 font-medium"
               >
                 {error}
               </p>
             )}
 
-            <fieldset disabled={busy || uncertain} className="space-y-5">
+            <fieldset disabled={busy || uncertain} className="space-y-4">
               {/* 1. Tenure & Next Renewal Date */}
-              <section className="space-y-3">
+              <section className="space-y-2.5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
                   Tenure &amp; Coverage Period
                 </h3>
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                  <label className="block text-xs sm:text-sm font-semibold text-slate-700">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-semibold text-slate-700">
                     Renewal tenure
                     <select
                       aria-label="Next tenure"
@@ -404,83 +493,50 @@ export function RenewLockerModal({
                     </select>
                   </label>
 
-                  <label className="block text-xs sm:text-sm font-semibold text-slate-700">
+                  <label className="block text-xs font-semibold text-slate-700">
                     Total renewal rent (₹)
                     <input
-                      aria-label="Amount paid"
+                      aria-label="Renewal amount"
                       className={inputClass}
                       type="number"
-                      min="0.01"
-                      max="100000000"
                       step="0.01"
+                      min="0.01"
                       required
-                      aria-invalid={Boolean(amountIssue)}
-                      aria-describedby={amountIssue ? 'renew-amount-error' : undefined}
                       value={amount}
-                      onChange={(e) => {
-                        setAmount(e.target.value);
-                        annualRate.current =
-                          e.target.value.trim() !== '' &&
-                          Number.isFinite(Number(e.target.value)) &&
-                          Number(e.target.value) > 0
-                            ? (Number(e.target.value) * 12) / terms[term]
-                            : null;
-                      }}
+                      onChange={(e) => setAmount(e.target.value)}
                     />
                   </label>
                 </div>
 
-                {amountIssue && (
-                  <p id="renew-amount-error" className="text-xs text-rose-800 font-medium">
-                    {amountIssue}
-                  </p>
-                )}
-
-                {/* Next Renewal Date Card */}
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="rounded-2xl border border-emerald-300/80 bg-emerald-50/60 p-3 text-xs text-emerald-950 font-medium shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+                      <span className="font-bold uppercase tracking-wider text-[11px] text-emerald-800">
                         Next Renewal Due Date
                       </span>
-                      <p className="text-xs text-slate-600 mt-0.5">
+                      <p className="mt-0.5 text-xs text-slate-700 font-semibold">
                         Coverage:{' '}
-                        <strong className="text-slate-800">{ledgerDate(start)}</strong>{' '}
-                        &rarr;{' '}
-                        <strong className="text-slate-800">
-                          {ledgerDate(coverageEnd)}
+                        <strong>
+                          {ledgerDate(start)} &mdash; {ledgerDate(coverageEnd)}
                         </strong>
                       </p>
                     </div>
                     <input
-                      aria-label="Next renewal date"
                       type="date"
-                      required
-                      aria-invalid={Boolean(nextIssue)}
-                      aria-describedby="renew-coverage"
+                      aria-label="Next renewal due date"
+                      className="h-9 rounded-xl border border-emerald-400 bg-white px-3 py-1 font-mono font-bold text-slate-900 shadow-2xs focus:outline-none focus:ring-2 focus:ring-emerald-700 cursor-pointer"
+                      min={start}
                       value={next}
-                      min={
-                        start
-                          ? day(
-                              new Date(Date.parse(start) + 86400000).toISOString()
-                            )
-                          : undefined
-                      }
                       onChange={(e) => setNext(e.target.value)}
-                      className="h-10 rounded-xl border border-emerald-300 bg-white px-3 text-sm font-bold text-emerald-900 shadow-2xs"
                     />
                   </div>
 
-                  {nextIssue && (
-                    <p className="mt-2 text-xs text-rose-800 font-semibold">{nextIssue}</p>
-                  )}
-
                   {customPeriod && (
-                    <p className="mt-2 text-xs text-amber-900 font-medium">
+                    <p className="mt-2 text-[11px] text-amber-900 font-medium">
                       Custom renewal date selected. The amount has not been changed.{' '}
                       <button
                         type="button"
-                        className="font-bold underline"
+                        className="font-bold underline cursor-pointer"
                         onClick={() => setNext(tenureDate(start, term))}
                       >
                         Reset to tenure date
@@ -489,21 +545,20 @@ export function RenewLockerModal({
                   )}
 
                   {start > today() && (
-                    <div className="mt-2.5 rounded-xl bg-amber-100/70 border border-amber-200 p-2.5 text-xs text-amber-950 font-medium">
+                    <div className="mt-2 rounded-xl bg-amber-100/70 border border-amber-200 p-2 text-[11px] text-amber-950 font-medium">
                       Advance renewal: new coverage starts on{' '}
-                      <strong>{ledgerDate(start)}</strong>. Today (
-                      {ledgerDate(today())}) is the collection date.
+                      <strong>{ledgerDate(start)}</strong>. Today ({ledgerDate(today())}) is the collection date.
                     </div>
                   )}
                 </div>
               </section>
 
               {/* 2. Charges & Financial Summary */}
-              <section className="space-y-3">
+              <section className="space-y-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
                   Renewal Charges &amp; 18% GST
                 </h3>
-                <dl className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-xs sm:text-sm">
+                <dl className="space-y-1.5 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 text-xs sm:text-sm">
                   <div className="flex justify-between gap-3 text-slate-600">
                     <dt>Base Rent ({terms[term] ? `${terms[term]} Months` : '1 Year'})</dt>
                     <dd className="font-mono font-semibold">
@@ -516,8 +571,8 @@ export function RenewLockerModal({
                       ₹{gstTax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </dd>
                   </div>
-                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-2.5 text-sm sm:text-base font-bold text-slate-900">
-                    <dt>Total Cash To Collect</dt>
+                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-2 text-sm sm:text-base font-bold text-slate-900">
+                    <dt>Total To Collect</dt>
                     <dd className="font-mono font-bold text-emerald-800">
                       ₹{numAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </dd>
@@ -525,14 +580,98 @@ export function RenewLockerModal({
                 </dl>
               </section>
 
-              {/* 3. Receipt & Payment Confirmation */}
+              {/* 3. Payment Method & Receipt Details */}
               <section className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                  Receipt &amp; Payment Details
+                  Payment Method &amp; Receipt Details
                 </h3>
 
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                  <label className="block text-xs sm:text-sm font-semibold text-slate-700">
+                {/* Payment Method Selector */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Payment Method <span aria-hidden="true" className="text-rose-600">*</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('CASH')}
+                      className={`h-10 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                        paymentMethod === 'CASH'
+                          ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4" />
+                      <span>Cash</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('UPI')}
+                      className={`h-10 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                        paymentMethod === 'UPI'
+                          ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <QrCode className="w-4 h-4" />
+                      <span>UPI</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('BANK_TRANSFER')}
+                      className={`h-10 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                        paymentMethod === 'BANK_TRANSFER'
+                          ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Building2 className="w-4 h-4" />
+                      <span>Bank Transfer</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dynamic Reference Field */}
+                {paymentMethod === 'UPI' && (
+                  <div className="space-y-1.5 p-3 rounded-xl bg-violet-50/80 border border-violet-200">
+                    <label htmlFor="renew-upi-reference" className="font-semibold text-xs sm:text-sm text-violet-950 flex items-center gap-1.5">
+                      <QrCode className="w-4 h-4 text-violet-700" />
+                      <span>UPI Reference / UTR Number <span className="text-rose-600 font-bold">*</span></span>
+                    </label>
+                    <input
+                      id="renew-upi-reference"
+                      type="text"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      required
+                      maxLength={100}
+                      placeholder="e.g. 423589234821 or UPI Ref ID"
+                      className="w-full h-10 px-3.5 text-sm bg-white border border-violet-300 font-mono rounded-xl focus:outline-hidden focus:border-violet-600 focus:ring-2 focus:ring-violet-600/20 shadow-xs transition"
+                    />
+                  </div>
+                )}
+
+                {paymentMethod === 'BANK_TRANSFER' && (
+                  <div className="space-y-1.5 p-3 rounded-xl bg-blue-50/80 border border-blue-200">
+                    <label htmlFor="renew-bank-reference" className="font-semibold text-xs sm:text-sm text-blue-950 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-blue-700" />
+                      <span>Bank Transfer UTR / IMPS Reference <span className="text-rose-600 font-bold">*</span></span>
+                    </label>
+                    <input
+                      id="renew-bank-reference"
+                      type="text"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      required
+                      maxLength={100}
+                      placeholder="e.g. HDFCN00012345678"
+                      className="w-full h-10 px-3.5 text-sm bg-white border border-blue-300 font-mono rounded-xl focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 shadow-xs transition"
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-semibold text-slate-700">
                     Receipt number{' '}
                     <span aria-hidden="true" className="text-rose-600 font-bold">
                       *
@@ -548,7 +687,7 @@ export function RenewLockerModal({
                     />
                   </label>
 
-                  <label className="block text-xs sm:text-sm font-semibold text-slate-700">
+                  <label className="block text-xs font-semibold text-slate-700">
                     Receipt date{' '}
                     <span aria-hidden="true" className="text-rose-600 font-bold">
                       *
@@ -578,33 +717,171 @@ export function RenewLockerModal({
                   </p>
                 )}
 
-                {/* Enhanced Document Upload Box with Preview & Delete */}
-                <AllotmentDocumentUploadBox
-                  label="Receipt image or PDF (optional)"
-                  helperText="Upload scanned cash receipt or online payment advice (Max 5 MB)"
-                  file={file}
-                  onFileChange={(selected) => {
-                    setFile(selected);
-                    uploaded.current = null;
-                  }}
-                  onPreview={handleOpenPreview}
-                  category="receipt"
-                  disabled={busy || uncertain}
-                />
+                {/* Consistent Tablet Upload Component with Camera & Browse */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center border border-emerald-200/70 shrink-0">
+                        <UploadCloud className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-900 block">
+                          {paymentMethod === 'UPI' && 'UPI Payment Proof / Screenshot'}
+                          {paymentMethod === 'BANK_TRANSFER' && 'Bank Transfer Advice / NEFT Slip'}
+                          {paymentMethod === 'CASH' && 'Cash Voucher / Signed Counter Slip'}
+                        </label>
+                        <p className="text-[11px] text-slate-500 font-normal">
+                          Counter verification &bull; Max 5 MB (JPG, PNG, WebP, PDF)
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                        paymentMethod === 'CASH'
+                          ? 'bg-slate-100 text-slate-600'
+                          : 'bg-emerald-50 text-emerald-800 border border-emerald-200/80'
+                      }`}
+                    >
+                      {paymentMethod === 'CASH' ? 'Optional' : 'Recommended'}
+                    </span>
+                  </div>
+
+                  {/* Hidden inputs */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  {file ? (
+                    /* Uploaded Document Card */
+                    <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/50 flex items-center justify-between gap-2.5 shadow-2xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-9 w-9 rounded-xl bg-emerald-800 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          {file.name.toLowerCase().endsWith('.pdf') ? (
+                            <FileText className="w-4 h-4" />
+                          ) : (
+                            <ImageIcon className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold text-slate-900 text-xs sm:text-sm truncate max-w-[190px] sm:max-w-xs">
+                              {file.name}
+                            </p>
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.2 rounded flex items-center gap-1 shrink-0">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Ready
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            {formatFileSize(file.size)} &bull; Attached Proof
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleOpenLocalPreview}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-white hover:bg-emerald-100/80 border border-emerald-300 transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Preview</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFile}
+                          className="px-2 py-1.5 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition flex items-center gap-0.5 cursor-pointer"
+                          title="Remove document"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span className="sr-only sm:not-sr-only">Remove</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Dual Action: Open Camera (Tablet) + Browse Files */
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsCameraModalOpen(true)}
+                          className="p-3 rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50/50 hover:border-emerald-600 hover:bg-emerald-100/60 transition-all flex items-center gap-2.5 text-left cursor-pointer group shadow-2xs"
+                        >
+                          <div className="h-9 w-9 rounded-xl bg-emerald-800 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                            <Camera className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                              <span>Open Camera</span>
+                              <span className="bg-emerald-200/90 text-emerald-950 text-[10px] px-1 py-0.2 rounded font-black tracking-wide uppercase">
+                                Tablet
+                              </span>
+                            </span>
+                            <p className="text-xs text-emerald-900 font-medium truncate mt-0.5">
+                              Snap slip or receipt photo
+                            </p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="p-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/70 hover:border-emerald-500 hover:bg-emerald-50/30 transition-all flex items-center gap-2.5 text-left cursor-pointer group"
+                        >
+                          <div className="h-9 w-9 rounded-xl bg-slate-200 text-slate-700 group-hover:bg-emerald-100 group-hover:text-emerald-800 flex items-center justify-center transition-colors shrink-0">
+                            <UploadCloud className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-800 group-hover:text-emerald-950 text-xs sm:text-sm block">
+                              Browse Files / Gallery
+                            </span>
+                            <p className="text-xs text-slate-500 truncate mt-0.5">
+                              Choose JPG, PNG, or PDF file
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={handleDrop}
+                        className={`py-1.5 px-3 rounded-lg border text-center text-[11px] transition-colors ${
+                          isDragOver
+                            ? 'border-emerald-500 bg-emerald-100/50 text-emerald-900 font-semibold'
+                            : 'border-slate-200/60 bg-slate-50/50 text-slate-400'
+                        }`}
+                      >
+                        Or drag &amp; drop receipt file here &bull; Max 5 MB
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Confirmation Checkbox */}
-                <label className="flex items-center gap-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 p-3.5 text-xs sm:text-sm font-bold text-emerald-900 cursor-pointer shadow-2xs">
+                <label className="flex items-center gap-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 p-3.5 text-xs sm:text-sm font-bold text-emerald-900 cursor-pointer shadow-2xs hover:bg-emerald-50 transition">
                   <input
                     type="checkbox"
                     checked={cashConfirmed}
                     onChange={(e) => setCashConfirmed(e.target.checked)}
-                    className="h-4 w-4 rounded accent-emerald-700 cursor-pointer"
+                    className="h-4 w-4 rounded accent-emerald-700 cursor-pointer shrink-0"
                   />
                   <span>
-                    Cash received: ₹
-                    {numAmount.toLocaleString('en-IN', {
-                      minimumFractionDigits: 2,
-                    })}
+                    {paymentMethod === 'CASH' && `Cash received: ₹${numAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                    {paymentMethod === 'UPI' && `UPI payment received & verified: ₹${numAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                    {paymentMethod === 'BANK_TRANSFER' && `Bank transfer received & verified: ₹${numAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
                   </span>
                 </label>
               </section>
@@ -632,39 +909,46 @@ export function RenewLockerModal({
           </div>
 
           {/* Footer CTA */}
-          <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50/50 px-6 py-4 sm:px-8">
+          <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50/70 px-5 py-3.5 sm:px-7">
             <Button
               type="button"
               disabled={busy}
               variant="outline"
               onClick={onClose}
-              className="h-11 rounded-xl px-5 text-xs sm:text-sm font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+              className="rounded-xl px-5 py-2 font-semibold text-sm cursor-pointer"
             >
               Close
             </Button>
             <Button
               type="submit"
               disabled={busy || (!valid && !uncertain)}
-              className="h-11 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-6 text-xs sm:text-sm font-bold text-white shadow-xs transition-colors disabled:opacity-50"
+              className="rounded-xl bg-emerald-800 px-6 py-2 font-bold text-white hover:bg-emerald-900 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
             >
               {busy ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Renewing...
+                </span>
+              ) : uncertain ? (
+                'Check & Retry Renewal'
               ) : (
-                <Check className="mr-2 h-4 w-4" />
+                <span className="flex items-center gap-1.5">
+                  <Check className="h-4 w-4" />
+                  <span>Renew Locker &bull; ₹{numAmount.toLocaleString('en-IN')}</span>
+                </span>
               )}
-              {busy
-                ? uploadProgress !== null
-                  ? 'Uploading receipt...'
-                  : 'Saving...'
-                : uncertain
-                ? 'Check & retry renewal'
-                : 'Renew Locker'}
             </Button>
           </footer>
         </form>
       </div>
 
-      {/* Clean Document Lightbox Preview Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onCapture={handleSelectFile}
+        onFallbackNativeCamera={() => cameraInputRef.current?.click()}
+      />
+
       {previewDoc && (
         <DocumentPreviewModal
           isOpen={previewDoc.isOpen}
@@ -674,7 +958,6 @@ export function RenewLockerModal({
           documentType={previewDoc.documentType}
           mimeType={previewDoc.mimeType}
           fileSize={previewDoc.fileSize}
-          customerName={allocation.customerId?.fullName}
         />
       )}
     </div>,

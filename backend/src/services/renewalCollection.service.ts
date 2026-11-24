@@ -38,12 +38,13 @@ export class RenewalCollectionService {
       const baseRent = Math.round(input.amount/1.18*100)/100;
       const taxAmount = Math.round((input.amount-baseRent)*100)/100;
       const invoice = await renewalService.generateRenewalInvoice({allocationId:input.allocationId,startDate:input.expectedRenewalDate,nextRenewalDueDate:input.nextRenewalDueDate,billingCycle:input.billingCycle,baseRent,taxAmount,userId:actorId},session);
-      const [payment] = await Payment.create([{paymentNumber:await generatePaymentNumber(),receiptNumber:input.receiptNumber,customerId:invoice.customerId,lockerId:invoice.lockerId,allocationId:allocation._id,invoiceId:invoice._id,paymentPurpose:'INVOICE_PAYMENT',amount:input.amount,paymentMethod:'CASH',paymentStatus:'COMPLETED',paymentDate:new Date(input.receiptDate),source:'MANUAL_ENTRY',recordedBy:actorId,idempotencyKey:`renewal:${input.requestId}`,proofUrl:input.receipt?.fileUrl,proofDocumentName:input.receipt?.fileName}],{session});
+      const paymentMethod = input.paymentMethod || 'CASH';
+      const [payment] = await Payment.create([{paymentNumber:await generatePaymentNumber(),receiptNumber:input.receiptNumber,customerId:invoice.customerId,lockerId:invoice.lockerId,allocationId:allocation._id,invoiceId:invoice._id,paymentPurpose:'INVOICE_PAYMENT',amount:input.amount,paymentMethod,transactionReference:input.paymentReference||undefined,paymentStatus:'COMPLETED',paymentDate:new Date(input.receiptDate),source:'MANUAL_ENTRY',recordedBy:actorId,idempotencyKey:`renewal:${input.requestId}`,proofUrl:input.receipt?.fileUrl,proofDocumentName:input.receipt?.fileName}],{session});
       const reconciled=await paymentService.recalculateInvoicePaymentSummary(invoice._id,session);
       if(reconciled.balanceAmount!==0 || reconciled.paymentStatus!=='PAID') throw fail('Renewal collection did not fully settle the bill. No changes were saved.');
       await LockerInvoice.updateOne({_id:invoice._id},{$set:{status:'PAID'}},{session});
       await LockerAllocation.updateOne({_id:allocation._id},{$set:{billingCycle:invoice.billingCycle,lastRenewedAt:new Date()}},{session});
-      await AuditLog.create([{actorUserId:actorId,actorUsername:username,action:'PAYMENT_RECORDED',entityType:'LockerInvoice',entityId:String(invoice._id),description:`Renewed locker and recorded cash receipt ${input.receiptNumber}`,metadata:{amount:input.amount,receiptNumber:input.receiptNumber}}],{session});
+      await AuditLog.create([{actorUserId:actorId,actorUsername:username,action:'PAYMENT_RECORDED',entityType:'LockerInvoice',entityId:String(invoice._id),description:`Renewed locker and recorded ${paymentMethod.toLowerCase()} receipt ${input.receiptNumber}`,metadata:{amount:input.amount,receiptNumber:input.receiptNumber}}],{session});
       [completed] = await RenewalCollectionRequest.create([{requestId:input.requestId,fingerprint,actorId,allocationId:allocation._id,invoiceId:invoice._id,paymentId:payment._id}],{session});
     });
     return result(completed);
