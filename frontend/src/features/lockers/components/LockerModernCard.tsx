@@ -9,7 +9,8 @@ Clock,
 Plus,
 ArrowRight,Wrench,
 Check,
-Copy
+Copy,
+RotateCw
 } from 'lucide-react';
 import { Locker } from '../types';
 
@@ -18,6 +19,7 @@ interface LockerModernCardProps {
   onView: (locker: Locker) => void;
   onKyc?: (locker: Locker) => void;
   onAllocate?: (locker: Locker) => void;
+  onRenew?: (locker: Locker) => void;
   canAllocate?: boolean;
 }
 
@@ -26,6 +28,7 @@ export const LockerModernCard = React.memo(function LockerModernCard({
   onView,
   onKyc,
   onAllocate,
+  onRenew,
   canAllocate = true,
 }: LockerModernCardProps) {
 
@@ -323,8 +326,28 @@ export const LockerModernCard = React.memo(function LockerModernCard({
             </span>
           )
         ) : (
-          /* Occupied Actions: KYC Button + Quick Details Arrow */
+          /* Occupied Actions: Renew Button (if overdue or renewal due) + KYC Button + Quick Details Arrow */
           <>
+            {/* Direct Renew CTA for Overdue or Renewal Due lockers */}
+            {hasTenant && onRenew && (isOverdue || isRenewalDue) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRenew(locker);
+                }}
+                className={`py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs border ${
+                  isOverdue
+                    ? 'bg-rose-700 hover:bg-rose-800 text-white border-rose-800 flex-1'
+                    : 'bg-amber-700 hover:bg-amber-800 text-white border-amber-800 flex-1'
+                }`}
+                title={`Direct ${isOverdue ? 'Overdue Renewal' : 'Locker Renewal'}`}
+              >
+                <RotateCw className="w-3.5 h-3.5 text-white" />
+                <span>Renew</span>
+              </button>
+            )}
+
             {/* KYC Button */}
             {hasTenant && onKyc && (
               <button
@@ -333,22 +356,26 @@ export const LockerModernCard = React.memo(function LockerModernCard({
                   e.stopPropagation();
                   onKyc(locker);
                 }}
-                className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs border ${
-                  hasKycDocuments
-                    ? 'bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-800'
-                    : 'bg-amber-800 hover:bg-amber-900 text-white border-amber-900'
+                className={`py-1.5 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs border ${
+                  (isOverdue || isRenewalDue) && onRenew
+                    ? hasKycDocuments
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                      : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
+                    : hasKycDocuments
+                      ? 'bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-800 flex-1'
+                      : 'bg-amber-800 hover:bg-amber-900 text-white border-amber-900 flex-1'
                 }`}
                 title={hasKycDocuments ? 'View uploaded KYC documents' : 'Upload KYC documents'}
               >
                 {hasKycDocuments ? (
                   <>
-                    <ShieldCheck className="w-3.5 h-3.5 text-white" />
-                    <span>View KYC</span>
+                    <ShieldCheck className={`w-3.5 h-3.5 ${(isOverdue || isRenewalDue) && onRenew ? 'text-emerald-700' : 'text-white'}`} />
+                    <span>{(isOverdue || isRenewalDue) && onRenew ? 'KYC' : 'View KYC'}</span>
                   </>
                 ) : (
                   <>
-                    <Upload className="w-3.5 h-3.5 text-white" />
-                    <span>Upload KYC</span>
+                    <Upload className={`w-3.5 h-3.5 ${(isOverdue || isRenewalDue) && onRenew ? 'text-amber-800' : 'text-white'}`} />
+                    <span>{(isOverdue || isRenewalDue) && onRenew ? 'KYC' : 'Upload KYC'}</span>
                   </>
                 )}
               </button>
@@ -361,7 +388,7 @@ export const LockerModernCard = React.memo(function LockerModernCard({
                 e.stopPropagation();
                 onView(locker);
               }}
-              className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
               title="Open Locker Details Dossier"
             >
               <ArrowRight className="w-4 h-4" />

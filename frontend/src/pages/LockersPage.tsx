@@ -60,6 +60,10 @@ export function LockersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const canCreate = usePermission('lockers.create');
+  const canCreateRenewal = usePermission('renewals.create');
+  const canRecordPayment = usePermission('payments.create');
+  const canRenew = canCreateRenewal || canRecordPayment;
+  const [autoOpenRenew, setAutoOpenRenew] = useState(false);
 
   // Read URL query parameters
   const requestedPage = Number(searchParams.get('page'));
@@ -284,6 +288,12 @@ export function LockersPage() {
     });
 
   const handleViewLocker = async (locker: Locker) => {
+    setAutoOpenRenew(false);
+    setViewingLocker(await loadLockerDetail(locker));
+  };
+
+  const handleRenewLocker = async (locker: Locker) => {
+    setAutoOpenRenew(true);
     setViewingLocker(await loadLockerDetail(locker));
   };
 
@@ -751,6 +761,7 @@ export function LockersPage() {
                 locker={locker}
                 onView={handleViewLocker}
                 onAllocate={handleAllocate}
+                onRenew={canRenew ? handleRenewLocker : undefined}
                 canAllocate={canCreate}
               />
             ))}
@@ -826,7 +837,8 @@ export function LockersPage() {
         <Suspense fallback={null}>
           <LockerDetailModal
             locker={viewingLocker}
-            onClose={() => setViewingLocker(null)}
+            autoOpenRenew={autoOpenRenew}
+            onClose={() => { setViewingLocker(null); setAutoOpenRenew(false); }}
             onEdit={(l) => {
               setViewingLocker(null);
               setEditingLocker(l);

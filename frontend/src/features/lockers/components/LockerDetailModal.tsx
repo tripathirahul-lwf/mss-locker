@@ -54,6 +54,7 @@ import { InvoiceDetailModal } from '../../renewals/components/InvoiceDetailModal
 interface LockerDetailModalProps {
   locker: Locker;
   initialTab?: 'details' | 'kyc';
+  autoOpenRenew?: boolean;
   onClose: () => void;
   onEdit?: (locker: Locker) => void;
   onAllocate?: (locker: Locker) => void;
@@ -62,6 +63,7 @@ interface LockerDetailModalProps {
 export function LockerDetailModal({
   locker: initialLocker,
   initialTab = 'details',
+  autoOpenRenew = false,
   onClose,
   onAllocate,
 }: LockerDetailModalProps) {
@@ -388,6 +390,19 @@ export function LockerDetailModal({
   const identityDoc = [...kycDocs].filter(doc => doc.isActive !== false && doc.documentNumber?.trim() && !/^(kyc[\s_-]*(document|scan[\s_-]*attached)|attachment|document)$/i.test(doc.documentNumber.trim())).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))[0];
   const identityKey = identityDoc ? `${tenantId}:${identityDoc._id}:${identityDoc.documentNumber}` : null;
   const identityRevealed = Boolean(identityKey && revealedIdentityKey === identityKey);
+
+  const hasAutoOpenedRenew = useRef(false);
+  useEffect(() => {
+    if (autoOpenRenew && !hasAutoOpenedRenew.current && currentAlloc && !invoicesLoading && !allocationLoading) {
+      if (unpaidInvoice && canRecordPayment && !['Billing needs review', 'Coverage needs review', 'Status unavailable'].includes(health.label)) {
+        hasAutoOpenedRenew.current = true;
+        setRecordingPaymentInvoiceId(unpaidInvoice._id);
+      } else if (!unpaidInvoice && canGenerateRenewal && canRecordPayment && ['All good', 'Due soon', 'Renewal overdue'].includes(health.label)) {
+        hasAutoOpenedRenew.current = true;
+        setRenewingAllocation(currentAlloc);
+      }
+    }
+  }, [autoOpenRenew, currentAlloc, invoicesLoading, allocationLoading, unpaidInvoice, canRecordPayment, canGenerateRenewal, health.label]);
 
   // Edit renders inside this dialog (same header, shell and footer position)
   // instead of stacking a second, differently styled modal on top.

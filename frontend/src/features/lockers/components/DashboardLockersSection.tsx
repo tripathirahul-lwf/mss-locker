@@ -59,6 +59,10 @@ export const DashboardLockersSection = forwardRef<
 
   const canViewKyc=usePermission('customers.kyc.view');
   const canViewAllocations=usePermission('allocations.view');
+  const canCreateRenewal = usePermission('renewals.create');
+  const canRecordPayment = usePermission('payments.create');
+  const canRenewLocker = canCreateRenewal || canRecordPayment;
+  const [autoOpenRenew, setAutoOpenRenew] = useState(false);
   const detailRequest=useRef(0);
   const canExport = usePermission('reports.export');
   const [exporting, setExporting] = useState(false), [exportError, setExportError] = useState('');
@@ -290,6 +294,7 @@ export const DashboardLockersSection = forwardRef<
     const request=++detailRequest.current;
     setDetailTab('details');
     setDetailError(null);
+    setAutoOpenRenew(false);
     if (locker.status === 'VACANT' && locker.operationalStatus === 'ACTIVE' && locker.isActive && canAllocate) {
       setAllocatingLocker(locker);
       return;
@@ -297,6 +302,15 @@ export const DashboardLockersSection = forwardRef<
     try { const loaded=await loadLockerDetail(locker);if(request===detailRequest.current)setViewingLocker(loaded); }
     catch { if(request===detailRequest.current)setDetailError('Locker details could not be loaded. Please try again.'); }
   }, [canAllocate, queryClient]);
+
+  const handleRenewLocker = useCallback(async (locker: Locker) => {
+    const request=++detailRequest.current;
+    setDetailTab('details');
+    setDetailError(null);
+    setAutoOpenRenew(true);
+    try { const loaded=await loadLockerDetail(locker);if(request===detailRequest.current)setViewingLocker(loaded); }
+    catch { if(request===detailRequest.current)setDetailError('Locker details could not be loaded. Please try again.'); }
+  }, [queryClient]);
 
   const handleAllocateLocker = useCallback((locker: Locker) => {
     detailRequest.current++;setAllocatingLocker(locker);
@@ -725,6 +739,7 @@ export const DashboardLockersSection = forwardRef<
                   onView={handleViewLocker}
                   onKyc={canViewKyc && canViewAllocations ? locker => {detailRequest.current++;setKycLocker(locker);} : undefined}
                   onAllocate={handleAllocateLocker}
+                  onRenew={canRenewLocker ? handleRenewLocker : undefined}
                   canAllocate={canAllocate}
                 />
               ))}
@@ -828,14 +843,17 @@ export const DashboardLockersSection = forwardRef<
         <LockerDetailModal
           locker={viewingLocker}
           initialTab={detailTab}
-          onClose={() => setViewingLocker(null)}
+          autoOpenRenew={autoOpenRenew}
+          onClose={() => { setViewingLocker(null); setAutoOpenRenew(false); }}
           onEdit={(locker) => {
             setEditingLocker(locker);
             setViewingLocker(null);
+            setAutoOpenRenew(false);
           }}
           onAllocate={(locker) => {
             setAllocatingLocker(locker);
             setViewingLocker(null);
+            setAutoOpenRenew(false);
           }}
         />
       )}
